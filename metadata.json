@@ -1,0 +1,6 @@
+{
+  "name": "CLINIC",
+  "description": "Plataforma de Tricologia de Precisão - Dra. Mariah Zibetti. Gestão clínica inteligente, análise capilar avançada com IA, prescrições e galeria de evolução.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
