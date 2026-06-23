@@ -43,8 +43,16 @@ export default function AgendaModulo({
   
   // Custom blocked slots mapping (Date -> Time[] )
   const [blockedSlots, setBlockedSlots] = useState<Record<string, string[]>>({});
+  const [agendaDoDia, setAgendaDoDia] = useState<EventoAgenda[]>([]);
 
   const formattedDateKey = selectedDate.toISOString().split("T")[0];
+
+  React.useEffect(() => {
+    fetch("/api/agenda?date=" + formattedDateKey)
+      .then(r => r.json())
+      .then(data => setAgendaDoDia(data || []))
+      .catch(console.error);
+  }, [formattedDateKey]);
 
   const handleBlockSlot = (time: string) => {
     setBlockedSlots(prev => {
@@ -67,7 +75,7 @@ export default function AgendaModulo({
         
         const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
         // Find if there's an event for this time
-        const event = agendaHoje.find(e => e.horario === timeStr && (activeUnit === "all" || e.tipo.includes(activeUnit)));
+        const event = agendaDoDia.find(e => e.horario === timeStr && (activeUnit === "all" || e.tipo.includes(activeUnit)));
         
         slots.push({
           time: timeStr,

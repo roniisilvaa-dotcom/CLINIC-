@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 // Components Imports
@@ -55,8 +55,24 @@ export default function App() {
   const [activePlan, setActivePlan] = useState<"Standard" | "Precision" | "Enterprise">("Precision");
   const [aiRunsCounter, setAiRunsCounter] = useState<number>(2); // Initializes to 2 of 5 used under Standard plan
 
+  // Global Data State
+  const [pacientes, setPacientes] = useState<Paciente[]>([]);
+  const [isLoadingPacientes, setIsLoadingPacientes] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/pacientes")
+      .then(r => r.json())
+      .then(data => {
+        setPacientes(data || []);
+        setIsLoadingPacientes(false);
+      })
+      .catch(e => {
+        console.error("Erro buscando pacientes:", e);
+        setIsLoadingPacientes(false);
+      });
+  }, []);
+
   // Core syncing state
-  const [pacientes, setPacientes] = useState<Paciente[]>(MOCK_PACIENTES);
   const [alertas, setAlertas] = useState<AlertaClinico[]>(MOCK_ALERTAS);
   const [agendaHoje, setAgendaHoje] = useState<EventoAgenda[]>(MOCK_AGENDA_HOJE);
 
@@ -153,6 +169,9 @@ export default function App() {
   };
 
   if (!isAuthenticated) {
+    if (isLoadingPacientes) {
+      return <div className="h-screen bg-[#F5F0E8] flex items-center justify-center font-serif text-[#C9A84C]">Iniciando Conexão Segura...</div>;
+    }
     return <LoginScreen onLogin={handleStartLogin} />;
   }
 
