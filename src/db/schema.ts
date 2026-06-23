@@ -1,6 +1,6 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, integer, jsonb } from 'drizzle-orm/pg-core';
 
-export const users = sqliteTable('users', {
+export const users = pgTable('users', {
   id: text('id').primaryKey(),
   role: text('role').notNull(), // 'medica' | 'paciente'
   nome: text('nome').notNull(),
@@ -8,7 +8,7 @@ export const users = sqliteTable('users', {
   senhaHash: text('senha_hash').notNull(),
 });
 
-export const pacientes = sqliteTable('pacientes', {
+export const pacientes = pgTable('pacientes', {
   id: text('id').primaryKey(),
   nome: text('nome').notNull(),
   idade: integer('idade').notNull(),
@@ -22,12 +22,12 @@ export const pacientes = sqliteTable('pacientes', {
   status: text('status').notNull(),
   progresso: integer('progresso').notNull().default(0),
   ultimaAtualizacao: text('ultima_atualizacao').notNull(),
-  antecedentes: text('antecedentes', { mode: 'json' }).notNull(),
-  diagnostico: text('diagnostico', { mode: 'json' }).notNull(),
-  protocolo: text('protocolo', { mode: 'json' }).notNull(),
+  antecedentes: jsonb('antecedentes').notNull(),
+  diagnostico: jsonb('diagnostico').notNull(),
+  protocolo: jsonb('protocolo').notNull(),
 });
 
-export const consultas = sqliteTable('consultas', {
+export const consultas = pgTable('consultas', {
   id: text('id').primaryKey(),
   pacienteId: text('paciente_id').references(() => pacientes.id).notNull(),
   data: text('data').notNull(),
@@ -39,7 +39,7 @@ export const consultas = sqliteTable('consultas', {
   resumoIa: text('resumo_ia'),
 });
 
-export const exames = sqliteTable('exames', {
+export const exames = pgTable('exames', {
   id: text('id').primaryKey(),
   pacienteId: text('paciente_id').references(() => pacientes.id).notNull(),
   data: text('data').notNull(),
@@ -54,10 +54,10 @@ export const exames = sqliteTable('exames', {
   vitD: text('vit_d'),
   vitB12: text('vit_b12'),
   analiseIA: text('analise_ia'),
-  statusMap: text('status_map', { mode: 'json' }).notNull(),
+  statusMap: jsonb('status_map').notNull(),
 });
 
-export const galeria = sqliteTable('galeria', {
+export const galeria = pgTable('galeria', {
   id: text('id').primaryKey(),
   pacienteId: text('paciente_id').references(() => pacientes.id).notNull(),
   data: text('data').notNull(),
@@ -66,7 +66,7 @@ export const galeria = sqliteTable('galeria', {
   notaIa: text('nota_ia'),
 });
 
-export const agendaEventos = sqliteTable('agenda_eventos', {
+export const agendaEventos = pgTable('agenda_eventos', {
   id: text('id').primaryKey(),
   pacienteId: text('paciente_id').references(() => pacientes.id).notNull(),
   data: text('data').notNull(),
@@ -78,7 +78,7 @@ export const agendaEventos = sqliteTable('agenda_eventos', {
   diagnosticoResumo: text('diagnostico_resumo'),
 });
 
-export const filaEspera = sqliteTable('fila_espera', {
+export const filaEspera = pgTable('fila_espera', {
   id: text('id').primaryKey(),
   pacienteId: text('paciente_id').references(() => pacientes.id).notNull(),
   procedimentoTag: text('procedimento_tag').notNull(),
@@ -88,7 +88,7 @@ export const filaEspera = sqliteTable('fila_espera', {
   status: text('status').notNull(),
 });
 
-export const pacotesVendidos = sqliteTable('pacotes_vendidos', {
+export const pacotesVendidos = pgTable('pacotes_vendidos', {
   id: text('id').primaryKey(),
   pacienteId: text('paciente_id').references(() => pacientes.id).notNull(),
   nomePacote: text('nome_pacote').notNull(),
