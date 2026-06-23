@@ -51,74 +51,7 @@ interface Transacao {
 
 export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
   // Initial Mock Transações matching real patients to make the ledger coherent
-  const [transacoes, setTransacoes] = useState<Transacao[]>([
-    {
-      id: "tx-1",
-      pacienteId: "paciente-1",
-      pacienteNome: "Helena Silveira de Souza",
-      data: "2026-06-08",
-      descricao: "Sessão MMP Capilar + Laser LLLT",
-      valor: 450.00,
-      metodo: "Pix",
-      status: "Pago",
-      unidade: "Toledo"
-    },
-    {
-      id: "tx-2",
-      pacienteId: "paciente-2",
-      pacienteNome: "Gabriela Oliveira Ramos",
-      data: "2026-06-07",
-      descricao: "Consulta de Avaliação Sanguínea e Tricológica",
-      valor: 350.00,
-      metodo: "Cartão",
-      status: "Pago",
-      unidade: "Fátima do Sul"
-    },
-    {
-      id: "tx-3",
-      pacienteId: "paciente-3",
-      pacienteNome: "Roberto Mendes Alencar",
-      data: "2026-06-05",
-      descricao: "Injeção de Dutasterida Intralesional",
-      valor: 600.00,
-      metodo: "Pix",
-      status: "Pago",
-      unidade: "Toledo"
-    },
-    {
-      id: "tx-4",
-      pacienteId: "paciente-1",
-      pacienteNome: "Helena Silveira de Souza",
-      data: "2026-06-01",
-      descricao: "Compra de Loção Minoxidil Capixyl Especial",
-      valor: 180.00,
-      metodo: "Dinheiro",
-      status: "Pago",
-      unidade: "Toledo"
-    },
-    {
-      id: "tx-5",
-      pacienteId: "paciente-2",
-      pacienteNome: "Gabriela Oliveira Ramos",
-      data: "2026-05-28",
-      descricao: "Sessão Regeneração LLLT",
-      valor: 250.00,
-      metodo: "Boleto",
-      status: "Pendente",
-      unidade: "Fátima do Sul"
-    },
-    {
-      id: "tx-6",
-      pacienteId: "paciente-3",
-      pacienteNome: "Roberto Mendes Alencar",
-      data: "2026-05-25",
-      descricao: "MMP Capilar com Drug Delivery Dutasterida",
-      valor: 450.00,
-      metodo: "Cartão",
-      status: "Pago",
-      unidade: "Toledo"
-    },
-  ]);
+  const [transacoes, setTransacoes] = useState<Transacao[]>([]);
 
   // Form State
   const [showAddForm, setShowAddForm] = useState(false);
@@ -146,10 +79,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
   ];
 
   // Gestão de Pacotes
-  const [pacotes, setPacotes] = useState([
-    { id: "pct-1", pacienteNome: "Helena Silveira de Souza", nomePacote: "Pacote 10 Sessões Laser LLLT", quantidadeTotal: 10, sessoesRealizadas: 3, status: "Ativo" },
-    { id: "pct-2", pacienteNome: "Roberto Mendes Alencar", nomePacote: "Protocolo Indução (3 MMP + 6 Laser)", quantidadeTotal: 9, sessoesRealizadas: 8, status: "Ativo" }
-  ]);
+  const [pacotes, setPacotes] = useState<any[]>([]);
 
   const handleAbaterSessao = (pctId: string) => {
     setPacotes(prev => prev.map(p => {

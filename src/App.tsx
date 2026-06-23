@@ -45,18 +45,7 @@ export default function App() {
   const [loggedPacienteId, setLoggedPacienteId] = useState<string | null>(null);
 
   // Patient chat state per-patientId
-  const [patientChats, setPatientChats] = useState<Record<string, Message[]>>({
-    "paciente-1": [
-      { id: "ch-11", sender: "medica", content: "Olá Helena! Como está se adaptando ao novo xampu medicamentoso?", timestamp: "08:15" },
-      { id: "ch-12", sender: "paciente", content: "Doutora, sinto que a descamação melhorou muito, quase não coça mais!", timestamp: "09:30" }
-    ],
-    "paciente-2": [
-      { id: "ch-21", sender: "medica", content: "Gabriela, agendei seu retorno para realizarmos o pull test preventivo.", timestamp: "11:00" }
-    ],
-    "paciente-3": [
-      { id: "ch-31", sender: "medica", content: "Roberto, seu repovoamento de coroa está excelente no acompanhamento fotográfico.", timestamp: "14:00" }
-    ]
-  });
+  const [patientChats, setPatientChats] = useState<Record<string, Message[]>>({});
   
   // Navigation & Drawer states
   const [currentTab, setCurrentTab] = useState<TabOption>("dashboard");
