@@ -145,6 +145,22 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
     { mes: "Jun", Toledo: 31000, Fatima: 22800, Total: 53800 }
   ];
 
+  // Gestão de Pacotes
+  const [pacotes, setPacotes] = useState([
+    { id: "pct-1", pacienteNome: "Helena Silveira de Souza", nomePacote: "Pacote 10 Sessões Laser LLLT", quantidadeTotal: 10, sessoesRealizadas: 3, status: "Ativo" },
+    { id: "pct-2", pacienteNome: "Roberto Mendes Alencar", nomePacote: "Protocolo Indução (3 MMP + 6 Laser)", quantidadeTotal: 9, sessoesRealizadas: 8, status: "Ativo" }
+  ]);
+
+  const handleAbaterSessao = (pctId: string) => {
+    setPacotes(prev => prev.map(p => {
+      if (p.id === pctId && p.sessoesRealizadas < p.quantidadeTotal) {
+        const novoRealizadas = p.sessoesRealizadas + 1;
+        return { ...p, sessoesRealizadas: novoRealizadas, status: novoRealizadas === p.quantidadeTotal ? "Concluido" : "Ativo" };
+      }
+      return p;
+    }));
+  };
+
   // Calculations
   const totalRecebido = transacoes
     .filter(tx => tx.status === "Pago")
@@ -568,6 +584,45 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
           </table>
         </div>
 
+      </div>
+
+      {/* Gestão de Pacotes */}
+      <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl text-[#0A0A0A] tracking-tight">
+            Gestão de Pacotes de Tratamento
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {pacotes.map(pct => {
+            const pctCompleto = (pct.sessoesRealizadas / pct.quantidadeTotal) * 100;
+            return (
+              <div key={pct.id} className={`border rounded-xl p-4 shadow-sm transition relative overflow-hidden ${pct.status === 'Concluido' ? 'border-green-200 bg-green-50/30' : 'border-[#C9A84C]/30 bg-[#F5F0E8]/10'}`}>
+                <div className="absolute top-0 left-0 h-1 bg-[#C9A84C] transition-all" style={{ width: `${pctCompleto}%` }} />
+                
+                <h4 className="font-semibold text-gray-900 text-sm">{pct.nomePacote}</h4>
+                <p className="text-[11px] font-mono font-bold text-gray-500 mt-0.5">{pct.pacienteNome}</p>
+
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-xs text-gray-600 font-sans font-medium">
+                    <strong className="text-black">{pct.sessoesRealizadas}</strong> de {pct.quantidadeTotal} sessões usadas
+                  </div>
+                  {pct.status === "Ativo" ? (
+                    <button 
+                      onClick={() => handleAbaterSessao(pct.id)}
+                      className="text-[10px] bg-black text-white hover:bg-[#C9A84C] font-mono font-bold uppercase px-3 py-1.5 rounded transition cursor-pointer"
+                    >
+                      Abater Sessão
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-green-700 bg-green-100 border border-green-200 px-3 py-1 rounded font-bold uppercase tracking-wider">Concluído</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
     </div>

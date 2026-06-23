@@ -9,7 +9,9 @@ import {
   FileText, 
   TrendingUp, 
   ChevronLeft,
-  Activity
+  Activity,
+  Mic,
+  MicOff
 } from "lucide-react";
 import { Paciente, ConsultaHistorial } from "../types";
 
@@ -42,6 +44,44 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
   // AI Summary generation state
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [aiSummaryText, setAiSummaryText] = useState("");
+
+  // Speech Recognition state
+  const [isRecording, setIsRecording] = useState(false);
+  
+  const toggleRecording = () => {
+    if (isRecording) {
+      setIsRecording(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Seu navegador não suporta ditado por voz. Tente usar o Google Chrome.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    recognition.onstart = () => setIsRecording(true);
+    
+    recognition.onresult = (event: any) => {
+      let currentTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        currentTranscript += event.results[i][0].transcript;
+      }
+      if (currentTranscript) {
+         setQueixa(prev => prev ? `${prev} ${currentTranscript}` : currentTranscript);
+      }
+    };
+
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
+
+    recognition.start();
+  };
 
   const handleGenerateSummaryWithIA = async () => {
     setLoadingSummary(true);
@@ -127,7 +167,16 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
 
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs uppercase text-gray-400 font-mono block font-bold">Anamnese clínica detalhada desta visita</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs uppercase text-gray-400 font-mono block font-bold">Anamnese clínica detalhada desta visita</label>
+                  <button 
+                    onClick={toggleRecording} 
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition ${isRecording ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-black'}`}
+                  >
+                    {isRecording ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                    {isRecording ? "Gravando..." : "Ditar"}
+                  </button>
+                </div>
                 <textarea 
                   value={queixa} 
                   onChange={(e) => setQueixa(e.target.value)}

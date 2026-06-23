@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -13,7 +13,11 @@ import {
   Plus, 
   TrendingUp,
   Unlock,
-  Lock
+  Lock,
+  Sparkles,
+  Zap,
+  ArrowRight,
+  MessageCircle
 } from "lucide-react";
 import { EventoAgenda, Paciente } from "../types";
 
@@ -32,15 +36,21 @@ export default function AgendaModulo({
 }: AgendaModuloProps) {
 
   const [activeUnit, setActiveUnit] = useState<"all" | "Toledo" | "Fátima do Sul" | "Online">("all");
-  const [selectedDay, setSelectedDay] = useState(8); // June 8th, 2026
+  const [selectedDay, setSelectedDay] = useState(8); 
 
-  // Hours blockages states
-  const [locks, setLocks] = useState([
-    { id: "lock-1", unidade: "Fátima do Sul", dia: "Terça-feira", horario: "Manhã", ativo: true },
-    { id: "lock-2", unidade: "Toledo", dia: "Sexta-feira", horario: "Tarde", ativo: true }
-  ]);
+  const [showSmartSuggest, setShowSmartSuggest] = useState(false);
+  const [whatsappSent, setWhatsappSent] = useState(false);
+  const [sendingWpp, setSendingWpp] = useState(false);
 
-  // Calendar Days representation (June 2026 starting on Monday)
+  const handleWhatsAppSend = async () => {
+    setSendingWpp(true);
+    // Simulating API call to backend WhatsApp endpoint
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setSendingWpp(false);
+    setWhatsappSent(true);
+  };
+
+  // Calendar Days representation
   const calendarDays = [
     { num: 1, type: "pass" }, { num: 2, type: "pass" }, { num: 3, type: "pass" }, { num: 4, type: "pass" }, { num: 5, type: "pass" }, { num: 6, type: "week" }, { num: 7, type: "week" },
     { num: 8, type: "today" }, { num: 9, type: "active" }, { num: 10, type: "active" }, { num: 11, type: "active" }, { num: 12, type: "active" }, { num: 13, type: "week" }, { num: 14, type: "week" },
@@ -49,14 +59,13 @@ export default function AgendaModulo({
     { num: 29, type: "active" }, { num: 30, type: "active" }
   ];
 
-  // Filtering appointments according to selected filters
+  // Filtering appointments
   const filteredEvents = agendaHoje.filter(evt => {
     if (activeUnit === "all") return true;
     if (activeUnit === "Online") return evt.tipo === "Online";
     return evt.tipo.includes(activeUnit);
   });
 
-  // Calendar event status styling helper
   const getStatusBadgeStyles = (status: EventoAgenda["status"]) => {
     switch (status) {
       case "Confirmada":
@@ -70,14 +79,24 @@ export default function AgendaModulo({
     }
   };
 
+  const calculateDuration = (diagnosticoResumo: string) => {
+    if (diagnosticoResumo.includes("Primeira Consulta")) return "60 min";
+    if (diagnosticoResumo.includes("MMP") || diagnosticoResumo.includes("Laser")) return "30 min";
+    return "45 min";
+  };
+
   return (
     <div id="agenda_module_container" className="space-y-6">
       
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#0A0A0A]/5 pb-6">
         <div>
-          <h2 style={{ fontFamily: "Georgia, serif" }} className="text-3xl text-[#0A0A0A] font-normal">Agenda e Bloqueios</h2>
-          <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold mt-1.5 font-sans">Monitore e agende horários por unidade com regras automáticas de exclusão.</p>
+          <h2 style={{ fontFamily: "Georgia, serif" }} className="text-3xl text-[#0A0A0A] font-normal flex items-center gap-2">
+            Agenda Inteligente <Sparkles className="w-6 h-6 text-[#C9A84C]" />
+          </h2>
+          <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold mt-1.5 font-sans">
+            Otimização automática de tempo e gestão de fila de espera
+          </p>
         </div>
 
         <div className="flex bg-white border border-gray-200 shadow-sm p-1 rounded-lg">
@@ -104,33 +123,69 @@ export default function AgendaModulo({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Left Columns: Interactive Month Grid & Blockage managers */}
+        {/* Left Column: Calendar & Waitlist */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* Month Calendar Grid Card */}
           <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-5 space-y-4">
             <div className="flex justify-between items-center bg-[#F5F0E8]/50 p-3 rounded-lg border border-[#C9A84C]/20">
               <span style={{ fontFamily: "Georgia, serif" }} className="font-semibold text-gray-800 text-lg">Junho, 2026</span>
-              <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider font-bold">Seg a Sex • 08:00 às 19:00</span>
+              <button 
+                onClick={() => setShowSmartSuggest(!showSmartSuggest)}
+                className="bg-[#C9A84C] text-black text-xs px-3 py-1.5 rounded-full font-semibold uppercase flex items-center gap-2 hover:bg-[#b0913f] transition"
+              >
+                <Zap className="w-4 h-4" /> Encaixe Inteligente
+              </button>
             </div>
+
+            <AnimatePresence>
+              {showSmartSuggest && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 overflow-hidden"
+                >
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-indigo-500 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-semibold text-indigo-900">Sugestão de Encaixe IA Encontrada!</h4>
+                      <p className="text-xs text-indigo-700 mt-1">
+                        Detectamos uma vaga de <strong>30 minutos</strong> aberta às 14:00 (Cancelamento). A paciente <strong>Laura Medeiros</strong> da Fila de Espera precisa de um retorno para <em>Laser LLLT</em> que dura exatamente 30 min.
+                      </p>
+                      
+                      <button 
+                        onClick={handleWhatsAppSend}
+                        disabled={whatsappSent || sendingWpp}
+                        className={`mt-3 text-xs px-4 py-2 rounded shadow-sm transition flex items-center gap-1.5 ${
+                          whatsappSent 
+                            ? "bg-green-100 text-green-700 font-bold border border-green-200 cursor-not-allowed" 
+                            : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+                        }`}
+                      >
+                        {sendingWpp ? (
+                          "Disparando WhatsApp VIP..."
+                        ) : whatsappSent ? (
+                          <><CheckCircle className="w-4 h-4" /> Encaixe Confirmado e Mensagem Enviada</>
+                        ) : (
+                          <><MessageCircle className="w-4 h-4" /> Confirmar Encaixe & Avisar no WhatsApp</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Calendar grid titles */}
             <div className="grid grid-cols-7 text-center text-xs font-mono text-gray-400 font-bold border-b border-gray-100 pb-2">
-              <span>Seg</span>
-              <span>Ter</span>
-              <span>Qua</span>
-              <span>Qui</span>
-              <span>Sex</span>
-              <span>Sáb</span>
-              <span>Dom</span>
+              <span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span><span>Dom</span>
             </div>
 
-            {/* Calendar grid numbers mapping */}
+            {/* Calendar grid */}
             <div className="grid grid-cols-7 gap-1.5 h-64">
               {calendarDays.map((day, i) => {
                 const isSelected = selectedDay === day.num;
-                const hasAppointments = day.num === 8; // June 8th represents our mock appt day
-                
+                const hasAppointments = day.num === 8;
                 return (
                   <div
                     key={i}
@@ -148,8 +203,6 @@ export default function AgendaModulo({
                     }`}
                   >
                     <span className="font-semibold">{day.num}</span>
-                    
-                    {/* Small capillary node helper indicating active consult counts */}
                     {hasAppointments && (
                       <div className="w-1.5 h-1.5 rounded-full bg-[#C9A84C] mx-auto mb-1 animate-pulse" title="Consultas confirmadas" />
                     )}
@@ -159,136 +212,112 @@ export default function AgendaModulo({
             </div>
           </div>
 
-          {/* Unit Locks Section */}
-          <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-5 space-y-4">
-            <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-              <h3 style={{ fontFamily: "Georgia, serif" }} className="text-base text-[#0A0A0A] font-medium flex items-center gap-1.5">
-                <ShieldAlert className="w-4 h-4 text-[#C9A84C]" /> Ausências e Horários Bloqueados por Unidade
+          {/* Waitlist */}
+          <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-5">
+            <h3 style={{ fontFamily: "Georgia, serif" }} className="text-lg text-[#0A0A0A] font-medium flex items-center gap-2 mb-4">
+              <User className="w-5 h-5 text-[#C9A84C]" /> Fila de Espera Automática
+            </h3>
+            <div className="space-y-3">
+              {[
+                { nome: "Laura Medeiros", procedimento: "Retorno Laser LLLT", tempo: "30 min", prioridade: "Alta" },
+                { nome: "Julia Sanches", procedimento: "Primeira Consulta", tempo: "60 min", prioridade: "Média" }
+              ].map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:border-[#C9A84C]/40 transition">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{item.nome}</p>
+                    <p className="text-xs text-gray-500">{item.procedimento} • Estimativa: {item.tempo}</p>
+                  </div>
+                  <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${
+                    item.prioridade === 'Alta' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'
+                  }`}>
+                    Prioridade {item.prioridade}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Events List */}
+        <div className="space-y-6">
+          <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-5 min-h-[500px]">
+            <div className="flex justify-between items-center mb-6">
+              <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl text-[#0A0A0A]">
+                Eventos do Dia {selectedDay}
               </h3>
-              <button 
-                onClick={() => {
-                  const locksNew = [
-                    ...locks,
-                    { id: `lock-${Date.now()}`, unidade: "Toledo", dia: "Sábado", horario: "Manhã", ativo: true }
-                  ];
-                  setLocks(locksNew);
-                }}
-                className="text-xs text-[#C9A84C] hover:underline font-mono uppercase flex items-center gap-1 cursor-pointer font-bold"
-              >
-                <Plus className="w-3.5 h-3.5" /> Adicionar Filtro de Bloqueio
+              <button className="bg-[#0A0A0A] text-white p-2 rounded-full hover:bg-[#333] transition">
+                <Plus className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-gray-500">Quando ativos, os bloqueios abaixo evitam agendamentos em canais online ou presenciais daquela unidade:</p>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2 text-xs">
-              {locks.map(block => (
-                <div key={block.id} className="bg-gray-50 border border-gray-200 p-4 rounded-lg flex justify-between items-center">
-                  <div>
-                    <span className="text-[#C9A84C] font-mono tracking-wider font-semibold block">{block.unidade}</span>
-                    <span className="text-gray-600 mt-1 block">{block.dia} — {block.horario}</span>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setLocks(locks.map(l => l.id === block.id ? { ...l, ativo: !l.ativo } : l));
-                    }}
-                    className={`p-2 rounded transition cursor-pointer flex items-center gap-1.5 ${
-                      block.ativo 
-                        ? "bg-red-50 border border-red-200 text-red-700 font-semibold" 
-                        : "bg-white border border-gray-200 text-gray-400"
-                    }`}
+            {selectedDay !== 8 ? (
+              <div className="text-center py-10">
+                <CalendarIcon className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-sm text-gray-400 font-medium">Nenhum agendamento para este dia.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredEvents.map(evt => (
+                  <motion.div 
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    key={evt.id} 
+                    className="group border border-gray-100 rounded-xl p-4 hover:border-[#C9A84C]/50 hover:shadow-sm transition-all bg-white relative overflow-hidden"
                   >
-                    {block.ativo ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                    <span className="font-mono uppercase text-[9px] font-bold">{block.ativo ? "Bloqueado" : "Livre"}</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+                    {/* Time indicator band */}
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#C9A84C]/20 group-hover:bg-[#C9A84C] transition-colors" />
+                    
+                    <div className="flex justify-between items-start pl-2">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-bold text-gray-900">{evt.horario}</span>
+                          <span className="text-[10px] text-gray-400 font-mono tracking-wider">
+                            Duração calc.: {calculateDuration(evt.diagnosticoResumo)}
+                          </span>
+                        </div>
+                        <h4 
+                          onClick={() => onViewPaciente(evt.pacienteId)}
+                          className="font-medium text-gray-800 cursor-pointer hover:text-[#C9A84C] transition"
+                        >
+                          {evt.pacienteNome}
+                        </h4>
+                        
+                        <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                          <span className="flex items-center gap-1">
+                            {evt.tipo === "Online" ? <Video className="w-3.5 h-3.5" /> : <MapPin className="w-3.5 h-3.5" />}
+                            {evt.tipo}
+                          </span>
+                        </div>
+                        
+                        <p className="text-xs text-gray-600 mt-2 line-clamp-1 border-t border-gray-50 pt-2">
+                          <span className="font-semibold text-gray-400 mr-1">Motivo:</span> 
+                          {evt.diagnosticoResumo}
+                        </p>
+                      </div>
 
+                      <div className="flex flex-col items-end gap-2">
+                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full ${getStatusBadgeStyles(evt.status)}`}>
+                          {evt.status}
+                        </span>
+                        
+                        {evt.status !== "Realizada" && evt.status !== "Cancelada" && (
+                          <button 
+                            onClick={() => onOpenNovaConsulta(evt.pacienteId)}
+                            className="text-[10px] bg-[#0A0A0A] text-white px-3 py-1.5 rounded hover:bg-[#333] transition mt-2 shadow-sm font-semibold uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                          >
+                            Atender <ArrowRight className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-
-        {/* Right Column: Scheduled Event listings */}
-        <div className="space-y-6">
-          
-          {/* Mini productivity metrics panel */}
-          <div className="bg-[#F5F0E8]/40 border border-[#C9A84C]/25 p-5 rounded-xl space-y-4">
-            <h3 className="text-xs text-gray-500 uppercase tracking-widest font-mono font-bold">Resumo Mensal de Atendimento</h3>
-            
-            <div className="space-y-3">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-600">Total Consultas Resolvidas</span>
-                <span className="font-mono font-bold text-[#0A0A0A]">54</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-600 font-mono">Taxa Média de Presença</span>
-                <span className="text-emerald-600 font-mono font-bold flex items-center gap-0.5">
-                  <TrendingUp className="w-3.5 h-3.5" /> 92%
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-600">Horário Médio Favorito</span>
-                <span className="font-mono text-gray-800 font-medium">14:00 - Fátima do Sul</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Core Appointment details panel */}
-          <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-5 space-y-4">
-            <h3 style={{ fontFamily: "Georgia, serif" }} className="text-lg font-medium text-[#0A0A0A]">Atendimentos do Dia {selectedDay}</h3>
-
-            <div className="space-y-3">
-              {filteredEvents.map(evt => (
-                <div key={evt.id} className="bg-gray-50 border border-gray-200/60 rounded-lg p-4 space-y-3 hover:border-[#C9A84C]/50 transition duration-200 hover:bg-white">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500 font-mono block font-bold flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-[#C9A84C]" /> {evt.horario}
-                    </span>
-                    <span className={`text-[9px] px-2 py-0.5 rounded uppercase font-bold border ${getStatusBadgeStyles(evt.status)}`}>
-                      {evt.status}
-                    </span>
-                  </div>
-
-                  <div>
-                    <h4 
-                      onClick={() => onViewPaciente(evt.pacienteId)}
-                      className="text-sm font-semibold text-[#0A0A0A] hover:text-[#C9A84C] transition cursor-pointer"
-                    >
-                      {evt.pacienteNome}
-                    </h4>
-                    <span className="text-[11px] text-gray-400 font-mono truncate max-w-[200px] block mt-0.5">
-                      {evt.diagnosticoResumo}
-                    </span>
-                  </div>
-
-                  <div className="border-t border-gray-100 pt-3 flex justify-between items-center text-xs text-gray-500">
-                    <span className="flex items-center gap-1 font-mono text-[10px]">
-                      {evt.tipo === "Online" ? <Video className="w-3.5 h-3.5 text-indigo-500" /> : <MapPin className="w-3.5 h-3.5 text-[#C9A84C]" />}
-                      {evt.tipo}
-                    </span>
-
-                    <button
-                      onClick={() => onOpenNovaConsulta(evt.pacienteId)}
-                      className="text-[11px] uppercase font-bold text-[#C9A84C] hover:underline transition font-mono cursor-pointer"
-                    >
-                      Nova Consulta ›
-                    </button>
-                  </div>
-                </div>
-              ))}
-              
-              {filteredEvents.length === 0 && (
-                <p className="text-xs text-gray-400 text-center py-6 italic font-mono">Nenhuma consulta confirmada para o canal selecionado.</p>
-              )}
-            </div>
-          </div>
-
-        </div>
-
       </div>
-
     </div>
   );
 }
-export {};

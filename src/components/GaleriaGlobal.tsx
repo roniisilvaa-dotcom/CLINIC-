@@ -14,6 +14,7 @@ import {
   Trash
 } from "lucide-react";
 import { Paciente, FotoCapilar } from "../types";
+import ImageSlider from "./ImageSlider";
 
 interface GaleriaGlobalProps {
   pacientes: Paciente[];
@@ -83,67 +84,21 @@ export default function GaleriaGlobal({ pacientes, onViewPaciente }: GaleriaGlob
         {selectedPhotoLeft && selectedPhotoRight ? (
           <div className="flex flex-col lg:flex-row gap-6 animate-fadeIn">
             
-            {/* Split screen canvas container */}
-            <div className="w-full max-w-xl mx-auto lg:mx-0">
-              <div 
-                className="relative h-80 rounded-xl overflow-hidden shadow-lg border border-gray-200 select-none cursor-ew-resize"
-                onMouseMove={(e) => {
-                  if (!isSliding) return;
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left;
-                  const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-                  setSliderPosition(percentage);
-                }}
-                onMouseDown={() => setIsSliding(true)}
-                onMouseUp={() => setIsSliding(false)}
-                onMouseLeave={() => setIsSliding(false)}
-                onTouchMove={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const touch = e.touches[0];
-                  const x = touch.clientX - rect.left;
-                  const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-                  setSliderPosition(percentage);
-                }}
-              >
-                {/* LEFT SIDE IMAGE BEFORE */}
-                <img 
-                  src={selectedPhotoLeft.url} 
-                  alt="Esquerda" 
-                  className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute top-3 left-3 bg-black/80 text-xs text-neutral-300 border border-neutral-700 px-3 py-1.5 rounded space-y-0.5">
-                  <span className="font-semibold block font-sans truncate max-w-[125px]">{selectedPhotoLeft.pacienteNome}</span>
-                  <span className="text-[10px] text-[#C9A84C] font-mono block">{selectedPhotoLeft.data} • {selectedPhotoLeft.posicao}</span>
-                </div>
-
-                {/* RIGHT SIDE IMAGE AFTER */}
-                <div 
-                  className="absolute inset-y-0 right-0 overflow-hidden pointer-events-none transition-all"
-                  style={{ left: `${sliderPosition}%` }}
-                >
-                  <img 
-                    src={selectedPhotoRight.url} 
-                    alt="Direita" 
-                    className="absolute inset-y-0 right-0 w-[576px] h-full object-cover pointer-events-none max-w-none"
-                    style={{ width: "576px", transform: `translateX(${sliderPosition - 100}%)` }}
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute top-3 right-3 bg-[#C9A84C] text-black text-xs font-semibold px-3 py-1.5 rounded space-y-0.5 text-right flex flex-col items-end">
-                    <span className="font-bold block truncate max-w-[125px]">{selectedPhotoRight.pacienteNome}</span>
-                    <span className="text-[10px] text-zinc-900 font-mono block font-bold">{selectedPhotoRight.data} • {selectedPhotoRight.posicao}</span>
-                  </div>
-                </div>
-
-                {/* Central slider divider */}
-                <div 
-                  className="absolute inset-y-0 w-0.5 bg-[#C9A84C]/90 pointer-events-none shadow-[0_0_15px_rgba(201,168,76,0.6)]"
-                  style={{ left: `${sliderPosition}%` }}
-                >
-                  <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-black border-2 border-[#C9A84C] flex items-center justify-center pointer-events-none">
-                    <span className="text-[#C9A84C] text-xs font-bold leading-none">◄►</span>
-                  </div>
-                </div>
+            {/* Split screen canvas container using ImageSlider */}
+            <div className="w-full max-w-xl mx-auto lg:mx-0 relative">
+              <ImageSlider 
+                beforeImage={selectedPhotoLeft.url}
+                afterImage={selectedPhotoRight.url}
+              />
+              
+              {/* Overlays for patient names */}
+              <div className="absolute top-3 left-3 bg-black/80 text-xs text-neutral-300 border border-neutral-700 px-3 py-1.5 rounded space-y-0.5 pointer-events-none z-10">
+                <span className="font-semibold block font-sans truncate max-w-[125px]">{selectedPhotoLeft.pacienteNome}</span>
+                <span className="text-[10px] text-[#C9A84C] font-mono block">{selectedPhotoLeft.data} • {selectedPhotoLeft.posicao}</span>
+              </div>
+              <div className="absolute top-3 right-3 bg-[#C9A84C] text-black text-xs font-semibold px-3 py-1.5 rounded space-y-0.5 text-right flex flex-col items-end pointer-events-none z-10">
+                <span className="font-bold block truncate max-w-[125px]">{selectedPhotoRight.pacienteNome}</span>
+                <span className="text-[10px] text-zinc-900 font-mono block font-bold">{selectedPhotoRight.data} • {selectedPhotoRight.posicao}</span>
               </div>
 
               <div className="mt-2 text-center text-[10px] text-gray-400 font-bold font-sans">
