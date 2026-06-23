@@ -116,7 +116,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           </div>
 
           {/* Tab Selector for Login Type */}
-          <div className="grid grid-cols-2 p-1 bg-gray-100 rounded-lg mb-6 text-xs font-semibold select-none">
+          <div className="grid grid-cols-3 p-1 bg-gray-100 rounded-lg mb-6 text-xs font-semibold select-none gap-1">
             <button
               type="button"
               onClick={() => { setLoginType("medica"); setErrorMsg(""); }}
@@ -126,7 +126,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   : "text-gray-500 hover:text-black"
               }`}
             >
-              👩‍⚕️ Dra. Mariah (Médico)
+              👩‍⚕️ Médica
             </button>
             <button
               type="button"
@@ -137,7 +137,17 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   : "text-gray-500 hover:text-black"
               }`}
             >
-              🙋‍♀️ Sou Paciente (Acesso)
+              🙋‍♀️ Paciente
+            </button>
+            <button
+              type="button"
+              onClick={() => { 
+                // Dev auto-login bypass
+                onLogin("medica", "Dev Admin (Acesso Total)");
+              }}
+              className="py-2 px-3 rounded-md transition text-center cursor-pointer font-bold bg-[#C9A84C]/20 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-white"
+            >
+              👨‍💻 Acesso Dev
             </button>
           </div>
 
