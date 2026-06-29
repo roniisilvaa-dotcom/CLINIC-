@@ -117,4 +117,6 @@ export interface EventoAgenda {
   tipo: "Presencial - Toledo" | "Presencial - Fátima do Sul" | "Online";
   status: "Confirmada" | "Pendente" | "Cancelada" | "Realizada";
   diagnosticoResumo: string;
+  duracaoMinutos?: number;
+  procedimentoTag?: string;
 }

@@ -110,7 +110,7 @@ export default function Sidebar({
           {!collapsed && (
             <div className="flex flex-col overflow-hidden animate-fadeIn">
               <span className="text-xs font-semibold text-white truncate">{medicaNome}</span>
-              <span className="text-[10px] text-[#F5F0E8]/40 truncate">Médica Responsável</span>
+              <span className="text-[10px] text-[#C9A84C] truncate font-mono uppercase tracking-wider">Dermatologia & Tricologia</span>
             </div>
           )}
         </div>

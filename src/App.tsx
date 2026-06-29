@@ -40,7 +40,7 @@ export default function App() {
   // Authentication states
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<"medica" | "paciente" | "dev">("medica");
-  const [medicaNome, setMedicaNome] = useState("Doutor(a)");
+  const [medicaNome, setMedicaNome] = useState("Dra. Mariah Zibetti");
   const [loggedPacienteId, setLoggedPacienteId] = useState<string | null>(null);
   const [devOpenApp, setDevOpenApp] = useState(false); // dev acessando o app clínico
 
