@@ -96,3 +96,12 @@ export const pacotesVendidos = pgTable('pacotes_vendidos', {
   sessoesRealizadas: integer('sessoes_realizadas').notNull().default(0),
   status: text('status').notNull(), // 'Ativo', 'Concluido'
 });
+
+// ── WhatsApp Bot ─────────────────────────────────────────────────────
+export const conversasWhatsapp = pgTable('conversas_whatsapp', {
+  id:        text('id').primaryKey(),
+  telefone:  text('telefone').notNull(),
+  role:      text('role').notNull(), // 'user' | 'ia'
+  conteudo:  text('conteudo').notNull(),
+  timestamp: text('timestamp').notNull(),
+});

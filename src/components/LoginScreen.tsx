@@ -1,241 +1,193 @@
 import React, { useState } from "react";
-import { motion } from "motion/react";
-import { Sparkles, Mail, Lock, UserCheck, Heart, IdCard, ArrowRight, ShieldCheck } from "lucide-react";
-
-interface LoginResult {
-  role: "medica" | "paciente";
-  nome: string;
-  pacienteId?: string;
-}
+import { motion, AnimatePresence } from "motion/react";
+import { Sparkles, Stethoscope, User, Terminal, Lock, CreditCard, ChevronRight } from "lucide-react";
 
 interface LoginScreenProps {
-  onLogin: (result: LoginResult) => void;
+  onLogin: (role: "medica" | "paciente" | "dev", data?: string) => void;
 }
 
-type Modo = "medica" | "paciente";
+type ActiveRole = "medica" | "paciente" | "dev" | null;
+
+const MEDICA_EMAIL = "dra.mariah@caroclinic.com.br";
+const MEDICA_SENHA = "caro2025";
+const DEV_PIN      = "caro2025";
+
+const PACIENTES_CPF: Record<string, string> = {
+  "12345678900": "Helena Silveira",
+  "98765432111": "Gabriela Portela",
+  "11122233344": "Roberto Almeida",
+};
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [modo, setModo] = useState<Modo>("medica");
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [active, setActive]     = useState<ActiveRole>(null);
+  const [email, setEmail]       = useState("");
+  const [senha, setSenha]       = useState("");
+  const [errMedica, setErrMedica] = useState("");
+  const [cpf, setCpf]           = useState("");
+  const [errPac, setErrPac]     = useState("");
+  const [pin, setPin]           = useState("");
+  const [errDev, setErrDev]     = useState("");
+  const [loading, setLoading]   = useState(false);
 
-  // Médica
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const reset = () => { setActive(null); setEmail(""); setSenha(""); setCpf(""); setPin(""); setErrMedica(""); setErrPac(""); setErrDev(""); };
 
-  // Paciente
-  const [patientCpf, setPatientCpf] = useState("");
-  const [nascimento, setNascimento] = useState("");
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setErrorMsg("");
-    try {
-      if (modo === "medica") {
-        // Tenta sincronizar backend se houver conexão, mas garante entrada imediata como Dra. Mariah Zibetti
-        try {
-          const r = await fetch("/api/auth/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: email || "dramariahzibetti@carostudio.com.br", senha: password || "123456" }),
-          });
-          const data = await r.json();
-          onLogin({ role: "medica", nome: data.usuario?.nome || "Dra. Mariah Zibetti" });
-        } catch {
-          onLogin({ role: "medica", nome: "Dra. Mariah Zibetti" });
-        }
-      } else {
-        const r = await fetch("/api/auth/patient-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cpf: patientCpf, nascimento }),
-        });
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error || "Paciente não localizado.");
-        onLogin({ role: "paciente", nome: data.paciente.nome, pacienteId: data.paciente.id });
-      }
-    } catch (err: any) {
-      if (modo === "medica") {
-        onLogin({ role: "medica", nome: "Dra. Mariah Zibetti" });
-      } else {
-        setErrorMsg(err.message || "Verifique os dados informados.");
-      }
-    } finally {
+  const handleMedica = (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true);
+    setTimeout(() => {
+      if (email === MEDICA_EMAIL && senha === MEDICA_SENHA) onLogin("medica", "Dra. Mariah Zibetti");
+      else setErrMedica("E-mail ou senha incorretos.");
       setLoading(false);
-    }
-  }
+    }, 600);
+  };
 
-  const field =
-    "w-full bg-[#121212]/60 border border-[#C9A84C]/20 rounded-xl pl-11 pr-4 py-3.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#C9A84C] focus:bg-[#1A1A1A] focus:ring-1 focus:ring-[#C9A84C]/50 transition-all font-sans";
-  const icon = "w-4 h-4 text-[#C9A84C] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none";
+  const handlePaciente = (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true);
+    const cpfLimpo = cpf.replace(/\D/g, "");
+    setTimeout(() => {
+      if (PACIENTES_CPF[cpfLimpo]) onLogin("paciente", cpfLimpo);
+      else setErrPac("CPF não encontrado. Verifique com a clínica.");
+      setLoading(false);
+    }, 600);
+  };
+
+  const handleDev = (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true);
+    setTimeout(() => {
+      if (pin === DEV_PIN) onLogin("dev");
+      else { setErrDev("PIN incorreto."); setPin(""); }
+      setLoading(false);
+    }, 600);
+  };
+
+  const formatCpf = (v: string) => {
+    const d = v.replace(/\D/g, "").slice(0, 11);
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return `${d.slice(0,3)}.${d.slice(3)}`;
+    if (d.length <= 9) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`;
+    return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
+  };
+
+  const roles = [
+    { id: "medica" as ActiveRole,   icon: Stethoscope, label: "Médica",       desc: "Acesso ao painel clínico completo", color: "#C9A84C" },
+    { id: "paciente" as ActiveRole, icon: User,        label: "Paciente",     desc: "Portal de acompanhamento pessoal",  color: "#6B9FD4" },
+    { id: "dev" as ActiveRole,      icon: Terminal,    label: "Desenvolvedor",desc: "Administração e configuração",      color: "#9B8EAF" },
+  ];
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row font-sans text-white bg-[#070707] relative overflow-hidden select-none">
-      {/* Elegantes luzes de fundo em tom Champagne Gold */}
-      <div className="absolute top-[-20%] left-[15%] w-[800px] h-[800px] rounded-full bg-[#C9A84C]/8 blur-[160px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[700px] h-[700px] rounded-full bg-[#C9A84C]/6 blur-[150px] pointer-events-none" />
+    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center relative overflow-hidden p-4">
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full bg-[#C9A84C]/4 blur-[140px] pointer-events-none" />
 
-      {/* ─── Painel Lateral de Branding da Clínica ─── */}
-      <div className="flex-1 hidden md:flex flex-col justify-between p-14 lg:p-20 relative border-r border-[#C9A84C]/15 bg-gradient-to-b from-[#0A0A0A] to-[#050505]">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-[0.08] mix-blend-luminosity pointer-events-none"
-          style={{
-            backgroundImage:
-              "url('https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&q=80&w=1400')",
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#070707] via-transparent to-[#070707]/80 pointer-events-none" />
-
-        {/* Brand Top */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full border border-[#C9A84C]/80 bg-black/60 backdrop-blur-md flex items-center justify-center shadow-[0_0_15px_rgba(201,168,76,0.2)]">
-            <Sparkles className="w-5 h-5 text-[#C9A84C]" />
+      <div className="w-full max-w-md">
+        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+          className="flex flex-col items-center mb-10">
+          <div className="w-16 h-16 rounded-full border-2 border-[#C9A84C]/60 bg-black flex items-center justify-center shadow-[0_0_40px_rgba(201,168,76,0.15)] mb-4">
+            <Sparkles className="w-7 h-7 text-[#C9A84C]" />
           </div>
-          <div>
-            <span className="font-mono text-xs uppercase tracking-[0.3em] text-[#C9A84C] block font-bold">CA.RO CLINIC</span>
-            <span className="text-[10px] text-white/40 uppercase tracking-widest block">Inteligência Médica Capilar</span>
-          </div>
-        </div>
-
-        {/* Manifest / Hero Message */}
-        <div className="relative z-10 space-y-6 max-w-lg my-auto py-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#C9A84C]/30 bg-[#C9A84C]/10 text-[#C9A84C] text-[11px] font-mono uppercase tracking-widest">
-            <ShieldCheck className="w-3.5 h-3.5" /> Dra. Mariah Zibetti
-          </div>
-          
-          <h1 className="text-4xl lg:text-5xl font-serif text-white font-normal leading-[1.15] tracking-tight">
-            A excelência da <span className="text-[#C9A84C] italic font-serif">tricologia de precisão</span> em uma só plataforma.
-          </h1>
-          
-          <p className="text-white/60 text-base leading-relaxed font-light">
-            Prontuários estruturados, diagnósticos avançados e acompanhamento exclusivo de alta dermatologia para a saúde capilar.
-          </p>
-        </div>
-
-        {/* Footer info */}
-        <div className="relative z-10 flex items-center gap-2 text-white/40 text-xs font-mono">
-          <Heart className="w-3.5 h-3.5 text-[#C9A84C]" /> Toledo & Fátima do Sul • Atendimento de Alto Padrão
-        </div>
-      </div>
-
-      {/* ─── Formulário de Acesso ─── */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-12 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: "easeOut" }}
-          className="w-full max-w-[400px]"
-        >
-          {/* Logo mobile */}
-          <div className="md:hidden flex flex-col items-center gap-1 mb-8 text-center">
-            <div className="w-10 h-10 rounded-full border border-[#C9A84C] bg-black flex items-center justify-center mb-2">
-              <Sparkles className="w-5 h-5 text-[#C9A84C]" />
-            </div>
-            <span className="font-mono uppercase tracking-[0.3em] text-xs text-[#C9A84C] font-bold">DRA. MARIAH ZIBETTI</span>
-            <span className="text-[10px] text-white/50 uppercase tracking-widest">Dermatologia & Tricologia</span>
-          </div>
-
-          <div className="relative rounded-2xl border border-[#C9A84C]/25 bg-black/60 backdrop-blur-2xl p-8 shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)]">
-            {/* Filete dourado superior */}
-            <div className="absolute top-0 left-10 right-10 h-[2px] bg-gradient-to-r from-transparent via-[#C9A84C] to-transparent" />
-
-            <div className="mb-6">
-              <h2 className="text-2xl font-serif font-normal text-white tracking-tight">
-                {modo === "medica" ? "Acesso Clínico" : "Portal do Paciente"}
-              </h2>
-              <p className="text-xs text-white/50 mt-1.5 leading-relaxed">
-                {modo === "medica" ? "Informe suas credenciais médicas para acessar o painel de atendimento." : "Digite seu CPF e data de nascimento para visualizar seu tratamento."}
-              </p>
-            </div>
-
-            {/* Alternador de Modo */}
-            <div className="flex gap-1 p-1 bg-white/[0.04] border border-white/10 rounded-xl mb-6">
-              <button
-                type="button"
-                onClick={() => { setModo("medica"); setErrorMsg(""); }}
-                className={`flex-1 text-xs font-semibold py-2.5 rounded-lg transition-all cursor-pointer ${modo === "medica" ? "bg-[#C9A84C] text-black shadow-md font-bold" : "text-white/50 hover:text-white"}`}
-              >
-                <UserCheck className="w-3.5 h-3.5 inline mr-1.5" /> Equipe Médica
-              </button>
-              <button
-                type="button"
-                onClick={() => { setModo("paciente"); setErrorMsg(""); }}
-                className={`flex-1 text-xs font-semibold py-2.5 rounded-lg transition-all cursor-pointer ${modo === "paciente" ? "bg-[#C9A84C] text-black shadow-md font-bold" : "text-white/50 hover:text-white"}`}
-              >
-                <Heart className="w-3.5 h-3.5 inline mr-1.5" /> Paciente
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {modo === "medica" ? (
-                <>
-                  <div className="relative">
-                    <Mail className={icon} />
-                    <input 
-                      type="email" 
-                      className={field} 
-                      placeholder="Email corporativo" 
-                      value={email} 
-                      onChange={(e) => setEmail(e.target.value)} 
-                    />
-                  </div>
-                  <div className="relative">
-                    <Lock className={icon} />
-                    <input 
-                      type="password" 
-                      className={field} 
-                      placeholder="Senha de acesso" 
-                      value={password} 
-                      onChange={(e) => setPassword(e.target.value)} 
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="relative">
-                    <IdCard className={icon} />
-                    <input 
-                      type="text" 
-                      className={field} 
-                      placeholder="Digite seu CPF" 
-                      value={patientCpf} 
-                      onChange={(e) => setPatientCpf(e.target.value)} 
-                      required 
-                    />
-                  </div>
-                  <div className="relative">
-                    <Lock className={icon} />
-                    <input 
-                      type="date" 
-                      className={`${field} [color-scheme:dark]`} 
-                      value={nascimento} 
-                      onChange={(e) => setNascimento(e.target.value)} 
-                      required 
-                    />
-                  </div>
-                </>
-              )}
-
-              {errorMsg && (
-                <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3.5 py-2.5">{errorMsg}</div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="group w-full bg-gradient-to-r from-[#C9A84C] via-[#E0C36A] to-[#C9A84C] text-black font-semibold text-xs uppercase tracking-widest py-3.5 rounded-xl transition-all disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2 shadow-[0_8px_25px_-6px_rgba(201,168,76,0.5)] hover:shadow-[0_12px_30px_-4px_rgba(201,168,76,0.7)] mt-2 font-mono"
-              >
-                {loading ? "Acessando sistema..." : modo === "medica" ? "Entrar na Plataforma" : "Acessar Meu Tratamento"}
-                {!loading && <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />}
-              </button>
-            </form>
-          </div>
-
-          <p className="mt-8 text-center text-[10px] text-white/30 font-mono tracking-wider">
-            DRA. MARIAH ZIBETTI — 2026 · Todos os direitos reservados.
-          </p>
+          <h1 style={{ fontFamily: "Georgia, serif" }} className="text-3xl text-[#C9A84C] font-semibold tracking-tight">CLINIC CA.RO</h1>
+          <p className="text-[10px] uppercase tracking-[0.35em] text-neutral-600 font-mono mt-1">Precision Medicine</p>
         </motion.div>
+
+        <AnimatePresence mode="wait">
+          {!active ? (
+            <motion.div key="roles" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-3">
+              <p className="text-center text-[10px] text-neutral-600 font-mono mb-5 uppercase tracking-widest">Selecione seu perfil</p>
+              {roles.map((r, i) => {
+                const Icon = r.icon;
+                return (
+                  <motion.button key={r.id!} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }}
+                    onClick={() => setActive(r.id)}
+                    className="w-full flex items-center gap-4 bg-[#111111] hover:bg-[#161616] border border-[#222] hover:border-[#333] rounded-xl px-5 py-4 text-left transition-all duration-200 group cursor-pointer">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 border" style={{ background: `${r.color}15`, borderColor: `${r.color}35` }}>
+                      <Icon className="w-5 h-5" style={{ color: r.color }} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-white">{r.label}</p>
+                      <p className="text-xs text-neutral-500 mt-0.5">{r.desc}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-neutral-600 group-hover:text-neutral-400 transition" />
+                  </motion.button>
+                );
+              })}
+            </motion.div>
+          ) : (
+            <motion.div key="form" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.22 }}
+              className="bg-[#111111] border border-[#222] rounded-2xl p-7 shadow-2xl">
+              <div className="flex items-center gap-3 mb-6">
+                {active === "medica"   && <Stethoscope className="w-5 h-5 text-[#C9A84C]" />}
+                {active === "paciente" && <User className="w-5 h-5 text-[#6B9FD4]" />}
+                {active === "dev"      && <Terminal className="w-5 h-5 text-[#9B8EAF]" />}
+                <h2 className="text-sm font-semibold text-white">
+                  {active === "medica" && "Acesso Médica"}
+                  {active === "paciente" && "Portal do Paciente"}
+                  {active === "dev" && "Acesso Desenvolvedor"}
+                </h2>
+              </div>
+
+              {active === "medica" && (
+                <form onSubmit={handleMedica} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">E-mail</label>
+                    <input type="email" value={email} onChange={e => { setEmail(e.target.value); setErrMedica(""); }} autoFocus
+                      placeholder="dra.mariah@caroclinic.com.br"
+                      className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#C9A84C]/50 text-white text-sm py-3 px-4 rounded-lg outline-none transition placeholder:text-neutral-700" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">Senha</label>
+                    <input type="password" value={senha} onChange={e => { setSenha(e.target.value); setErrMedica(""); }}
+                      placeholder="••••••••"
+                      className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#C9A84C]/50 text-white text-sm py-3 px-4 rounded-lg outline-none transition" />
+                  </div>
+                  {errMedica && <p className="text-xs text-red-400 font-mono bg-red-500/10 px-3 py-2 rounded-lg">⛔ {errMedica}</p>}
+                  <button type="submit" disabled={loading} className="w-full bg-[#C9A84C] hover:bg-[#D9B85C] disabled:opacity-50 text-black text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-1">
+                    {loading ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <><Lock className="w-3.5 h-3.5" />Entrar no Painel</>}
+                  </button>
+                </form>
+              )}
+
+              {active === "paciente" && (
+                <form onSubmit={handlePaciente} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">CPF</label>
+                    <div className="relative">
+                      <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                      <input type="text" value={cpf} onChange={e => { setCpf(formatCpf(e.target.value)); setErrPac(""); }} autoFocus
+                        placeholder="000.000.000-00"
+                        className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#6B9FD4]/50 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition placeholder:text-neutral-700 font-mono tracking-wider" />
+                    </div>
+                  </div>
+                  {errPac && <p className="text-xs text-red-400 font-mono bg-red-500/10 px-3 py-2 rounded-lg">⛔ {errPac}</p>}
+                  <button type="submit" disabled={loading || cpf.replace(/\D/g,"").length < 11} className="w-full bg-[#6B9FD4] hover:bg-[#7BAEE4] disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-1">
+                    {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><User className="w-3.5 h-3.5" />Acessar Portal</>}
+                  </button>
+                </form>
+              )}
+
+              {active === "dev" && (
+                <form onSubmit={handleDev} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">PIN de Desenvolvedor</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                      <input type="password" value={pin} onChange={e => { setPin(e.target.value); setErrDev(""); }} autoFocus
+                        placeholder="••••••••"
+                        className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#9B8EAF]/60 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition font-mono tracking-widest" />
+                    </div>
+                  </div>
+                  {errDev && <p className="text-xs text-red-400 font-mono bg-red-500/10 px-3 py-2 rounded-lg">⛔ {errDev}</p>}
+                  <button type="submit" disabled={loading || !pin} className="w-full bg-[#9B8EAF] hover:bg-[#AB9EBF] disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-1">
+                    {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Terminal className="w-3.5 h-3.5" />Acessar Sistema</>}
+                  </button>
+                </form>
+              )}
+
+              <button onClick={reset} className="w-full mt-4 text-xs text-neutral-600 hover:text-neutral-400 transition cursor-pointer py-1">
+                ← Voltar
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <p className="text-center text-[10px] text-neutral-700 mt-8 font-mono">CLINIC CA.RO v3.0 · CA.RO Studio</p>
       </div>
     </div>
   );

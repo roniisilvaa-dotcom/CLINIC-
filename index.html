@@ -3,12 +3,132 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CA.RO Clinic — Inteligência Clínica de Precisão Capilar</title>
-    <meta name="description" content="Plataforma de gestão tricológica de alto padrão: prontuários, evolução por IA e portal do paciente." />
+    <title>CLINIC CA.RO</title>
+
+    <!-- Preconnect para fontes (não bloqueia render) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <style>
+      /* ── Splash nativo — aparece antes do JS ── */
+      #splash {
+        position: fixed;
+        inset: 0;
+        background: #0A0A0A;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.25s ease, visibility 0.25s ease;
+      }
+      #splash.hide {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      /* Logo mark */
+      #splash .logo {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(201,168,76,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      #splash .logo svg {
+        width: 24px;
+        height: 24px;
+        color: #C9A84C;
+      }
+      #splash h1 {
+        font-family: Georgia, serif;
+        font-size: 26px;
+        color: #C9A84C;
+        letter-spacing: -0.5px;
+        font-weight: 600;
+        margin: 0;
+      }
+      #splash p {
+        font-family: monospace;
+        font-size: 9px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: rgba(245,240,232,0.35);
+        margin: 8px 0 0;
+      }
+      /* Barra de progresso fina */
+      #splash .bar-track {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: rgba(201,168,76,0.12);
+      }
+      #splash .bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #C9A84C, #F0D080);
+        animation: load 0.8s cubic-bezier(0.4,0,0.2,1) forwards;
+        width: 0%;
+      }
+      @keyframes load {
+        0%   { width: 0% }
+        60%  { width: 70% }
+        85%  { width: 88% }
+        100% { width: 100% }
+      }
+      @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0); }
+        50%       { box-shadow: 0 0 16px 4px rgba(201,168,76,0.18); }
+      }
+      /* Evita flash branco antes do splash */
+      body { margin: 0; background: #0A0A0A; }
+      #root { background: #FAFAFA; }
+    </style>
   </head>
   <body>
+    <!-- Splash nativo — some automaticamente quando o React monta -->
+    <div id="splash">
+      <div class="logo">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+        </svg>
+      </div>
+      <h1>CLINIC CA.RO</h1>
+      <p>Precision Medicine</p>
+      <div class="bar-track"><div class="bar-fill"></div></div>
+    </div>
+
     <div id="root"></div>
+
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Remove splash assim que o React termina de montar -->
+    <script>
+      (function () {
+        var t0 = performance.now();
+        var MIN_MS = 600; // mínimo de exibição para não piscar
+        function hideSplash() {
+          var el = document.getElementById('splash');
+          if (el) el.classList.add('hide');
+        }
+        // Observa quando #root ganha filho (React montado)
+        var obs = new MutationObserver(function () {
+          var root = document.getElementById('root');
+          if (root && root.firstChild) {
+            obs.disconnect();
+            var elapsed = performance.now() - t0;
+            var delay = Math.max(0, MIN_MS - elapsed);
+            setTimeout(hideSplash, delay);
+          }
+        });
+        obs.observe(document.getElementById('root'), { childList: true });
+      })();
+    </script>
   </body>
 </html>
-

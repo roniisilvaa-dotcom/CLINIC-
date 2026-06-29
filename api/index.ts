@@ -1,252 +1,312 @@
+import whatsappRouter from './whatsapp';
 import express from "express";
 import { GoogleGenAI } from "@google/genai";
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
-import * as schema from "../src/db/schema";
-import { eq, and } from "drizzle-orm";
+import { db } from "../src/db/index";
+import {
+  pacientes,
+  consultas,
+  exames,
+  galeria,
+  agendaEventos,
+  filaEspera,
+  pacotesVendidos,
+  users,
+} from "../src/db/schema";
+import { eq } from "drizzle-orm";
 
 const app = express();
 app.use(express.json());
 
-// DB connection com fallback seguro
-const dbUrl = process.env.DATABASE_URL || "postgres://neondb_owner:dummy@ep-dummy.us-east-2.aws.neon.tech/neondb?sslmode=require";
-const sql = neon(dbUrl);
-const db = drizzle(sql, { schema });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
-// Initialize GoogleGenAI server-side com fallback de chave de API
-const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "AIzaSyDummyKeyForServerlessSafeMode";
-const ai = new GoogleGenAI({
-  apiKey: apiKey,
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
+// ─── Health ──────────────────────────────────────────────────────────────────
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", time: new Date().toISOString() });
 });
 
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", time: new Date().toISOString(), db: "neon" });
-});
-
-app.get("/api/whatsapp/qr", (req, res) => {
+// ─── Pacientes ───────────────────────────────────────────────────────────────
+app.get("/api/pacientes", async (_req, res) => {
   try {
-    const phone = (req.query?.phone as string) || "5545998421200";
-    const instance = (req.query?.instance as string) || "caro-clinic-prod";
-    const timestamp = Math.floor(Date.now() / 1000);
-    const cleanPhone = phone.replace(/\D/g, "") || "5545998421200";
-    const randomToken = Buffer.from(`${cleanPhone}-${instance}-${timestamp}`).toString("base64").replace(/[^a-zA-Z0-9]/g, "").substring(0, 28);
-    const waAuthPayload = `2@${randomToken},${cleanPhone}@s.whatsapp.net,${timestamp}`;
-    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data=${encodeURIComponent(waAuthPayload)}`;
-    const numSeed = Math.floor(10000000 + Math.random() * 90000000).toString();
-    const pairCode = `${numSeed.substring(0, 4)}-${numSeed.substring(4, 8)}`;
-
-    res.json({ status: "ready", phone, instance, waAuthPayload, qrImageUrl, pairCode });
-  } catch (err: any) {
-    res.json({ status: "ready", phone: "5545998421200", instance: "caro-clinic-prod", waAuthPayload: "2@session-1782766900,5545998421200@s.whatsapp.net", qrImageUrl: "https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data=2%40session-1782766900", pairCode: "8924-4190" });
+    const result = await db.select().from(pacientes);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
 });
 
-// ==========================================
-// PACIENTES CRUD
-// ==========================================
-app.get("/api/pacientes", async (req, res) => {
+app.get("/api/pacientes/:id", async (req, res) => {
   try {
-    const allPacientes = await db.select().from(schema.pacientes);
-    res.json(allPacientes || []);
+    const result = await db.select().from(pacientes).where(eq(pacientes.id, req.params.id));
+    if (!result.length) return res.status(404).json({ error: "Paciente não encontrado" });
+    res.json(result[0]);
   } catch (e: any) {
-    console.error("Erro ao buscar pacientes:", e);
-    res.json([]);
+    res.status(500).json({ error: e.message });
   }
 });
 
 app.post("/api/pacientes", async (req, res) => {
   try {
-    const { id, nome, idade, dataNascimento, cpf, telefone, email, cidade, comoConheceu, queixaPrincipal, status, progresso, ultimaAtualizacao, antecedentes, diagnostico, protocolo } = req.body;
-    
-    await db.insert(schema.pacientes).values({
-      id, nome, idade, dataNascimento, cpf, telefone, email, cidade,
-      comoConheceu, queixaPrincipal, status, progresso, ultimaAtualizacao,
-      antecedentes, diagnostico, protocolo
-    });
-    
-    res.json({ success: true });
+    const result = await db.insert(pacientes).values(req.body).returning();
+    res.json(result[0]);
   } catch (e: any) {
-    console.error(e);
     res.status(500).json({ error: e.message });
   }
 });
 
-// ==========================================
-// AGENDA CRUD
-// ==========================================
+app.put("/api/pacientes/:id", async (req, res) => {
+  try {
+    const result = await db.update(pacientes).set(req.body).where(eq(pacientes.id, req.params.id)).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Consultas ───────────────────────────────────────────────────────────────
+app.get("/api/consultas", async (req, res) => {
+  try {
+    const { pacienteId } = req.query;
+    const result = pacienteId
+      ? await db.select().from(consultas).where(eq(consultas.pacienteId, String(pacienteId)))
+      : await db.select().from(consultas);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/consultas", async (req, res) => {
+  try {
+    const result = await db.insert(consultas).values(req.body).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Exames ──────────────────────────────────────────────────────────────────
+app.get("/api/exames", async (req, res) => {
+  try {
+    const { pacienteId } = req.query;
+    const result = pacienteId
+      ? await db.select().from(exames).where(eq(exames.pacienteId, String(pacienteId)))
+      : await db.select().from(exames);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/exames", async (req, res) => {
+  try {
+    const result = await db.insert(exames).values(req.body).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Galeria ─────────────────────────────────────────────────────────────────
+app.get("/api/galeria", async (req, res) => {
+  try {
+    const { pacienteId } = req.query;
+    const result = pacienteId
+      ? await db.select().from(galeria).where(eq(galeria.pacienteId, String(pacienteId)))
+      : await db.select().from(galeria);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/galeria", async (req, res) => {
+  try {
+    const result = await db.insert(galeria).values(req.body).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Agenda ──────────────────────────────────────────────────────────────────
 app.get("/api/agenda", async (req, res) => {
   try {
-    const targetDate = (req.query.date as string) || new Date().toISOString().split("T")[0];
-    const eventos = await db.select().from(schema.agendaEventos).where(eq(schema.agendaEventos.data, targetDate));
-    res.json(eventos || []);
+    const { data } = req.query;
+    const result = data
+      ? await db.select().from(agendaEventos).where(eq(agendaEventos.data, String(data)))
+      : await db.select().from(agendaEventos);
+    res.json(result);
   } catch (e: any) {
-    console.error("Erro ao buscar agenda:", e);
-    res.json([]);
+    res.status(500).json({ error: e.message });
   }
 });
 
 app.post("/api/agenda", async (req, res) => {
   try {
-    await db.insert(schema.agendaEventos).values(req.body);
-    res.json({ success: true });
+    const result = await db.insert(agendaEventos).values(req.body).returning();
+    res.json(result[0]);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// ==========================================
-// FINANCEIRO CRUD
-// ==========================================
-// ... (Add later, to keep it simple first)
+app.put("/api/agenda/:id", async (req, res) => {
+  try {
+    const result = await db.update(agendaEventos).set(req.body).where(eq(agendaEventos.id, req.params.id)).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
-// ==========================================
-// AI ENDPOINTS
-// ==========================================
+// ─── Fila de Espera ──────────────────────────────────────────────────────────
+app.get("/api/fila-espera", async (_req, res) => {
+  try {
+    const result = await db.select().from(filaEspera);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/fila-espera", async (req, res) => {
+  try {
+    const result = await db.insert(filaEspera).values(req.body).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Pacotes Vendidos ────────────────────────────────────────────────────────
+app.get("/api/pacotes", async (req, res) => {
+  try {
+    const { pacienteId } = req.query;
+    const result = pacienteId
+      ? await db.select().from(pacotesVendidos).where(eq(pacotesVendidos.pacienteId, String(pacienteId)))
+      : await db.select().from(pacotesVendidos);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/pacotes", async (req, res) => {
+  try {
+    const result = await db.insert(pacotesVendidos).values(req.body).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Auth (login simples) ────────────────────────────────────────────────────
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { cpf, senha } = req.body;
+    const result = await db.select().from(users).where(eq(users.cpf, cpf));
+    if (!result.length) return res.status(401).json({ error: "CPF não encontrado" });
+    const user = result[0];
+    // Comparação simples — em produção usar bcrypt
+    if (user.senhaHash !== senha) return res.status(401).json({ error: "Senha incorreta" });
+    res.json({ id: user.id, nome: user.nome, role: user.role });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── IA: Análise de Exames ───────────────────────────────────────────────────
 app.post("/api/analyze-exams", async (req, res) => {
   try {
-    const { pacienteNome, idade, queixa, exames } = req.body;
-    const prompt = `Você é o software CA.RO Clinic IA... Dados Gerais: ${pacienteNome}`; // Shortened for space
-    const response = await ai.models.generateContent({ model: "gemini-3.5-flash", contents: prompt });
+    const { pacienteNome, idade, queixa, exames: examesData } = req.body;
+    const prompt = `Você é o software CA.RO Clinic IA, assistente diagnóstico de precisão da Dra. Mariah Zibetti (CRM PR 57.133), especialista em Tricologia Médica e Capilar de Alto Padrão.
+Instrução: Analise minuciosamente os resultados dos exames laboratoriais fornecidos. Faça uma avaliação à luz dos padrões estritos da tricologia.
+
+Parâmetros Críticos de Referência em Tricologia Médica:
+- Ferritina sérica ideal: > 70 ng/mL
+- Vitamina D ideal: > 45 ng/mL
+- Vitamina B12 ideal: > 400 pg/mL
+- Zinco sérico ideal: > 80 ug/dL
+- TSH ideal: 1.0 a 2.5 mIU/L
+
+Dados do Paciente:
+- Nome: ${pacienteNome}
+- Idade: ${idade} anos
+- Queixa: ${queixa}
+- Exames: ${JSON.stringify(examesData)}
+
+Gere um LAUDO CLÍNICO DE SUPORTE em Markdown com:
+1. Resumo Executivo das Alterações
+2. Análise Detalhada dos Marcadores
+3. Raciocínio Fisiopatológico
+4. Sugestão Nutracêutica / Terapêutica Personalizada
+
+Assine como: "CA.RO Clinic IA | Inteligência Clínica de Precisão Capilar".`;
+
+    const response = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
     res.json({ result: response.text });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==========================================
-// WHATSAPP IA AUTOMATION WEBHOOK (PROD FULL)
-// ==========================================
-app.post("/api/whatsapp/webhook", async (req, res) => {
-  try {
-    // Suporte flexível para Meta Cloud API, Z-API, Evolution API e Webhooks padrão
-    const body = req.body || {};
-    const from = body.from || body.phone || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from || "5545999998888";
-    const messageText = body.messageText || body.text?.body || body.message || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.text?.body || "";
-    const pacienteNome = body.pacienteNome || body.pushName || body.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name || "Paciente WhatsApp";
-
-    const hojeStr = new Date().toISOString().split("T")[0];
-
-    // 1. Consulta agendamentos existentes no banco de dados para checar horários ocupados
-    let eventosExistentes: any[] = [];
-    try {
-      eventosExistentes = await db.select().from(schema.agendaEventos).where(eq(schema.agendaEventos.data, hojeStr));
-    } catch (e) {
-      console.error("Erro ao ler agenda para o robô de WhatsApp:", e);
-    }
-
-    const ocupadosStr = eventosExistentes.map(e => `${e.horario} (${e.tipo})`).join(", ") || "Nenhum horário ocupado hoje";
-
-    // 2. Chama a CA.RO 3.5 IA treinada como Secretária Humana Real (Fernanda - Concierge Médica)
-    const prompt = `Você é a Fernanda, concierge de atendimento e secretária executiva real da clínica médica da Dra. Mariah Zibetti (Dermatologia & Tricologia Avançada).
-Sua missão é conversar de forma 100% HUMANIZADA, acolhedora e calorosa no WhatsApp com os pacientes. O paciente NUNCA deve perceber que está conversando com um robô ou IA. Responda exatamente como uma secretária humana atenciosa, educada e elegante.
-
-Data de Hoje: ${hojeStr}
-Horários ocupados hoje na agenda clínica: [${ocupadosStr}]
-Horários de atendimento da clínica: Das 08:00 às 23:30. Unidades: "Presencial - Toledo" ou "Presencial - Fátima do Sul".
-
-Mensagem enviada pelo paciente no WhatsApp: "${messageText}"
-Nome do Paciente: "${pacienteNome}"
-
-DIRETRIZES RÍGIDAS DE HUMANIZAÇÃO (CONVERSA DE SECRETÁRIA REAL):
-1. Seja empática, carinhosa e polida. Se o paciente relatar queda de cabelo ou estresse, acolha com calor humano (ex: "Oi! Tudo bem? Imagino como a queda de cabelo preocupa, mas fica tranquila(o) que a Dra. Mariah é especialista nisso e vai cuidar muito bem de você!").
-2. NUNCA use linguagem mecânica, engessada ou termos técnicos. Converse com fluidez e simpatia natural.
-3. Se o horário solicitado estiver ocupado, ofereça 2 ou 3 alternativas de horários livres de forma natural como uma secretária humana faria pelo WhatsApp.
-4. Se o agendamento for confirmado, defina "acao": "AGENDAR" e envie a confirmação carinhosa com orientações de chegada.
-
-Retorne ESTREITAMENTE um objeto JSON válido (sem código markdown ou texto fora do JSON):
-{
-  "sucesso": true,
-  "acao": "AGENDAR" ou "SUGERIR_OUTRO" ou "CONVERSAR",
-  "data": "YYYY-MM-DD",
-  "horario": "HH:MM",
-  "tipo": "Presencial - Toledo" ou "Presencial - Fátima do Sul" ou "Online",
-  "procedimentoTag": "Primeira Consulta Tricologia" ou "MMP Capilar" ou "Laser LLLT" ou "Retorno Tricologia",
-  "pacienteNome": "${pacienteNome}",
-  "respostaWhatsApp": "Mensagem 100% humanizada, calorosa e natural escrita por Fernanda (Secretária da Dra. Mariah)."
-}`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt
-    });
-
-    let resultJson: any = {};
-    try {
-      const cleanText = response.text?.replace(/```json/g, "").replace(/```/g, "").trim();
-      resultJson = JSON.parse(cleanText || "{}");
-    } catch {
-      resultJson = {
-        sucesso: true,
-        acao: "AGENDAR",
-        data: hojeStr,
-        horario: "15:00",
-        tipo: "Presencial - Toledo",
-        procedimentoTag: "MMP Capilar",
-        pacienteNome: pacienteNome,
-        respostaWhatsApp: `Olá, ${pacienteNome}! Sou a assistente virtual da Dra. Mariah Zibetti. Recebemos sua mensagem e confirmamos seu agendamento em nossa agenda clínica!`
-      };
-    }
-
-    // 3. Se a ação for AGENDAR, persiste o evento no banco de dados Neon DB imediatamente
-    let novoEvento: any = null;
-    if (resultJson.acao === "AGENDAR") {
-      try {
-        const pId = `p-wa-${Date.now()}`;
-        novoEvento = {
-          id: `evt-wa-${Date.now()}`,
-          pacienteId: pId,
-          pacienteNome: resultJson.pacienteNome || pacienteNome,
-          data: resultJson.data || hojeStr,
-          horario: resultJson.horario || "15:00",
-          tipo: resultJson.tipo || "Presencial - Toledo",
-          status: "Confirmada",
-          diagnosticoResumo: `${resultJson.procedimentoTag || 'Consulta'} (Agendado via WhatsApp)`,
-          duracaoMinutos: 45,
-          procedimentoTag: resultJson.procedimentoTag || "MMP Capilar"
-        };
-
-        await db.insert(schema.agendaEventos).values(novoEvento);
-
-        // Cria o registro do paciente no banco se ainda não existir
-        try {
-          await db.insert(schema.pacientes).values({
-            id: pId,
-            nome: resultJson.pacienteNome || pacienteNome,
-            idade: 30,
-            dataNascimento: "1995-01-01",
-            cpf: from.replace(/\D/g, "") || "000.000.000-00",
-            telefone: from,
-            email: `${from.replace(/\D/g, "")}@whatsapp.com`,
-            cidade: resultJson.tipo?.includes("Fátima") ? "Fátima do Sul" : "Toledo",
-            comoConheceu: "WhatsApp Bot IA",
-            queixaPrincipal: messageText || "Consulta via WhatsApp",
-            status: "Em Tratamento",
-            progresso: 10,
-            ultimaAtualizacao: hojeStr,
-            antecedentes: { usoMedicamentos: "Nenhum", historicoFamiliar: "Nega", gestacaoAmamentacao: "Nega", menopausa: "Nega", outros: "" },
-            diagnostico: { principal: "Agendamento WhatsApp Bot", secundario: [], escalaLudwig: "Grau I", condicoesAssociadas: [], fatoresContribuintes: [], observacoes: "" },
-            protocolo: { medicamentos: "", procedimentos: "", cosmeticos: "", suplementacao: "", estiloVida: "", duracaoPrevista: "6 meses", dataInicio: hojeStr }
-          });
-        } catch {}
-      } catch (dbErr) {
-        console.error("Erro ao gravar agendamento no Neon DB:", dbErr);
-      }
-    }
-
-    res.json({
-      ...resultJson,
-      eventoCriado: novoEvento
-    });
   } catch (e: any) {
-    console.error("Erro no webhook WhatsApp:", e);
     res.status(500).json({ error: e.message });
   }
 });
 
-// Export for Vercel Serverless
+// ─── IA: Análise de Fotos ────────────────────────────────────────────────────
+app.post("/api/analyze-photos", async (req, res) => {
+  try {
+    const { pacienteNome, fotosInfo } = req.body;
+    const prompt = `Você é o CA.RO Clinic IA, assistente de análise de evolução capilar para a Dra. Mariah Zibetti.
+Analise a sequência cronológica de fotos: ${JSON.stringify(fotosInfo)}
+
+Gere um Relatório de Evolução Capilar com:
+1. Estimativa de redensificação capilar
+2. Avaliação dermatoscópica
+3. Sumário clínico: Excelente / Moderada / Necessita repactuação`;
+
+    const response = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
+    res.json({ result: response.text });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── IA: Resumo de Consulta ──────────────────────────────────────────────────
+app.post("/api/summarize-consultation", async (req, res) => {
+  try {
+    const { pacienteNome, queixaDoDia, evolucaoObservada, alteracoesProtocolo } = req.body;
+    const prompt = `Gere um sumário clínico para o prontuário de ${pacienteNome}.
+- Queixa: ${queixaDoDia}
+- Evolução: ${evolucaoObservada}
+- Alterações de protocolo: ${alteracoesProtocolo}
+
+Seções: SINTOMATOLOGIA ATUAL / PROPEDÊUTICA E ANÁLISE COMPLEMENTAR / CONDUTA E ALTERAÇÕES TERAPÊUTICAS
+Escreva em português médico formal.`;
+
+    const response = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
+    res.json({ result: response.text });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── IA: Chat ────────────────────────────────────────────────────────────────
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { messages, systemInstruction } = req.body;
+    const formattedContents = messages.map((m: any) => ({
+      role: m.role === "assistant" ? "model" : m.role,
+      parts: [{ text: m.content }],
+    }));
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: formattedContents,
+      config: { systemInstruction: systemInstruction || "Você é o TRICO AI, copiloto clínico da Dra. Mariah Zibetti. Responda em português médico elegante." },
+    });
+    res.json({ text: response.text });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.use('/api/whatsapp', whatsappRouter);
+
 export default app;
