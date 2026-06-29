@@ -345,6 +345,9 @@ export default function App() {
                   setSelectedPacienteId(id);
                   setCurrentTab("nova_consulta");
                 }}
+                onAddAgendaEvento={(novoEvt) => {
+                  setAgendaHoje(prev => [...prev, novoEvt]);
+                }}
               />
             )}
 
