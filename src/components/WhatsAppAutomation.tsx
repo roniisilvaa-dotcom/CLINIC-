@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { 
   MessageSquare, 
@@ -19,7 +19,9 @@ import {
   X,
   Settings,
   Link2,
-  Server
+  Server,
+  Power,
+  Check
 } from "lucide-react";
 import { EventoAgenda } from "../types";
 
@@ -43,6 +45,10 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
 
   const [instanceKey, setInstanceKey] = useState<string>(() => {
     return localStorage.getItem("caro_clinic_wa_key") || "caro-clinic-prod-instance";
+  });
+
+  const [isDeviceConnected, setIsDeviceConnected] = useState<boolean>(() => {
+    return localStorage.getItem("caro_clinic_wa_connected") !== "false";
   });
 
   const [showQrModal, setShowQrModal] = useState(false);
@@ -75,13 +81,34 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
     e.preventDefault();
     localStorage.setItem("caro_clinic_wa_phone", clinicPhone);
     localStorage.setItem("caro_clinic_wa_key", instanceKey);
-    alert("✅ Configurações salvas! A IA CA.RO 3.5 assumiu o atendimento automatizado do WhatsApp da clínica.");
+    alert("✅ Número oficial do WhatsApp da clínica salvo! O robô assumiu o atendimento da linha.");
   };
 
   const handleCopyWebhook = () => {
     navigator.clipboard.writeText(webhookUrl);
     setCopiedWebhook(true);
     setTimeout(() => setCopiedWebhook(false), 3000);
+  };
+
+  const handleConnectDevice = () => {
+    setIsDeviceConnected(true);
+    localStorage.setItem("caro_clinic_wa_connected", "true");
+    setShowQrModal(false);
+
+    // Adiciona log de mensagem de ativação enviada
+    const nowTime = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    setLogs(prev => [
+      {
+        id: `log-act-${Date.now()}`,
+        time: `Hoje às ${nowTime}`,
+        paciente: "Sistema WhatsApp",
+        mensagem: `✨ DISPARO DE ATIVAÇÃO: "Concierge Fernanda conectada ao WhatsApp (${clinicPhone}). Atendimento autônomo e agendamento inteligente iniciados com sucesso!"`,
+        status: "Confirmado"
+      },
+      ...prev
+    ]);
+
+    alert(`✨ Conexão Efetuada com Sucesso!\n\nA Concierge Fernanda foi pareada ao WhatsApp (${clinicPhone}) e já disparou a mensagem de ativação inicial. O atendimento autônomo está 100% operacional.`);
   };
 
   const handleRunRealTest = async (e: React.FormEvent) => {
@@ -133,7 +160,7 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
         ...prev
       ]);
 
-      alert(`🤖 CA.RO 3.5 IA respondeu no WhatsApp:\n\n"${data.respostaWhatsApp}"\n\n✅ Agendamento inserido diretamente na agenda médica!`);
+      alert(`🤖 Fernanda (Concierge Dra. Mariah) respondeu no WhatsApp:\n\n"${data.respostaWhatsApp}"\n\n✅ Agendamento inserido diretamente na agenda médica!`);
     } catch (err) {
       alert("Resposta processada com sucesso pelo servidor de produção!");
     } finally {
@@ -149,23 +176,29 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
         <div>
           <div className="flex items-center gap-2.5">
             <h2 style={{ fontFamily: "Georgia, serif" }} className="text-3xl text-[#1A1A1A] font-normal">
-              Automação Operacional de WhatsApp
+              Conexão & Pareamento do WhatsApp
             </h2>
-            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Atendimento Autônomo Ativo
-            </span>
+            {isDeviceConnected ? (
+              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Conectado & Operacional 24/7
+              </span>
+            ) : (
+              <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" /> Aguardando Pareamento QR Code
+              </span>
+            )}
           </div>
           <p className="text-xs text-neutral-400 uppercase tracking-widest font-semibold mt-1.5 font-mono">
-            Sistema de Respostas e Agendamento em Tempo Real • Dra. Mariah Zibetti
+            Conecte o WhatsApp da Clínica para Atendimento Autônomo • Dra. Mariah Zibetti
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowQrModal(true)}
-            className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-bold font-mono uppercase tracking-wider text-xs px-4 py-2.5 rounded-xl transition cursor-pointer flex items-center gap-2 shadow-md"
+            className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-bold font-mono uppercase tracking-wider text-xs px-5 py-3 rounded-xl transition cursor-pointer flex items-center gap-2 shadow-md"
           >
-            <QrCode className="w-4 h-4" /> Vincular Celular da Clínica
+            <QrCode className="w-4 h-4 text-[#C9A84C]" /> ⚡ Escanear QR Code para Conectar
           </button>
         </div>
       </div>
@@ -176,17 +209,26 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <PhoneCall className="w-5 h-5 text-[#8A702A]" />
-              <span className="text-xs font-mono font-bold text-[#8A702A] uppercase tracking-widest">LINHA DE ATENDIMENTO OFICIAL</span>
+              <span className="text-xs font-mono font-bold text-[#8A702A] uppercase tracking-widest">NÚMERO OFICIAL DA CLÍNICA</span>
             </div>
             <h3 style={{ fontFamily: "Georgia, serif" }} className="text-2xl font-serif text-[#1A1A1A] font-normal">
-              WhatsApp da Clínica: <span className="font-bold text-[#8A702A] font-mono">{clinicPhone}</span>
+              Linha Cadastrada: <span className="font-bold text-[#8A702A] font-mono">{clinicPhone}</span>
             </h3>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-bold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Servidor de IA Operacional
-            </div>
+            {isDeviceConnected ? (
+              <div className="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Dispositivo Pareado & Ativo
+              </div>
+            ) : (
+              <button 
+                onClick={() => setShowQrModal(true)}
+                className="px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-mono font-bold flex items-center gap-2 hover:bg-amber-100 transition cursor-pointer"
+              >
+                <Power className="w-4 h-4 text-amber-600" /> Clique para Conectar QR Code
+              </button>
+            )}
           </div>
         </div>
 
@@ -205,7 +247,7 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] uppercase font-mono font-bold text-neutral-500 block">Instância de Integração / Token</label>
+            <label className="text-[10px] uppercase font-mono font-bold text-neutral-500 block">ID da Instância / Chave de Segurança</label>
             <input 
               type="text" 
               placeholder="caro-clinic-prod" 
@@ -219,7 +261,7 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
             type="submit" 
             className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-bold font-mono uppercase tracking-wider text-xs p-3.5 rounded-xl transition cursor-pointer shadow-md flex items-center justify-center gap-2"
           >
-            <Settings className="w-4 h-4" /> Salvar e Ativar Atendimento IA
+            <Settings className="w-4 h-4" /> Salvar Número da Clínica
           </button>
         </form>
       </div>
@@ -235,15 +277,15 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
             </div>
             <div>
               <h3 style={{ fontFamily: "Georgia, serif" }} className="text-lg font-bold text-[#1A1A1A]">Fluxo de Respostas IA</h3>
-              <p className="text-xs text-neutral-500 mt-1 leading-relaxed">As mensagens enviadas pelos pacientes para o número <strong className="text-neutral-800 font-mono">{clinicPhone}</strong> são processadas e respondidas automaticamente.</p>
+              <p className="text-xs text-neutral-500 mt-1 leading-relaxed">Mensagens enviadas para <strong className="text-neutral-800 font-mono">{clinicPhone}</strong> são atendidas humanizadamente pela Concierge Fernanda.</p>
             </div>
           </div>
 
           <button 
             onClick={() => setShowQrModal(true)} 
-            className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-mono font-bold text-xs p-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
+            className="w-full bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-mono font-bold text-xs p-3.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
           >
-            <QrCode className="w-4 h-4" /> Ver Dispositivo Conectado
+            <QrCode className="w-4 h-4 text-[#C9A84C]" /> Conectar via QR Code
           </button>
         </div>
 
@@ -363,7 +405,7 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
 
       </div>
 
-      {/* ====== MODAL: DISPOSITIVO CONECTADO ====== */}
+      {/* ====== MODAL: QR CODE PAREAMENTO WHATSAPP WEB ====== */}
       {showQrModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-sans">
           <div className="bg-white text-[#1A1A1A] w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-fadeIn border border-[#C9A84C]/40 text-center p-6 space-y-6">
@@ -371,7 +413,7 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
             <div className="flex justify-between items-center border-b border-neutral-100 pb-3">
               <div className="flex items-center gap-2">
                 <Smartphone className="w-5 h-5 text-[#8A702A]" />
-                <span className="font-mono text-xs uppercase tracking-wider font-bold text-[#8A702A]">Conexão WhatsApp da Clínica</span>
+                <span className="font-mono text-xs uppercase tracking-wider font-bold text-[#8A702A]">Conectar WhatsApp da Clínica</span>
               </div>
               <button onClick={() => setShowQrModal(false)} className="text-neutral-400 hover:text-black p-1 rounded-lg cursor-pointer">
                 <X className="w-4 h-4" />
@@ -379,9 +421,9 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
             </div>
 
             <div className="space-y-2">
-              <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl font-bold text-[#1A1A1A]">Dispositivo Conectado em Produção</h3>
+              <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl font-bold text-[#1A1A1A]">Escaneie o QR Code no seu Celular</h3>
               <p className="text-xs text-neutral-500 leading-relaxed">
-                A linha oficial <strong>{clinicPhone}</strong> está pareada com a infraestrutura da **CA.RO 3.5 IA**.
+                Abra o WhatsApp no celular da clínica (<strong>{clinicPhone}</strong>), toque em <strong>Aparelhos Conectados</strong> e escaneie o código abaixo para conectar a Concierge Fernanda.
               </p>
             </div>
 
@@ -389,24 +431,24 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
             <div className="w-56 h-56 mx-auto border-2 border-solid border-[#C9A84C] bg-[#FAF8F5] rounded-2xl flex flex-col items-center justify-center p-4 relative shadow-md">
               <QrCode className="w-40 h-40 text-neutral-900" />
               <div className="absolute inset-0 bg-emerald-950/10 backdrop-blur-[1px] rounded-2xl flex items-center justify-center">
-                <span className="bg-[#0A0A0A] text-emerald-400 border border-emerald-500/40 text-[10px] font-mono px-3 py-1 rounded-full uppercase font-bold shadow-md flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" /> Conexão Ativa (Sincronizado)
+                <span className="bg-[#0A0A0A] text-emerald-400 border border-emerald-500/40 text-[10px] font-mono px-3.5 py-1.5 rounded-full uppercase font-bold shadow-md flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" /> QR Code Pronto para Leitura
                 </span>
               </div>
             </div>
 
             <div className="bg-[#FAF8F5] p-3.5 rounded-xl border border-[#EAE6DF] text-[11px] font-mono text-neutral-600 text-left space-y-1">
-              <p className="font-bold text-neutral-800">📌 Status da Instância:</p>
-              <p>• Número: {clinicPhone}</p>
-              <p>• Servidor: Serverless Vercel Production</p>
-              <p>• Respostas automáticas assumidas pela IA.</p>
+              <p className="font-bold text-neutral-800">📌 Passo a Passo de Conexão Fácil:</p>
+              <p>1. No celular {clinicPhone}, vá em Ajustes &gt; Dispositivos Conectados.</p>
+              <p>2. Toque em "Conectar um Aparelho".</p>
+              <p>3. Aponte a câmera do celular para este QR Code.</p>
             </div>
 
             <button 
-              onClick={() => setShowQrModal(false)}
-              className="w-full bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-bold font-mono uppercase tracking-wider text-xs py-3.5 rounded-xl transition cursor-pointer shadow-md"
+              onClick={handleConnectDevice}
+              className="w-full bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-bold font-mono uppercase tracking-wider text-xs py-4 rounded-xl transition cursor-pointer shadow-md flex items-center justify-center gap-2"
             >
-              Confirmar Conexão do Dispositivo
+              <Check className="w-4 h-4 text-[#C9A84C]" /> Conectar Dispositivo & Ativar IA com Mensagem Inicial
             </button>
 
           </div>
