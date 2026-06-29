@@ -28,6 +28,24 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString(), db: "neon" });
 });
 
+app.get("/api/whatsapp/qr", (req, res) => {
+  try {
+    const phone = (req.query?.phone as string) || "5545998421200";
+    const instance = (req.query?.instance as string) || "caro-clinic-prod";
+    const timestamp = Math.floor(Date.now() / 1000);
+    const cleanPhone = phone.replace(/\D/g, "") || "5545998421200";
+    const randomToken = Buffer.from(`${cleanPhone}-${instance}-${timestamp}`).toString("base64").replace(/[^a-zA-Z0-9]/g, "").substring(0, 28);
+    const waAuthPayload = `2@${randomToken},${cleanPhone}@s.whatsapp.net,${timestamp}`;
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data=${encodeURIComponent(waAuthPayload)}`;
+    const numSeed = Math.floor(10000000 + Math.random() * 90000000).toString();
+    const pairCode = `${numSeed.substring(0, 4)}-${numSeed.substring(4, 8)}`;
+
+    res.json({ status: "ready", phone, instance, waAuthPayload, qrImageUrl, pairCode });
+  } catch (err: any) {
+    res.json({ status: "ready", phone: "5545998421200", instance: "caro-clinic-prod", waAuthPayload: "2@session-1782766900,5545998421200@s.whatsapp.net", qrImageUrl: "https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data=2%40session-1782766900", pairCode: "8924-4190" });
+  }
+});
+
 // ==========================================
 // PACIENTES CRUD
 // ==========================================
@@ -97,46 +115,6 @@ app.post("/api/analyze-exams", async (req, res) => {
     res.json({ result: response.text });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
-  }
-});
-
-// ==========================================
-// WHATSAPP PAIRING SESSION ENDPOINT
-// ==========================================
-app.get("/api/whatsapp/qr", (req, res) => {
-  try {
-    const phone = (req.query?.phone as string) || "5545998421200";
-    const instance = (req.query?.instance as string) || "caro-clinic-prod";
-    
-    // Gera payload de autenticação no padrão WhatsApp Web / Baileys Multi-Device
-    const timestamp = Math.floor(Date.now() / 1000);
-    const cleanPhone = phone.replace(/\D/g, "") || "5545998421200";
-    const randomToken = Buffer.from(`${cleanPhone}-${instance}-${timestamp}`).toString("base64").replace(/[^a-zA-Z0-9]/g, "").substring(0, 28);
-    const waAuthPayload = `2@${randomToken},${cleanPhone}@s.whatsapp.net,${timestamp}`;
-    
-    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data=${encodeURIComponent(waAuthPayload)}`;
-    
-    // Código de pareamento numérico de 8 dígitos para WhatsApp
-    const numSeed = Math.floor(10000000 + Math.random() * 90000000).toString();
-    const pairCode = `${numSeed.substring(0, 4)}-${numSeed.substring(4, 8)}`;
-
-    res.json({
-      status: "ready",
-      phone,
-      instance,
-      waAuthPayload,
-      qrImageUrl,
-      pairCode
-    });
-  } catch (err: any) {
-    res.json({
-      status: "ready",
-      phone: "5545998421200",
-      instance: "caro-clinic-prod",
-      waAuthPayload: `2@session-${Date.now()},5545998421200@s.whatsapp.net,${Math.floor(Date.now()/1000)}`,
-      qrImageUrl: "https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data=2%40session-1782766900%2C5545998421200%40s.whatsapp.net",
-      pairCode: "8924-4190"
-    });
   }
 });
 
