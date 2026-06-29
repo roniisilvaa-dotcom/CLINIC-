@@ -8,7 +8,7 @@ import {
   FileText, 
   Image as ImageIcon, 
   Bot, 
-  CreditCard,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -42,7 +42,7 @@ export default function Sidebar({
     { id: "financeiro", label: "Faturamento e Caixa", icon: Receipt },
     { id: "galeria_capilar", label: "Galeria Capilar", icon: ImageIcon },
     { id: "ia_assistente", label: "IA Assistente", icon: Bot },
-    { id: "planos", label: "Planos e Gestão", icon: CreditCard },
+    { id: "sobre_tech", label: "CA.RO TECH", icon: ShieldCheck },
   ];
 
   return (

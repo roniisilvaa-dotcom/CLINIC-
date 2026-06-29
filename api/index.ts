@@ -61,14 +61,12 @@ app.post("/api/pacientes", async (req, res) => {
 // ==========================================
 app.get("/api/agenda", async (req, res) => {
   try {
-    const today = new Date().toISOString().split("T")[0]; // simplistic approach for today's agenda
-    const eventos = await db.query.agendaEventos.findMany({
-      where: eq(schema.agendaEventos.data, today),
-      with: { paciente: true } // If you added relations, otherwise fetch manually. Wait, drizzle relations are not defined in schema.ts yet. Let's just fetch flat.
-    });
-    res.json(eventos);
+    const targetDate = (req.query.date as string) || new Date().toISOString().split("T")[0];
+    const eventos = await db.select().from(schema.agendaEventos).where(eq(schema.agendaEventos.data, targetDate));
+    res.json(eventos || []);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    console.error("Erro ao buscar agenda:", e);
+    res.json([]);
   }
 });
 

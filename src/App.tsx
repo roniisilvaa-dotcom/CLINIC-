@@ -11,7 +11,7 @@ import IaAssistente from "./components/IaAssistente";
 import PrescricoesModulo from "./components/PrescricoesMódulo";
 import NovaConsulta from "./components/NovaConsulta";
 import GaleriaGlobal from "./components/GaleriaGlobal";
-import PlanosAssinaturas from "./components/PlanosAssinaturas";
+import SobreTech from "./components/SobreTech";
 import PortalPaciente from "./components/PortalPaciente";
 import FinanceiroModulo from "./components/FinanceiroMódulo";
 
@@ -26,7 +26,7 @@ type TabOption =
   | "financeiro"
   | "galeria_capilar" 
   | "ia_assistente" 
-  | "planos";
+  | "sobre_tech";
 
 interface Message {
   id: string;
@@ -376,8 +376,8 @@ export default function App() {
               />
             )}
 
-            {currentTab === "planos" && (
-              <PlanosAssinaturas activePlan={activePlan} onChangeActivePlan={setActivePlan} />
+            {currentTab === "sobre_tech" && (
+              <SobreTech />
             )}
           </motion.div>
         </AnimatePresence>
