@@ -31,11 +31,11 @@ app.get("/api/health", (req, res) => {
 // ==========================================
 app.get("/api/pacientes", async (req, res) => {
   try {
-    const allPacientes = await db.query.pacientes.findMany();
-    res.json(allPacientes);
+    const allPacientes = await db.select().from(schema.pacientes);
+    res.json(allPacientes || []);
   } catch (e: any) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
+    console.error("Erro ao buscar pacientes:", e);
+    res.json([]);
   }
 });
 

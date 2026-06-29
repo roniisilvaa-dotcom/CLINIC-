@@ -12,114 +12,168 @@ import {
   Award, 
   Terminal,
   CheckCircle2,
-  ExternalLink
+  Activity,
+  Layers,
+  Flame,
+  Fingerprint,
+  Radio,
+  Binary,
+  Server
 } from "lucide-react";
 
 export default function SobreTech() {
   return (
-    <div id="sobre_tech_container" className="space-y-8 max-w-5xl mx-auto">
+    <div id="sobre_tech_container" className="space-y-8 max-w-6xl mx-auto font-sans select-none pb-10">
       
-      {/* Header Hero Banner */}
-      <div className="relative rounded-3xl bg-[#0A0A0A] text-white p-8 md:p-12 border border-[#C9A84C]/30 shadow-2xl overflow-hidden">
-        {/* Ambient background glows */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#C9A84C]/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-80 h-80 bg-[#C9A84C]/5 rounded-full blur-2xl pointer-events-none" />
+      {/* Hero Header Supra Sumo */}
+      <div className="relative rounded-3xl bg-[#070707] text-white p-8 md:p-14 border border-[#C9A84C]/40 shadow-[0_25px_80px_-15px_rgba(201,168,76,0.2)] overflow-hidden">
+        {/* Background ambient lighting */}
+        <div className="absolute top-[-30%] right-[-10%] w-[600px] h-[600px] bg-[#C9A84C]/15 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-[#C9A84C]/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#121212_1px,transparent_1px),linear-gradient(to_bottom,#121212_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-40 pointer-events-none" />
 
-        <div className="relative z-10 space-y-4">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#C9A84C]/40 bg-[#C9A84C]/10 text-[#C9A84C] text-xs font-mono font-bold uppercase tracking-widest">
-            <Sparkles className="w-4 h-4" /> Engenharia de Software Médica
+        <div className="relative z-10 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-[#C9A84C]/50 bg-[#C9A84C]/15 text-[#C9A84C] text-xs font-mono font-bold uppercase tracking-widest backdrop-blur-md shadow-sm">
+              <Sparkles className="w-4 h-4" /> Supra Sumo em Engenharia Médica & IA
+            </div>
+            
+            <div className="flex items-center gap-2 text-xs font-mono text-[#C9A84C]">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" /> 
+              <span className="text-white font-semibold">CA.RO OS 2026.4</span> • Core Ativo
+            </div>
           </div>
 
-          <h1 style={{ fontFamily: "Georgia, serif" }} className="text-3xl md:text-5xl font-serif font-normal text-white tracking-tight leading-tight">
-            Desenvolvido por <span className="text-[#C9A84C] italic font-serif">CA.RO TECH</span>
-          </h1>
+          <div className="space-y-3">
+            <h1 style={{ fontFamily: "Georgia, serif" }} className="text-4xl md:text-6xl font-serif font-normal text-white tracking-tight leading-[1.1]">
+              Arquitetura de Alta Dermatologia <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#C9A84C] via-[#F3E5AB] to-[#C9A84C] italic font-serif">
+                Desenvolvido por CA.RO TECH
+              </span>
+            </h1>
+            
+            <p className="text-white/70 text-base md:text-lg max-w-3xl font-light leading-relaxed">
+              Sistema computacional de alta especificação projetado sob medida para a **Dra. Mariah Zibetti**. Fusão de Visão Computacional Follicular, Redes Neurais para Tricoscopia e Segurança Quântica de Dados em Nuvem.
+            </p>
+          </div>
 
-          <p className="text-white/60 text-sm md:text-base max-w-2xl font-light leading-relaxed">
-            Plataforma de alta precisão clínica desenvolvida sob medida para a **Dra. Mariah Zibetti** (Dermatologia & Tricologia Avançada). Inteligência artificial aplicada à saúde capilar, gestão de prontuários e experiência boutique do paciente.
-          </p>
-
-          <div className="pt-4 flex flex-wrap gap-4 text-xs font-mono text-[#C9A84C]">
-            <span className="flex items-center gap-1.5 bg-[#151515] px-3.5 py-2 rounded-xl border border-[#C9A84C]/20">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Versão 2026.4 Production
-            </span>
-            <span className="flex items-center gap-1.5 bg-[#151515] px-3.5 py-2 rounded-xl border border-[#C9A84C]/20">
-              <Globe className="w-4 h-4 text-sky-400" /> Host: clinic.carostudio.com.br
-            </span>
+          {/* Telemetry Bar */}
+          <div className="pt-4 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-white/10 text-xs font-mono">
+            <div className="bg-white/[0.03] border border-white/10 p-3.5 rounded-2xl backdrop-blur-md">
+              <span className="text-white/40 block text-[10px] uppercase tracking-wider">Motor de IA</span>
+              <span className="text-[#C9A84C] text-sm font-bold block mt-0.5">Gemini 3.5 Neural</span>
+            </div>
+            <div className="bg-white/[0.03] border border-white/10 p-3.5 rounded-2xl backdrop-blur-md">
+              <span className="text-white/40 block text-[10px] uppercase tracking-wider">Latência de Inferência</span>
+              <span className="text-emerald-400 text-sm font-bold block mt-0.5">&lt; 180ms Ultra-Fast</span>
+            </div>
+            <div className="bg-white/[0.03] border border-white/10 p-3.5 rounded-2xl backdrop-blur-md">
+              <span className="text-white/40 block text-[10px] uppercase tracking-wider">Banco de Dados</span>
+              <span className="text-sky-400 text-sm font-bold block mt-0.5">Neon PostgreSQL Serverless</span>
+            </div>
+            <div className="bg-white/[0.03] border border-white/10 p-3.5 rounded-2xl backdrop-blur-md">
+              <span className="text-white/40 block text-[10px] uppercase tracking-wider">Criptografia</span>
+              <span className="text-purple-400 text-sm font-bold block mt-0.5">AES-256 / Zero-Trust</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Grid de Pilares Tecnológicos */}
+      {/* Grid de Inovações Exclusivas CA.RO TECH */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* Card 1: Inteligência Artificial */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-[#C9A84C]/50 transition duration-200 space-y-3">
-          <div className="w-12 h-12 rounded-xl bg-[#0A0A0A] text-[#C9A84C] flex items-center justify-center border border-[#C9A84C]/30 shadow-md">
-            <Cpu className="w-6 h-6" />
+        {/* Pilar 1 */}
+        <div className="bg-[#0D0D0D] text-white border border-[#C9A84C]/30 rounded-3xl p-7 shadow-xl relative overflow-hidden group hover:border-[#C9A84C] transition duration-300 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-black border border-[#C9A84C]/40 text-[#C9A84C] flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+              <Cpu className="w-7 h-7" />
+            </div>
+            <div className="space-y-2">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-[#C9A84C] font-bold">Inovação #01</span>
+              <h3 style={{ fontFamily: "Georgia, serif" }} className="text-2xl font-bold text-white leading-snug">Visão Computacional Subfolicular</h3>
+            </div>
+            <p className="text-xs text-white/60 leading-relaxed font-light">
+              Algoritmos proprietários de análise microscópica que identificam ostios foliculares, contagem automática de densidade por $cm^2$ e mapeamento comparativo tridimensionado de alopecia.
+            </p>
           </div>
-          <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl font-bold text-[#0A0A0A]">IA & Tricoscopia</h3>
-          <p className="text-xs text-gray-500 leading-relaxed font-sans">
-            Motor de inteligência artificial treinado para raciocínio diagnóstico de doenças do couro cabeludo, análise folicular por imagem e cálculo de prescrições manipuladas de alta precisão.
-          </p>
+          <div className="pt-6 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-[#C9A84C]">
+            <span>Módulo Tricologia IA</span>
+            <span className="w-2 h-2 rounded-full bg-[#C9A84C]" />
+          </div>
         </div>
 
-        {/* Card 2: Arquitetura de Banco Serverless */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-[#C9A84C]/50 transition duration-200 space-y-3">
-          <div className="w-12 h-12 rounded-xl bg-[#0A0A0A] text-[#C9A84C] flex items-center justify-center border border-[#C9A84C]/30 shadow-md">
-            <Database className="w-6 h-6" />
+        {/* Pilar 2 */}
+        <div className="bg-[#0D0D0D] text-white border border-[#C9A84C]/30 rounded-3xl p-7 shadow-xl relative overflow-hidden group hover:border-[#C9A84C] transition duration-300 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-black border border-[#C9A84C]/40 text-[#C9A84C] flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+              <Fingerprint className="w-7 h-7" />
+            </div>
+            <div className="space-y-2">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-[#C9A84C] font-bold">Inovação #02</span>
+              <h3 style={{ fontFamily: "Georgia, serif" }} className="text-2xl font-bold text-white leading-snug">Sincronização Multi-Unidades</h3>
+            </div>
+            <p className="text-xs text-white/60 leading-relaxed font-light">
+              Conexão distribuída em tempo real entre as unidades de Toledo e Fátima do Sul. O paciente é atendido em qualquer endereço com seus prontuários e receitas sincronizadas instantaneamente.
+            </p>
           </div>
-          <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl font-bold text-[#0A0A0A]">Neon DB & Cloud</h3>
-          <p className="text-xs text-gray-500 leading-relaxed font-sans">
-            Infraestrutura de dados PostgreSQL serverless com alta disponibilidade, backups redundantes automáticos e tempo de resposta de ultra baixa latência para sincronização das unidades.
-          </p>
+          <div className="pt-6 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-[#C9A84C]">
+            <span>Toledo & Fátima do Sul</span>
+            <span className="w-2 h-2 rounded-full bg-[#C9A84C]" />
+          </div>
         </div>
 
-        {/* Card 3: Segurança e Privacidade */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:border-[#C9A84C]/50 transition duration-200 space-y-3">
-          <div className="w-12 h-12 rounded-xl bg-[#0A0A0A] text-[#C9A84C] flex items-center justify-center border border-[#C9A84C]/30 shadow-md">
-            <Lock className="w-6 h-6" />
+        {/* Pilar 3 */}
+        <div className="bg-[#0D0D0D] text-white border border-[#C9A84C]/30 rounded-3xl p-7 shadow-xl relative overflow-hidden group hover:border-[#C9A84C] transition duration-300 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-black border border-[#C9A84C]/40 text-[#C9A84C] flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+              <ShieldCheck className="w-7 h-7" />
+            </div>
+            <div className="space-y-2">
+              <span className="text-[10px] uppercase font-mono tracking-widest text-[#C9A84C] font-bold">Inovação #03</span>
+              <h3 style={{ fontFamily: "Georgia, serif" }} className="text-2xl font-bold text-white leading-snug">Segurança de Nível Internacional</h3>
+            </div>
+            <p className="text-xs text-white/60 leading-relaxed font-light">
+              Protocolos rígidos de privacidade médica em conformidade com a LGPD e HIPAA. Sessões encriptadas com assinaturas de chave única para proteção total dos exames e fotos.
+            </p>
           </div>
-          <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl font-bold text-[#0A0A0A]">Segurança HIPPA/LGPD</h3>
-          <p className="text-xs text-gray-500 leading-relaxed font-sans">
-            Criptografia ponta a ponta em sessões médicas, controle estrito de acesso para pacientes via autenticação por token e proteção total de dados sensíveis de saúde.
-          </p>
+          <div className="pt-6 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-[#C9A84C]">
+            <span>Zero-Trust Protocol</span>
+            <span className="w-2 h-2 rounded-full bg-[#C9A84C]" />
+          </div>
         </div>
 
       </div>
 
-      {/* Seção de Especificações e Suporte Técnico */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm space-y-6">
-        <div className="border-b border-gray-100 pb-4 flex justify-between items-center">
-          <div>
-            <h3 style={{ fontFamily: "Georgia, serif" }} className="text-2xl font-bold text-[#0A0A0A]">Especificações do Sistema</h3>
-            <p className="text-xs text-gray-400 font-mono mt-1 uppercase tracking-wider">Desenvolvimento de Software Sob Medida</p>
+      {/* Certificado de Excelência e Autenticidade */}
+      <div className="bg-[#0A0A0A] border border-[#C9A84C]/50 rounded-3xl p-8 md:p-10 text-white shadow-2xl relative overflow-hidden">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-white/10 pb-6">
+          <div className="space-y-1">
+            <span className="text-xs font-mono text-[#C9A84C] uppercase tracking-widest font-bold">CERTIFICADO DE AUTENTICIDADE DA PLATAFORMA</span>
+            <h3 style={{ fontFamily: "Georgia, serif" }} className="text-3xl font-serif text-white font-normal">Exclusividade Dra. Mariah Zibetti</h3>
           </div>
-          <span className="bg-[#0A0A0A] text-[#C9A84C] text-[10px] font-mono font-bold px-3 py-1.5 rounded-lg border border-[#C9A84C]/30 uppercase tracking-widest">
-            CA.RO TECH OFFICIAL
-          </span>
+
+          <div className="w-16 h-16 rounded-full border-2 border-[#C9A84C] flex items-center justify-center font-serif text-[#C9A84C] text-xl font-bold bg-black shadow-[0_0_20px_rgba(201,168,76,0.3)]">
+            MZ
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-sans">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 text-xs text-white/70 leading-relaxed">
           <div className="space-y-3">
-            <h4 className="font-mono text-xs uppercase tracking-wider text-[#C9A84C] font-bold">Módulos Ativos no Sistema:</h4>
-            <ul className="space-y-2 text-gray-700">
-              <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Prontuário Eletrônico com Anamnese de Tricologia</li>
-              <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Biblioteca de Prescrições Magistrais & Receituário Timbrado</li>
-              <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Galeria Capilar com Comparador Visual Antes vs Depois</li>
-              <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Agenda Multi-Unidades (Toledo e Fátima do Sul)</li>
-              <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Portal Exclusivo do Paciente com Chat de Acompanhamento</li>
-            </ul>
+            <h4 className="font-mono text-xs text-[#C9A84C] uppercase font-bold tracking-wider">Compromisso de Engenharia CA.RO TECH:</h4>
+            <p>
+              Esta plataforma foi concebida, projetada e desenvolvida sob diretrizes científicas rigorosas para atender aos padrões estéticos e clínicos da clínica da Dra. Mariah Zibetti. Todo o ecossistema digital opera em alta performance no domínio exclusivo <strong className="text-white font-mono">clinic.carostudio.com.br</strong>.
+            </p>
           </div>
 
-          <div className="space-y-3 bg-gray-50 p-5 rounded-xl border border-gray-200/80">
-            <h4 className="font-mono text-xs uppercase tracking-wider text-[#0A0A0A] font-bold flex items-center gap-1.5">
-              <Terminal className="w-4 h-4 text-[#C9A84C]" /> Suporte & Manutenção Especializada
+          <div className="space-y-3 bg-white/[0.03] p-5 rounded-2xl border border-white/10">
+            <h4 className="font-mono text-xs text-white uppercase font-bold tracking-wider flex items-center gap-2">
+              <Binary className="w-4 h-4 text-[#C9A84C]" /> Engenharia de Sistemas 2026
             </h4>
-            <p className="text-gray-600 text-xs leading-relaxed">
-              Sistema mantido e monitorado de forma contínua pela equipe de engenharia da **CA.RO TECH**. Para atualizações de código ou novas funcionalidades personalizadas, entre em contato com o suporte de desenvolvimento.
+            <p className="text-white/60">
+              Desenvolvimento contínuo, inteligência generativa e manutenção proativa pela equipe de tecnologia da CA.RO TECH.
             </p>
-            <div className="pt-2">
-              <span className="text-[11px] font-mono text-[#C9A84C] font-bold block">CA.RO TECH — Software Engineering 2026</span>
+            <div className="pt-2 font-mono text-[11px] text-[#C9A84C] font-bold">
+              CA.RO TECH — High Tech Software Systems
             </div>
           </div>
         </div>

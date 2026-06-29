@@ -83,6 +83,58 @@ export default function PacientesModulo({
   // Prescrição Letterhead Preview state
   const [showLetterheadPreview, setShowLetterheadPreview] = useState(false);
 
+  // New Patient Form State
+  const [showCreatePacienteModal, setShowCreatePacienteModal] = useState(false);
+  const [newNome, setNewNome] = useState("");
+  const [newCpf, setNewCpf] = useState("");
+  const [newNascimento, setNewNascimento] = useState("1995-05-20");
+  const [newTelefone, setNewTelefone] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newCidade, setNewCidade] = useState<"Toledo" | "Fátima do Sul">("Toledo");
+  const [newQueixa, setNewQueixa] = useState("Acompanhamento / Avaliação Capilar");
+
+  const handleSaveNewPaciente = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const idNew = `paciente-${Date.now()}`;
+    const novo: Paciente = {
+      id: idNew,
+      nome: newNome || "Novo Paciente Integrado",
+      idade: 30,
+      dataNascimento: newNascimento || "1995-05-20",
+      cpf: newCpf || "000.000.000-00",
+      telefone: newTelefone || "(45) 99999-9999",
+      email: newEmail || `${newCpf.replace(/\D/g, "")}@paciente.com`,
+      cidade: newCidade || "Toledo",
+      comoConheceu: "Indicação / Instagram",
+      queixaPrincipal: newQueixa || "Consulta de Tricologia Capilar",
+      status: "Em Tratamento",
+      progresso: 10,
+      ultimaAtualizacao: new Date().toISOString().split("T")[0],
+      antecedentes: { usoMedicamentos: "Nenhum", historicoFamiliar: "Pai calvo", gestacaoAmamentacao: "Nega", menopausa: "Nega", outros: "" },
+      diagnostico: { principal: "Eflúvio Telógeno Agudo", secundario: [], escalaLudwig: "Grau I", condicoesAssociadas: [], fatoresContribuintes: [], observacoes: "" },
+      exames: [],
+      protocolo: { medicamentos: "", procedimentos: "", cosmeticos: "", suplementacao: "", estiloVida: "", duracaoPrevista: "6 meses", dataInicio: new Date().toISOString().split("T")[0] },
+      galeria: [],
+      consultas: []
+    };
+
+    onChangePacientes([novo, ...pacientes]);
+    onSelectPaciente(idNew);
+    setShowCreatePacienteModal(false);
+
+    // Reset form
+    setNewNome("");
+    setNewCpf("");
+
+    try {
+      await fetch("/api/pacientes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(novo)
+      });
+    } catch {}
+  };
+
   // Finds current patient
   const curPaciente = pacientes.find(p => p.id === selectedPacienteId) || null;
 
@@ -241,33 +293,8 @@ export default function PacientesModulo({
               </div>
 
               <button
-                onClick={() => {
-                  const idNew = `paciente-${Date.now()}`;
-                  const novo: Paciente = {
-                    id: idNew,
-                    nome: "Novo Paciente Integrado",
-                    idade: 30,
-                    dataNascimento: "1996-01-01",
-                    cpf: "000.000.000-00",
-                    telefone: "(45) 99999-9999",
-                    email: "email@provedor.com",
-                    cidade: "Toledo",
-                    comoConheceu: "Instagram",
-                    queixaPrincipal: "Fios fracos na hora de escovar.",
-                    status: "Em Tratamento",
-                    progresso: 10,
-                    ultimaAtualizacao: new Date().toISOString().split("T")[0],
-                    antecedentes: { usoMedicamentos: "Nenhum", historicoFamiliar: "Pai calvo", gestacaoAmamentacao: "Nega", menopausa: "Nega", outros: "" },
-                    diagnostico: { principal: "Eflúvio Telógeno Agudo", secundario: [], escalaLudwig: "Grau I", condicoesAssociadas: [], fatoresContribuintes: [], observacoes: "" },
-                    exames: [],
-                    protocolo: { medicamentos: "", procedimentos: "", cosmeticos: "", suplementacao: "", estiloVida: "", duracaoPrevista: "6 meses", dataInicio: new Date().toISOString().split("T")[0] },
-                    galeria: [],
-                    consultas: []
-                  };
-                  onChangePacientes([novo, ...pacientes]);
-                  onSelectPaciente(idNew);
-                }}
-                className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black text-xs font-bold font-mono tracking-wider uppercase px-5 py-3 rounded-lg flex items-center gap-2 transition-all duration-200 cursor-pointer self-start sm:self-auto shadow-sm"
+                onClick={() => setShowCreatePacienteModal(true)}
+                className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black text-xs font-bold font-mono tracking-wider uppercase px-5 py-3 rounded-xl flex items-center gap-2 transition-all duration-200 cursor-pointer self-start sm:self-auto shadow-md"
               >
                 <Plus className="w-4 h-4" /> Cadastrar Paciente
               </button>
@@ -1568,6 +1595,115 @@ export default function PacientesModulo({
                 Imprimir Documento
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== MODAL: CADASTRAR NOVO PACIENTE ====== */}
+      {showCreatePacienteModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-sans">
+          <div className="bg-white text-[#0A0A0A] w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-fadeIn border border-[#C9A84C]/40">
+            
+            <div className="bg-[#0A0A0A] text-white p-4 px-6 flex justify-between items-center border-b border-[#252525]">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#C9A84C]" />
+                <span className="font-mono text-xs uppercase tracking-wider text-[#C9A84C] font-bold">Cadastrar Paciente Capilar • Dra. Mariah Zibetti</span>
+              </div>
+              <button onClick={() => setShowCreatePacienteModal(false)} className="text-gray-400 hover:text-white transition p-1 rounded-lg cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewPaciente} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Nome Completo do Paciente</label>
+                <input 
+                  type="text" 
+                  placeholder="Ex: Ana Carolina Silva" 
+                  value={newNome} 
+                  onChange={(e) => setNewNome(e.target.value)} 
+                  required 
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none" 
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs uppercase text-gray-500 font-mono font-bold block">CPF (para login do paciente)</label>
+                  <input 
+                    type="text" 
+                    placeholder="000.000.000-00" 
+                    value={newCpf} 
+                    onChange={(e) => setNewCpf(e.target.value)} 
+                    required 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none font-mono" 
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Data de Nascimento</label>
+                  <input 
+                    type="date" 
+                    value={newNascimento} 
+                    onChange={(e) => setNewNascimento(e.target.value)} 
+                    required 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none font-mono" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Telefone / WhatsApp</label>
+                  <input 
+                    type="text" 
+                    placeholder="(45) 99999-9999" 
+                    value={newTelefone} 
+                    onChange={(e) => setNewTelefone(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none font-mono" 
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Unidade de Atendimento</label>
+                  <select 
+                    value={newCidade} 
+                    onChange={(e) => setNewCidade(e.target.value as any)} 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-3 rounded-xl outline-none"
+                  >
+                    <option value="Toledo">📍 Toledo</option>
+                    <option value="Fátima do Sul">📍 Fátima do Sul</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1 border-t border-gray-100 pt-3">
+                <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Queixa Principal / Diagnóstico Inicial</label>
+                <textarea 
+                  rows={2} 
+                  placeholder="Ex: Queda acentuada de cabelo há 3 meses..." 
+                  value={newQueixa} 
+                  onChange={(e) => setNewQueixa(e.target.value)} 
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-3 rounded-xl outline-none" 
+                />
+              </div>
+
+              <div className="border-t border-gray-100 pt-4 flex justify-end gap-3 text-xs">
+                <button 
+                  type="button" 
+                  onClick={() => setShowCreatePacienteModal(false)} 
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold px-4 py-2.5 rounded-xl font-mono uppercase cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-semibold px-5 py-2.5 rounded-xl font-mono uppercase tracking-wider cursor-pointer transition shadow-md"
+                >
+                  Cadastrar Paciente
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

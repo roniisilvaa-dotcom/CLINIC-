@@ -183,15 +183,13 @@ export default function AgendaModulo({
     } catch {}
   };
 
-  // Generate Slots from 08:00 to 18:30 (every 30 mins)
+  // Generate Slots for full 24 hours (00:00 to 23:30 every 30 mins)
   const generateSlots = (): TimeSlot[] => {
     const slots: TimeSlot[] = [];
     const todayBlocks = blockedSlots[formattedDateKey] || [];
     
-    for (let h = 8; h <= 18; h++) {
+    for (let h = 0; h < 24; h++) {
       for (let m = 0; m < 60; m += 30) {
-        if (h === 18 && m === 30) continue;
-        
         const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
         const event = agendaDoDia.find(e => e.horario === timeStr && (activeUnit === "all" || e.tipo.includes(activeUnit)));
         
