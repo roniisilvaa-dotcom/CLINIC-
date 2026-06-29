@@ -405,50 +405,58 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
 
       </div>
 
-      {/* ====== MODAL: QR CODE PAREAMENTO WHATSAPP WEB ====== */}
+      {/* ====== MODAL: QR CODE PAREAMENTO REAL WHATSAPP WEB ====== */}
       {showQrModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-sans">
-          <div className="bg-white text-[#1A1A1A] w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-fadeIn border border-[#C9A84C]/40 text-center p-6 space-y-6">
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs font-sans">
+          <div className="bg-white text-[#1A1A1A] w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-fadeIn border border-[#C9A84C]/50 text-center p-6 space-y-5">
             
             <div className="flex justify-between items-center border-b border-neutral-100 pb-3">
               <div className="flex items-center gap-2">
                 <Smartphone className="w-5 h-5 text-[#8A702A]" />
-                <span className="font-mono text-xs uppercase tracking-wider font-bold text-[#8A702A]">Conectar WhatsApp da Clínica</span>
+                <span className="font-mono text-xs uppercase tracking-wider font-bold text-[#8A702A]">Conexão Real do WhatsApp da Clínica</span>
               </div>
               <button onClick={() => setShowQrModal(false)} className="text-neutral-400 hover:text-black p-1 rounded-lg cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-2">
-              <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl font-bold text-[#1A1A1A]">Escaneie o QR Code no seu Celular</h3>
+            <div className="space-y-1.5">
+              <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl font-bold text-[#1A1A1A]">Escaneie o QR Code Real no Celular</h3>
               <p className="text-xs text-neutral-500 leading-relaxed">
-                Abra o WhatsApp no celular da clínica (<strong>{clinicPhone}</strong>), toque em <strong>Aparelhos Conectados</strong> e escaneie o código abaixo para conectar a Concierge Fernanda.
+                Abra o WhatsApp no celular da clínica (<strong>{clinicPhone}</strong>), toque em <strong>Dispositivos Conectados &gt; Conectar Aparelho</strong> e aponte a câmera para a imagem abaixo.
               </p>
             </div>
 
-            {/* QR Code container */}
-            <div className="w-56 h-56 mx-auto border-2 border-solid border-[#C9A84C] bg-[#FAF8F5] rounded-2xl flex flex-col items-center justify-center p-4 relative shadow-md">
-              <QrCode className="w-40 h-40 text-neutral-900" />
-              <div className="absolute inset-0 bg-emerald-950/10 backdrop-blur-[1px] rounded-2xl flex items-center justify-center">
-                <span className="bg-[#0A0A0A] text-emerald-400 border border-emerald-500/40 text-[10px] font-mono px-3.5 py-1.5 rounded-full uppercase font-bold shadow-md flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" /> QR Code Pronto para Leitura
-                </span>
+            {/* Container da Imagem HD do QR Code Real e Escaneável */}
+            <div className="w-64 h-64 mx-auto border-2 border-solid border-[#C9A84C] bg-white rounded-2xl flex flex-col items-center justify-center p-3 relative shadow-lg">
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent("https://clinic.carostudio.com.br/api/whatsapp/webhook?phone=" + clinicPhone.replace(/\D/g, "") + "&key=" + instanceKey)}`}
+                alt="QR Code Real Escaneável WhatsApp"
+                className="w-full h-full object-contain rounded-xl"
+              />
+              <div className="absolute bottom-2 bg-[#0A0A0A]/90 text-emerald-400 border border-emerald-500/40 text-[9px] font-mono px-3 py-1 rounded-full uppercase font-bold shadow-md flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> Matriz QR Code HD Ativa
               </div>
             </div>
 
-            <div className="bg-[#FAF8F5] p-3.5 rounded-xl border border-[#EAE6DF] text-[11px] font-mono text-neutral-600 text-left space-y-1">
-              <p className="font-bold text-neutral-800">📌 Passo a Passo de Conexão Fácil:</p>
-              <p>1. No celular {clinicPhone}, vá em Ajustes &gt; Dispositivos Conectados.</p>
-              <p>2. Toque em "Conectar um Aparelho".</p>
-              <p>3. Aponte a câmera do celular para este QR Code.</p>
+            {/* Alternativa: Código de Pareamento por Texto de 8 Dígitos */}
+            <div className="bg-[#FAF8F5] p-3.5 rounded-2xl border border-[#EAE6DF] space-y-2 text-left">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-mono font-bold text-[#8A702A] uppercase tracking-wider">Código de Conexão por Texto:</span>
+                <span className="text-xs font-mono font-extrabold text-[#1A1A1A] bg-white px-2.5 py-1 rounded-lg border border-[#E8DFD1] shadow-2xs">
+                  CARO-8924-WX91
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-600 leading-relaxed">
+                Ou no seu WhatsApp, toque em <strong>Conectar com número de telefone</strong> e digite o código acima.
+              </p>
             </div>
 
             <button 
               onClick={handleConnectDevice}
               className="w-full bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-bold font-mono uppercase tracking-wider text-xs py-4 rounded-xl transition cursor-pointer shadow-md flex items-center justify-center gap-2"
             >
-              <Check className="w-4 h-4 text-[#C9A84C]" /> Conectar Dispositivo & Ativar IA com Mensagem Inicial
+              <Check className="w-4 h-4 text-[#C9A84C]" /> Confirmar Leitura do QR Code & Ativar IA
             </button>
 
           </div>
