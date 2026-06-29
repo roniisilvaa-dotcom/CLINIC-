@@ -109,7 +109,7 @@ app.get("/api/whatsapp/qr", (req, res) => {
     // Gera payload de autenticação no padrão WhatsApp Web / Baileys Multi-Device
     const timestamp = Math.floor(Date.now() / 1000);
     const cleanPhone = phone.replace(/\D/g, "") || "5545998421200";
-    const randomToken = Buffer.from(`${cleanPhone}-${instance}-${timestamp}`).toString("base64").replace(/[^a-[#a-zA-Z0-9]/g, "").substring(0, 28);
+    const randomToken = Buffer.from(`${cleanPhone}-${instance}-${timestamp}`).toString("base64").replace(/[^a-zA-Z0-9]/g, "").substring(0, 28);
     const waAuthPayload = `2@${randomToken},${cleanPhone}@s.whatsapp.net,${timestamp}`;
     
     const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data=${encodeURIComponent(waAuthPayload)}`;
