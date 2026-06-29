@@ -1,4 +1,3 @@
-import React from "react";
 import { 
   Sparkles, 
   LayoutDashboard, 
@@ -12,7 +11,8 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
-  Receipt
+  Receipt,
+  MessageSquare
 } from "lucide-react";
 
 interface SidebarProps {
@@ -42,6 +42,7 @@ export default function Sidebar({
     { id: "financeiro", label: "Faturamento e Caixa", icon: Receipt },
     { id: "galeria_capilar", label: "Galeria Capilar", icon: ImageIcon },
     { id: "ia_assistente", label: "IA Assistente", icon: Bot },
+    { id: "whatsapp_bot", label: "Automação WhatsApp", icon: MessageSquare },
     { id: "sobre_tech", label: "CA.RO TECH", icon: ShieldCheck },
   ];
 

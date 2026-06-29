@@ -14,6 +14,7 @@ import GaleriaGlobal from "./components/GaleriaGlobal";
 import SobreTech from "./components/SobreTech";
 import PortalPaciente from "./components/PortalPaciente";
 import FinanceiroModulo from "./components/FinanceiroMódulo";
+import WhatsAppAutomation from "./components/WhatsAppAutomation";
 
 import { Paciente, AlertaClinico, EventoAgenda, ConsultaHistorial } from "./types";
 
@@ -26,6 +27,7 @@ type TabOption =
   | "financeiro"
   | "galeria_capilar" 
   | "ia_assistente" 
+  | "whatsapp_bot"
   | "sobre_tech";
 
 interface Message {
@@ -358,6 +360,12 @@ export default function App() {
                   setSelectedPacienteId(id);
                   setCurrentTab("pacientes");
                 }}
+              />
+            )}
+
+            {currentTab === "whatsapp_bot" && (
+              <WhatsAppAutomation 
+                onAddAgendaEvento={(evt) => setAgendaHoje(prev => [...prev, evt])}
               />
             )}
 

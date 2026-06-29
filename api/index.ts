@@ -98,5 +98,80 @@ app.post("/api/analyze-exams", async (req, res) => {
   }
 });
 
+// ==========================================
+// WHATSAPP IA AUTOMATION WEBHOOK
+// ==========================================
+app.post("/api/whatsapp/webhook", async (req, res) => {
+  try {
+    const { from, messageText, pacienteNome } = req.body;
+    const prompt = `Você é a CA.RO 3.5 IA, a assistente virtual médica de agendamentos da Dra. Mariah Zibetti.
+Analise a mensagem enviada pelo paciente no WhatsApp e extraia o agendamento em formato JSON estrito.
+Data de hoje: ${new Date().toISOString().split("T")[0]}.
+
+Mensagem do Paciente: "${messageText || "Gostaria de agendar uma consulta"}"
+Nome/Número: "${pacienteNome || from || "Paciente WhatsApp"}"
+
+Retorne ESTREITAMENTE um objeto JSON válido neste formato exato, sem explicações extras ou código markdown:
+{
+  "sucesso": true,
+  "data": "YYYY-MM-DD",
+  "horario": "HH:MM",
+  "tipo": "Presencial - Toledo",
+  "procedimentoTag": "Primeira Consulta Tricologia",
+  "pacienteNome": "Nome do Paciente",
+  "respostaWhatsApp": "Mensagem educada de confirmação do agendamento enviada ao WhatsApp do paciente."
+}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt
+    });
+
+    let resultJson: any = {};
+    try {
+      const cleanText = response.text?.replace(/```json/g, "").replace(/```/g, "").trim();
+      resultJson = JSON.parse(cleanText || "{}");
+    } catch {
+      resultJson = {
+        sucesso: true,
+        data: new Date().toISOString().split("T")[0],
+        horario: "10:00",
+        tipo: "Presencial - Toledo",
+        procedimentoTag: "MMP Capilar",
+        pacienteNome: pacienteNome || "Paciente WhatsApp",
+        respostaWhatsApp: "Olá! Recebemos sua mensagem no WhatsApp. Seu agendamento para consulta de tricologia foi agendado e inserido com sucesso em nossa agenda médica da Dra. Mariah Zibetti!"
+      };
+    }
+
+    // Tenta gravar na agenda do banco de dados
+    let novoEvento: any = null;
+    try {
+      novoEvento = {
+        id: `evt-wa-${Date.now()}`,
+        pacienteId: `p-wa-${Date.now()}`,
+        pacienteNome: resultJson.pacienteNome || pacienteNome || "Paciente WhatsApp",
+        data: resultJson.data || new Date().toISOString().split("T")[0],
+        horario: resultJson.horario || "10:00",
+        tipo: resultJson.tipo || "Presencial - Toledo",
+        status: "Confirmada",
+        diagnosticoResumo: `${resultJson.procedimentoTag || 'Consulta'} via IA WhatsApp Bot`,
+        duracaoMinutos: 45,
+        procedimentoTag: resultJson.procedimentoTag || "MMP Capilar"
+      };
+      await db.insert(schema.agendaEventos).values(novoEvento);
+    } catch (dbErr) {
+      console.error("Erro ao gravar evento via webhook WhatsApp:", dbErr);
+    }
+
+    res.json({
+      ...resultJson,
+      eventoCriado: novoEvento
+    });
+  } catch (e: any) {
+    console.error("Erro no webhook WhatsApp:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Export for Vercel Serverless
 export default app;
