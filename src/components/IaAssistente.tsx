@@ -38,7 +38,7 @@ export default function IaAssistente({
     {
       id: "init-1",
       role: "assistant",
-      content: `Olá, ${medicaNome}. Sou seu **Copiloto de Inteligência Clínica em Tricologia Avançada**.
+      content: `Olá, ${medicaNome}. Sou o **CA.RO 3.5 IA**, seu copiloto de inteligência clínica em tricologia avançada.
 
 Estou sincronizado com os prontuários capilares, análises de tricoscopia, exames laboratoriais e fórmulas manipuladas das unidades de Toledo e Fátima do Sul.
 

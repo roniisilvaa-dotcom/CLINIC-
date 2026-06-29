@@ -61,7 +61,7 @@ export default function SobreTech() {
           <div className="pt-4 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-white/10 text-xs font-mono">
             <div className="bg-white/[0.03] border border-white/10 p-3.5 rounded-2xl backdrop-blur-md">
               <span className="text-white/40 block text-[10px] uppercase tracking-wider">Motor de IA</span>
-              <span className="text-[#C9A84C] text-sm font-bold block mt-0.5">Gemini 3.5 Neural</span>
+              <span className="text-[#C9A84C] text-sm font-bold block mt-0.5">CA.RO 3.5 IA</span>
             </div>
             <div className="bg-white/[0.03] border border-white/10 p-3.5 rounded-2xl backdrop-blur-md">
               <span className="text-white/40 block text-[10px] uppercase tracking-wider">Latência de Inferência</span>
