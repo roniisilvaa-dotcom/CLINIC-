@@ -24,19 +24,21 @@ interface IaAssistenteProps {
   activePlan?: "Standard" | "Precision" | "Enterprise";
   aiRunsCounter?: number;
   onIncrementAiRuns?: () => void;
+  medicaNome?: string;
 }
 
-export default function IaAssistente({ 
+export default function IaAssistente({
   pacientes = [],
   activePlan = "Precision",
   aiRunsCounter = 2,
-  onIncrementAiRuns
+  onIncrementAiRuns,
+  medicaNome = "Doutor(a)"
 }: IaAssistenteProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "init-1",
       role: "assistant",
-      content: `Olá, Dra. Mariah. Sou o **CA.RO Clinic IA**, seu copiloto de decisão diagnóstica e terapêutica em saúde capilar de precisão.
+      content: `Olá, ${medicaNome}. Sou o **CA.RO Clinic IA**, seu copiloto de decisão diagnóstica e terapêutica em saúde capilar de precisão.
 
 Tenho pleno acesso aos prontuários, evoluções de consultas, laudos de exames e históricos fotográficos dos pacientes de suas unidades. 
 
@@ -106,7 +108,7 @@ Como posso ajudá-la no raciocínio clínico ou na conduta de hoje?`
 `;
     }).join("\n---\n");
 
-    const systemInstruction = `Você é o CA.RO Clinic IA, um assistente de decisão de precisão capilar em saúde capilar, que atua como copiloto clínico exclusivo da Dra. Mariah Zibetti (CRM PR 57.133).
+    const systemInstruction = `Você é o CA.RO Clinic IA, um assistente de decisão de precisão capilar em saúde capilar, que atua como copiloto clínico exclusivo da médica responsável da clínica.
 
 Você tem acesso completo aos prontuários e dados clínicos em tempo real dos seguintes pacientes cadastrados na clínica:
 =========================================
@@ -367,7 +369,7 @@ Suas diretrizes fundamentais:
             />
             <div className="flex justify-between items-center mt-2 border-t border-gray-100 pt-2 px-1">
               <span className="text-[10px] text-gray-450 font-sans flex items-center gap-1 select-none">
-                <AlertTriangle className="w-3.5 h-3.5 text-[#C9A84C]" /> Assistente de apoio clínico — decisão final é da médica Dra. Mariah.
+                <AlertTriangle className="w-3.5 h-3.5 text-[#C9A84C]" /> Assistente de apoio clínico — decisão final é da médica responsável.
               </span>
 
               <button

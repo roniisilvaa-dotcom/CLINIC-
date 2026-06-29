@@ -15,10 +15,9 @@ import {
   ClipboardCopy
 } from "lucide-react";
 import { PrescricaoTemplate } from "../types";
-import { MOCK_PRESCRIÇÕES_TEMPLATES } from "../mockData";
 
-export default function PrescricoesModulo() {
-  const [library, setLibrary] = useState<PrescricaoTemplate[]>(MOCK_PRESCRIÇÕES_TEMPLATES);
+export default function PrescricoesModulo({ medicaNome = "Médico(a) Responsável" }: { medicaNome?: string }) {
+  const [library, setLibrary] = useState<PrescricaoTemplate[]>([]);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
@@ -179,7 +178,7 @@ export default function PrescricoesModulo() {
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(
-                    `RECEITA DRª MARIAH ZIBETTI - ${temp.titulo}\n\n[Medicamentos]\n${temp.medicamentos}\n\n[Procedimentos]\n${temp.procedimentos}\n\n[Suplementação]\n${temp.suplementacao}\n\n[Cosméticos]\n${temp.cosmeticos}`
+                    `RECEITA ${medicaNome.toUpperCase()} - ${temp.titulo}\n\n[Medicamentos]\n${temp.medicamentos}\n\n[Procedimentos]\n${temp.procedimentos}\n\n[Suplementação]\n${temp.suplementacao}\n\n[Cosméticos]\n${temp.cosmeticos}`
                   );
                   alert("Todas as formulações deste template foram copiadas para a área de transferência!");
                 }}
@@ -283,8 +282,8 @@ export default function PrescricoesModulo() {
                 <div>
                   <div className="flex justify-between border-b-2 border-[#C9A84C]/40 pb-4">
                     <div>
-                      <h2 style={{ fontFamily: "Georgia, serif" }} className="text-lg font-serif font-bold text-[#0A0A0A]">Dra. Mariah Zibetti</h2>
-                      <p className="text-[10px] text-gray-500 font-mono uppercase font-bold">CRM PR 57.133 • Especialista em Tricologia Médica</p>
+                      <h2 style={{ fontFamily: "Georgia, serif" }} className="text-lg font-serif font-bold text-[#0A0A0A]">{medicaNome}</h2>
+                      <p className="text-[10px] text-gray-500 font-mono uppercase font-bold">Especialista em Tricologia Médica</p>
                     </div>
                     <div className="w-10 h-10 rounded-full border border-[#C9A84C] shrink-0 flex items-center justify-center font-serif text-[#C9A84C] text-[13px] font-bold bg-white">M</div>
                   </div>
@@ -310,7 +309,7 @@ export default function PrescricoesModulo() {
 
                 <div className="text-center mt-12 border-t border-gray-200 pt-4 text-[9px] text-gray-400">
                   <p>Unidade Toledo: Av. Parigot de Souza, 1222 • Unidade Fátima do Sul: Rua Tenente Fátima, 555</p>
-                  <p className="italic mt-1 font-bold">Dra. Mariah Zibetti • CRM PR 57.133</p>
+                  <p className="italic mt-1 font-bold">{medicaNome}</p>
                 </div>
 
               </div>

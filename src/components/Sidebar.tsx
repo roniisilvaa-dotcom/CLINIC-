@@ -105,12 +105,12 @@ export default function Sidebar({
       <div className="p-6 border-t border-[#F5F0E8]/10 bg-[#0A0A0A]">
         <div className="flex items-center gap-3 overflow-hidden py-1">
           <div className="w-10 h-10 rounded-full border border-[#C9A84C] bg-[#F5F0E8]/10 flex items-center justify-center text-[#C9A84C] text-xs font-serif shrink-0">
-            MZ
+            {(medicaNome.replace(/Dra?\.?/i, "").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("") || "DR").toUpperCase()}
           </div>
           {!collapsed && (
             <div className="flex flex-col overflow-hidden animate-fadeIn">
               <span className="text-xs font-semibold text-white truncate">{medicaNome}</span>
-              <span className="text-[10px] text-[#F5F0E8]/40 truncate">CRM PR 57.133</span>
+              <span className="text-[10px] text-[#F5F0E8]/40 truncate">Médica Responsável</span>
             </div>
           )}
         </div>

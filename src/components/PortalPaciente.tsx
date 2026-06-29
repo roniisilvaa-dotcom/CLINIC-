@@ -91,7 +91,7 @@ export default function PortalPaciente({
             <div className="flex items-center gap-2 pt-1 font-mono text-[10px] text-gray-400">
               <span className="bg-[#C9A84C]/15 text-[#C9A84C] px-2 py-0.5 rounded font-bold uppercase">{paciente.status}</span>
               <span>•</span>
-              <span>CRM PR 57.133 • Unidade {paciente.cidade}</span>
+              <span>Unidade {paciente.cidade}</span>
             </div>
           </div>
 
@@ -120,7 +120,7 @@ export default function PortalPaciente({
             { id: "evolucao", label: "📋 Minha Evolução", desc: "Protocolos e consultas" },
             { id: "exames", label: "🩸 Exames Clínicos", desc: "Análises de exames" },
             { id: "fotos", label: "📸 Minha Galeria", desc: "Análise fotográfica" },
-            { id: "chat", label: "💬 Chat Dra. Mariah", desc: "Canal direto e seguro" }
+            { id: "chat", label: "💬 Chat com a Clínica", desc: "Canal direto e seguro" }
           ].map(tab => (
             <button
               key={tab.id}
@@ -317,7 +317,7 @@ export default function PortalPaciente({
                       </div>
                       
                       <div className="text-xs text-gray-700 leading-relaxed font-sans font-medium whitespace-pre-wrap max-h-[220px] overflow-y-auto">
-                        {paciente.exames[0].analiseIA || "O laudo interpretativo de otimização metabólica é gerado e revisado na clínica à luz dos estritos biomarcadores tricológicos da Dra. Mariah."}
+                        {paciente.exames[0].analiseIA || "O laudo interpretativo de otimização metabólica é gerado e revisado na clínica à luz dos estritos biomarcadores tricológicos da clínica."}
                       </div>
                     </div>
 
@@ -379,7 +379,7 @@ export default function PortalPaciente({
                     MZ
                   </div>
                   <div>
-                    <h4 style={{ fontFamily: "Georgia, serif" }} className="text-xs font-bold text-[#0A0A0A]">Dra. Mariah Zibetti</h4>
+                    <h4 style={{ fontFamily: "Georgia, serif" }} className="text-xs font-bold text-[#0A0A0A]">Médica Responsável</h4>
                     <span className="text-[10px] text-gray-400 font-mono block font-medium">Canal de Chat Seguro • Atendimento Individual</span>
                   </div>
                 </div>
@@ -430,7 +430,7 @@ export default function PortalPaciente({
                   type="text"
                   value={inputMsg}
                   onChange={(e) => setInputMsg(e.target.value)}
-                  placeholder="Escreva uma mensagem com carinho para Dra. Mariah..."
+                  placeholder="Escreva uma mensagem com carinho para sua médica..."
                   className="flex-1 bg-gray-50 border border-gray-250 focus:border-[#C9A84C] focus:bg-white text-xs sm:text-sm py-2.5 px-3.5 rounded-lg outline-none font-sans font-medium"
                 />
                 <button

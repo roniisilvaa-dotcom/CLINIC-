@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+dist
+server.ts
+README.md

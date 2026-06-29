@@ -40,6 +40,7 @@ interface PacientesModuloProps {
   activePlan?: "Standard" | "Precision" | "Enterprise";
   aiRunsCounter?: number;
   onIncrementAiRuns?: () => void;
+  medicaNome?: string;
 }
 
 export default function PacientesModulo({ 
@@ -52,7 +53,8 @@ export default function PacientesModulo({
   onSendDoctorMessage,
   activePlan = "Precision",
   aiRunsCounter = 2,
-  onIncrementAiRuns
+  onIncrementAiRuns,
+  medicaNome = "Médico(a) Responsável"
 }: PacientesModuloProps) {
 
   // List State
@@ -465,6 +467,22 @@ export default function PacientesModulo({
                     <FileSignature className="w-4 h-4" />
                     {isEditing ? "Cancelar" : "Editar"}
                   </button>
+
+                  <button
+                    onClick={() => {
+                      if (
+                        curPaciente &&
+                        confirm(`Excluir o paciente ${curPaciente.nome}? Esta ação não pode ser desfeita.`)
+                      ) {
+                        onChangePacientes(pacientes.filter((p) => p.id !== curPaciente.id));
+                        onSelectPaciente(null);
+                        setIsEditing(false);
+                      }
+                    }}
+                    className="border border-red-200 hover:border-red-400 hover:bg-red-50 bg-white text-red-500 text-xs font-mono uppercase tracking-wider px-3.5 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors duration-200 cursor-pointer"
+                  >
+                    <Trash className="w-4 h-4" /> Excluir
+                  </button>
                 </div>
               </div>
 
@@ -645,7 +663,7 @@ export default function PacientesModulo({
                     <div className="space-y-6">
                       <div className="flex justify-between items-center border-b border-[#1F1F1F] pb-3">
                         <h3 className="text-lg font-serif text-[#FAFAFA] font-medium">Diagnóstico Tricológico de Precisão</h3>
-                        <span className="text-[11px] text-[#C9A84C] font-mono">Dra. Mariah Zibetti</span>
+                        <span className="text-[11px] text-[#C9A84C] font-mono">{medicaNome}</span>
                       </div>
 
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
@@ -906,7 +924,7 @@ export default function PacientesModulo({
                             <div className="bg-[#1A1A1A] border border-[#2B2B2B] p-4 rounded-md text-[11px] text-neutral-400 flex items-start gap-2 leading-relaxed">
                               <AlertTriangle className="w-4 h-4 text-[#C9A84C] shrink-0" />
                               <p>
-                                <strong>Critérios Estritos de Redensificação:</strong> Na tricologia clássica da Dra. Mariah, os níveis alvo bioquímicos diferem dos limites básicos que laboratórios de diagnóstico usam. Buscamos otimização para garantir o alongamento máximo da fase Anágena capilar.
+                                <strong>Critérios Estritos de Redensificação:</strong> Na tricologia clássica, os níveis alvo bioquímicos diferem dos limites básicos que laboratórios de diagnóstico usam. Buscamos otimização para garantir o alongamento máximo da fase Anágena capilar.
                               </p>
                             </div>
                           </div>
@@ -1313,7 +1331,7 @@ export default function PacientesModulo({
                         <div className="bg-gray-50 border-b border-gray-150 p-4 flex justify-between items-center">
                           <div>
                             <h4 style={{ fontFamily: "Georgia, serif" }} className="text-sm font-bold text-[#0A0A0A]">Canal Direto com o Paciente</h4>
-                            <p className="text-[10px] text-gray-400 font-mono">Dra. Mariah Zibetti • Chat Criptografado</p>
+                            <p className="text-[10px] text-gray-400 font-mono">{medicaNome} • Chat Criptografado</p>
                           </div>
                           <span className="bg-[#C9A84C]/10 text-[#C9A84C] text-[9px] font-mono uppercase font-bold py-1 px-2.5 rounded">
                             Ativo
@@ -1484,9 +1502,9 @@ export default function PacientesModulo({
                 <div>
                   <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-5">
                     <div>
-                      <h2 className="text-xl font-serif text-[#0A0A0A] tracking-wider uppercase font-bold">Dra. Mariah Zibetti</h2>
+                      <h2 className="text-xl font-serif text-[#0A0A0A] tracking-wider uppercase font-bold">{medicaNome}</h2>
                       <p className="text-[10px] uppercase tracking-widest text-[#C9A84C] font-semibold -mt-1 block">Tricologia Médica e Capilar Avançada</p>
-                      <p className="text-[9px] text-neutral-500 font-mono tracking-wide mt-1">CRM PR 57.133 • CRM SC 24.111</p>
+                      <p className="text-[9px] text-neutral-500 font-mono tracking-wide mt-1">Especialista em Tricologia Médica</p>
                     </div>
                     <div className="text-right flex flex-col items-end">
                       <div className="w-8 h-8 rounded-full border border-[#C9A84C] flex items-center justify-center">
@@ -1527,11 +1545,11 @@ export default function PacientesModulo({
                 {/* Footer medical stamp lines */}
                 <div className="mt-12 text-center border-t border-neutral-300 pt-6">
                   <p className="text-[9px] text-neutral-400 font-sans uppercase tracking-widest">Toledo: Av. Parigot de Souza, 1222 • Fátima do Sul: Rua Tenente Fátima, 555</p>
-                  <p className="text-[9px] text-neutral-500 italic mt-0.5">mariahzibetti.com.br</p>
+                  <p className="text-[9px] text-neutral-500 italic mt-0.5">CA.RO Clinic</p>
 
                   <div className="w-48 mx-auto border-b border-neutral-800 mt-6 pb-1" />
-                  <p className="text-[10px] uppercase font-bold tracking-widest text-neutral-800 font-serif mt-1">Dra. Mariah Zibetti</p>
-                  <p className="text-[8px] text-neutral-400 font-mono">CRM PR 57.133</p>
+                  <p className="text-[10px] uppercase font-bold tracking-widest text-neutral-800 font-serif mt-1">{medicaNome}</p>
+                  <p className="text-[8px] text-neutral-400 font-mono">Médico(a) Responsável</p>
                 </div>
 
               </div>

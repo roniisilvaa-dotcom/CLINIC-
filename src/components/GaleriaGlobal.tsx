@@ -126,7 +126,7 @@ export default function GaleriaGlobal({ pacientes, onViewPaciente }: GaleriaGlob
                 </div>
 
                 <p className="text-gray-500 text-xs leading-relaxed font-sans font-medium">
-                  Esta ferramenta de análise volumétrica visual auxilia a Dra. Mariah a quantificar com exatidão a taxa de repovoamento folicular e o surgimento de novas hastes a partir de folículos miniaturizados ativos.
+                  Esta ferramenta de análise volumétrica visual auxilia a médica responsável a quantificar com exatidão a taxa de repovoamento folicular e o surgimento de novas hastes a partir de folículos miniaturizados ativos.
                 </p>
               </div>
 

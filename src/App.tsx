@@ -14,9 +14,8 @@ import GaleriaGlobal from "./components/GaleriaGlobal";
 import PlanosAssinaturas from "./components/PlanosAssinaturas";
 import PortalPaciente from "./components/PortalPaciente";
 import FinanceiroModulo from "./components/FinanceiroMódulo";
+import DevPanel from "./components/DevPanel";
 
-// Mock Data & Types
-import { MOCK_PACIENTES, MOCK_ALERTAS, MOCK_AGENDA_HOJE } from "./mockData";
 import { Paciente, AlertaClinico, EventoAgenda, ConsultaHistorial } from "./types";
 
 type TabOption = 
@@ -40,9 +39,10 @@ interface Message {
 export default function App() {
   // Authentication states
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState<"medica" | "paciente">("medica");
-  const [medicaNome, setMedicaNome] = useState("Dra. Mariah Zibetti");
+  const [userRole, setUserRole] = useState<"medica" | "paciente" | "dev">("medica");
+  const [medicaNome, setMedicaNome] = useState("Doutor(a)");
   const [loggedPacienteId, setLoggedPacienteId] = useState<string | null>(null);
+  const [devOpenApp, setDevOpenApp] = useState(false); // dev acessando o app clínico
 
   // Patient chat state per-patientId
   const [patientChats, setPatientChats] = useState<Record<string, Message[]>>({});
@@ -55,26 +55,10 @@ export default function App() {
   const [activePlan, setActivePlan] = useState<"Standard" | "Precision" | "Enterprise">("Precision");
   const [aiRunsCounter, setAiRunsCounter] = useState<number>(2); // Initializes to 2 of 5 used under Standard plan
 
-  // Global Data State
+  // Core syncing state — começa zerado; o Doutor cadastra seus próprios dados
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [isLoadingPacientes, setIsLoadingPacientes] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/pacientes")
-      .then(r => r.json())
-      .then(data => {
-        setPacientes(data || []);
-        setIsLoadingPacientes(false);
-      })
-      .catch(e => {
-        console.error("Erro buscando pacientes:", e);
-        setIsLoadingPacientes(false);
-      });
-  }, []);
-
-  // Core syncing state
-  const [alertas, setAlertas] = useState<AlertaClinico[]>(MOCK_ALERTAS);
-  const [agendaHoje, setAgendaHoje] = useState<EventoAgenda[]>(MOCK_AGENDA_HOJE);
+  const [alertas, setAlertas] = useState<AlertaClinico[]>([]);
+  const [agendaHoje, setAgendaHoje] = useState<EventoAgenda[]>([]);
 
   // Selected Profile state
   const [selectedPacienteId, setSelectedPacienteId] = useState<string | null>(null);
@@ -116,18 +100,44 @@ export default function App() {
     setCurrentTab("pacientes");
   };
 
-  const handleStartLogin = (role: "medica" | "paciente", data: string) => {
-    setUserRole(role);
-    if (role === "medica") {
-      setMedicaNome(data);
-    } else {
-      // Lookup mapped patient
-      const found = pacientes.find(p => p.cpf.replace(/\D/g, "") === data.replace(/\D/g, "") || p.cpf === data);
-      if (found) {
-        setLoggedPacienteId(found.id);
-      }
+  // Restaura a sessão real (cookie httpOnly) ao carregar a página
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.authenticated && data.sessao) {
+          const s = data.sessao;
+          if (s.tipo === "paciente") {
+            setUserRole("paciente");
+            setLoggedPacienteId(s.uid);
+          } else if (s.papel === "dev") {
+            setUserRole("dev");
+            setMedicaNome(s.nome);
+          } else {
+            setUserRole("medica");
+            setMedicaNome(s.nome);
+          }
+          setIsAuthenticated(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleStartLogin = (result: { role: "medica" | "paciente" | "dev"; nome: string; pacienteId?: string }) => {
+    setUserRole(result.role);
+    if (result.role === "medica" || result.role === "dev") {
+      setMedicaNome(result.nome);
+    } else if (result.pacienteId) {
+      setLoggedPacienteId(result.pacienteId);
     }
     setIsAuthenticated(true);
+  };
+
+  const handleLogout = async () => {
+    try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
+    setIsAuthenticated(false);
+    setLoggedPacienteId(null);
+    setUserRole("medica");
   };
 
   const handleSendPatientMessage = (pacienteId: string, content: string, sender: "medica" | "paciente") => {
@@ -154,7 +164,7 @@ export default function App() {
         const autoReply: Message = {
           id: `msg-${Date.now() + 1}`,
           sender: "medica",
-          content: `Oi! Recebi sua mensagem no painel clínico da Dra. Mariah. Analisaremos com carinho e responderemos detalhadamente em breve. Continue firme no seu protocolo de saúde capilar!`,
+          content: `Oi! Recebi sua mensagem no painel clínico. Analisaremos com carinho e responderemos detalhadamente em breve. Continue firme no seu protocolo de saúde capilar!`,
           timestamp: replyTime
         };
         setPatientChats(prev => {
@@ -169,10 +179,12 @@ export default function App() {
   };
 
   if (!isAuthenticated) {
-    if (isLoadingPacientes) {
-      return <div className="h-screen bg-[#F5F0E8] flex items-center justify-center font-serif text-[#C9A84C]">Iniciando Conexão Segura...</div>;
-    }
     return <LoginScreen onLogin={handleStartLogin} />;
+  }
+
+  // Painel do desenvolvedor (admin do sistema) — pode abrir o app clínico
+  if (userRole === "dev" && !devOpenApp) {
+    return <DevPanel onLogout={handleLogout} onOpenApp={() => setDevOpenApp(true)} />;
   }
 
   // If patient logs in, render the dedicated client PortalPaciente directly
@@ -182,11 +194,7 @@ export default function App() {
       return (
         <PortalPaciente 
           paciente={loggedPaciente} 
-          onLogout={() => {
-            setIsAuthenticated(false);
-            setLoggedPacienteId(null);
-            setUserRole("medica");
-          }} 
+          onLogout={handleLogout}
           patientChat={patientChats[loggedPaciente.id] || []}
           onSendMessage={(content) => handleSendPatientMessage(loggedPaciente.id, content, "paciente")}
         />
@@ -196,6 +204,14 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-[#FAFAFA] text-[#0A0A0A] font-sans antialiased overflow-x-hidden selection:bg-[#C9A84C]/35 selection:text-[#0A0A0A]">
+      {userRole === "dev" && (
+        <button
+          onClick={() => setDevOpenApp(false)}
+          className="fixed bottom-5 left-5 z-50 flex items-center gap-2 bg-[#0A0A0A] text-[#C9A84C] border border-[#C9A84C]/40 text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg hover:bg-[#15140F] transition"
+        >
+          ← Painel do Desenvolvedor
+        </button>
+      )}
       {/* Sidebar Navigation Panel with exactly aligned states */}
       <Sidebar 
         currentTab={currentTab === "nova_consulta" ? "pacientes" : currentTab} 
@@ -208,7 +224,7 @@ export default function App() {
         }}
         collapsed={collapsed}
         setCollapsed={setCollapsed}
-        onLogout={() => setIsAuthenticated(false)}
+        onLogout={handleLogout}
         medicaNome={medicaNome}
       />
 
@@ -224,10 +240,11 @@ export default function App() {
             className="h-full"
           >
             {currentTab === "dashboard" && (
-              <Dashboard 
+              <Dashboard
                 pacientes={pacientes}
                 alertas={alertas}
                 agendaHoje={agendaHoje}
+                medicaNome={medicaNome}
                 onStartConsulta={(id) => {
                   setSelectedPacienteId(id);
                   setCurrentTab("nova_consulta");
@@ -243,6 +260,7 @@ export default function App() {
               <PacientesModulo 
                 pacientes={pacientes}
                 onChangePacientes={(novosPacientes) => setPacientes(novosPacientes)}
+                medicaNome={medicaNome}
                 selectedPacienteId={selectedPacienteId}
                 onSelectPaciente={(id) => setSelectedPacienteId(id)}
                 onOpenNovaConsulta={(id) => {
@@ -293,16 +311,17 @@ export default function App() {
             )}
 
             {currentTab === "ia_assistente" && (
-              <IaAssistente 
-                pacientes={pacientes} 
-                activePlan={activePlan} 
+              <IaAssistente
+                pacientes={pacientes}
+                medicaNome={medicaNome}
+                activePlan={activePlan}
                 aiRunsCounter={aiRunsCounter} 
                 onIncrementAiRuns={() => setAiRunsCounter(prev => prev + 1)} 
               />
             )}
 
             {currentTab === "prescricoes" && (
-              <PrescricoesModulo />
+              <PrescricoesModulo medicaNome={medicaNome} />
             )}
 
             {currentTab === "financeiro" && (
@@ -324,6 +343,10 @@ export default function App() {
             )}
           </motion.div>
         </AnimatePresence>
+
+        <footer className="mt-12 pt-6 border-t border-gray-200 text-center text-[11px] text-gray-400">
+          Desenvolvido por CA.RO Tech — 2026 · Todos os direitos reservados.
+        </footer>
       </main>
     </div>
   );

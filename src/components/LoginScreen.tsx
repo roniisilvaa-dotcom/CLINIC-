@@ -1,276 +1,270 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { Sparkles, KeyRound, Mail, Lock, UserCheck, Heart } from "lucide-react";
+import { Sparkles, Mail, Lock, UserCheck, Heart, Building2, IdCard, ArrowRight } from "lucide-react";
 
-interface LoginScreenProps {
-  onLogin: (role: "medica" | "paciente", data: string) => void;
+interface LoginResult {
+  role: "medica" | "paciente" | "dev";
+  nome: string;
+  pacienteId?: string;
 }
 
+interface LoginScreenProps {
+  onLogin: (result: LoginResult) => void;
+}
+
+type Modo = "medica" | "paciente" | "cadastro" | "dev";
+
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [loginType, setLoginType] = useState<"medica" | "paciente">("medica");
-  const [email, setEmail] = useState("dra.mariah@caroclinic.com.br");
-  const [password, setPassword] = useState("senha123");
-  const [patientCpf, setPatientCpf] = useState("");
+  const [modo, setModo] = useState<Modo>("medica");
   const [loading, setLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // médica
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  // paciente
+  const [patientCpf, setPatientCpf] = useState("");
+  const [nascimento, setNascimento] = useState("");
+
+  // cadastro de clínica
+  const [clinicaNome, setClinicaNome] = useState("");
+  const [nomeMedica, setNomeMedica] = useState("");
+  const [crm, setCrm] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setErrorMsg("");
-
-    setTimeout(() => {
-      if (loginType === "medica") {
-        onLogin("medica", "Dra. Mariah Zibetti");
-        setLoading(false);
+    try {
+      if (modo === "dev") {
+        const r = await fetch("/api/auth/dev-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, senha: password }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Falha ao entrar.");
+        onLogin({ role: "dev", nome: data.usuario.nome });
+      } else if (modo === "medica") {
+        const r = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, senha: password }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Falha ao entrar.");
+        onLogin({ role: "medica", nome: data.usuario.nome });
+      } else if (modo === "cadastro") {
+        const r = await fetch("/api/auth/register-clinic", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clinicaNome, nome: nomeMedica, email, senha: password, crm }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Falha ao criar conta.");
+        onLogin({ role: "medica", nome: data.usuario.nome });
       } else {
-        // Validate CPF against MOCK patients
-        const CPFS = [
-          "123.456.789-00",
-          "987.654.321-11",
-          "111.222.333-44",
-          "222.333.444-55",
-          "444.555.666-88",
-          "555.666.777-99"
-        ];
-        // strip dots/dashes
-        const normalizedInput = patientCpf.replace(/\D/g, "");
-        const matchedCpf = CPFS.find(cpf => cpf.replace(/\D/g, "") === normalizedInput || cpf === patientCpf);
-
-        if (matchedCpf) {
-          onLogin("paciente", matchedCpf);
-          setLoading(false);
-        } else {
-          setErrorMsg("CPF não localizado no banco de pacientes. Verifique os dados ou solicite à Dra. Mariah.");
-          setLoading(false);
-        }
+        const r = await fetch("/api/auth/patient-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cpf: patientCpf, nascimento }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Não foi possível entrar.");
+        onLogin({ role: "paciente", nome: data.paciente.nome, pacienteId: data.paciente.id });
       }
-    }, 1000);
-  };
+    } catch (err: any) {
+      setErrorMsg(err.message || "Erro de conexão.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const field =
+    "w-full bg-[#15140F]/40 border border-white/10 rounded-xl pl-11 pr-3 py-3 text-sm text-white placeholder:text-white/35 focus:outline-none focus:border-[#C9A84C]/70 focus:bg-[#15140F]/70 focus:ring-1 focus:ring-[#C9A84C]/40 transition-all";
+  const icon = "w-4 h-4 text-[#C9A84C]/70 absolute left-3.5 top-1/2 -translate-y-1/2";
 
   return (
-    <div id="login_container" className="min-h-screen bg-[#FAFAFA] text-[#0A0A0A] flex flex-col md:flex-row font-sans items-stretch relative overflow-hidden">
-      {/* Decorative Gold Radial Glows */}
-      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-[#C9A84C]/5 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] rounded-full bg-[#C9A84C]/5 blur-[120px] pointer-events-none" />
+    <div className="min-h-screen flex flex-col md:flex-row font-sans text-white bg-[#0B0A08] relative overflow-hidden">
+      {/* Glows dourados */}
+      <div className="absolute top-[-25%] left-[20%] w-[700px] h-[700px] rounded-full bg-[#C9A84C]/10 blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-[-25%] right-[-5%] w-[600px] h-[600px] rounded-full bg-[#C9A84C]/8 blur-[130px] pointer-events-none" />
 
-      {/* Left side: Golden luxury aesthetics branding */}
-      <div className="flex-1 hidden md:flex flex-col justify-between p-12 lg:p-20 bg-gradient-to-br from-[#0F0F0F] via-[#1A1A1A] to-[#12110F] border-r border-[#C9A84C]/25 relative">
-        <div className="absolute inset-0 bg-cover bg-center mix-blend-overlay opacity-15" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&q=80&w=1200')" }} />
-        
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="w-10 h-10 rounded-full border border-[#C9A84C]/80 flex items-center justify-center bg-black shadow-[0_0_15px_rgba(201,168,76,0.3)]">
+      {/* ─── Branding ─── */}
+      <div className="flex-1 hidden md:flex flex-col justify-between p-14 lg:p-20 relative border-r border-[#C9A84C]/15">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-[0.12] mix-blend-luminosity"
+          style={{
+            backgroundImage:
+              "url('https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&q=80&w=1400')",
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0B0A08] via-[#0B0A08]/70 to-transparent" />
+
+        <div className="relative flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl border border-[#C9A84C]/40 bg-[#C9A84C]/10 flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-[#C9A84C]" />
           </div>
-          <div className="flex flex-col">
-            <span style={{ fontFamily: "Georgia, serif" }} className="text-2xl text-[#C9A84C] font-semibold tracking-tighter">CA.RO Clinic</span>
-            <span className="text-[9px] block text-neutral-400 font-mono tracking-widest uppercase">Precision Tricology</span>
+          <div>
+            <div className="font-mono uppercase tracking-[0.32em] text-[11px] text-[#C9A84C]">CA.RO Clinic</div>
+            <div className="text-[11px] text-white/40 tracking-wide">Inteligência clínica de precisão</div>
           </div>
         </div>
 
-        <div className="max-w-md relative z-10 my-auto">
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="text-4xl lg:text-5xl font-serif font-light leading-tight text-white mb-6"
-          >
-            Precisão clínica em <br />
-            <span className="text-[#C9A84C] italic">cada fio</span>.
-          </motion.h1>
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-            className="text-neutral-300 text-sm leading-relaxed"
-          >
-            Plataforma Integrada de Tricologia de Alta Precisão e Inteligência Médica. Gerenciamento otimizado de exames metabólicos, exames de dermoscopia, evolução cromática e acompanhamento exclusivo de pacientes sob medida para a Dra. Mariah Zibetti.
-          </motion.p>
+        <div className="relative space-y-6 max-w-md">
+          <div className="h-px w-16 bg-gradient-to-r from-[#C9A84C] to-transparent" />
+          <h1 className="text-5xl lg:text-[3.4rem] leading-[1.08] text-white" style={{ fontFamily: "Georgia, serif" }}>
+            A excelência da <span className="text-[#C9A84C] italic">tricologia</span>, em uma só plataforma.
+          </h1>
+          <p className="text-white/55 text-[15px] leading-relaxed">
+            Prontuários inteligentes, evolução capilar analisada por IA e um portal exclusivo para
+            cada paciente. Gestão de alto padrão, do diagnóstico ao resultado.
+          </p>
         </div>
 
-        <div className="relative z-10 text-xs text-neutral-500 border-t border-neutral-800 pt-6 flex justify-between">
-          <span>Dra. Mariah Zibetti • CRM PR 57.133</span>
-          <span>v3.0 CA.RO Edition</span>
+        <div className="relative flex items-center gap-2 text-white/35 text-xs">
+          <Heart className="w-3.5 h-3.5 text-[#C9A84C]" /> Desenvolvido com excelência para clínicas premium.
         </div>
       </div>
 
-      {/* Right side: Modern Golden/Black login form */}
-      <div className="flex-1 flex flex-col justify-center p-8 sm:p-12 lg:p-20 relative z-10 bg-white">
-        <div className="max-w-md w-full mx-auto">
-          
-          {/* Logo on Mobile */}
-          <div className="flex items-center gap-3 mb-8 md:hidden">
-            <div className="w-9 h-9 rounded-full border border-[#C9A84C] flex items-center justify-center bg-black">
-              <Sparkles className="w-4 h-4 text-[#C9A84C]" />
-            </div>
-            <div>
-              <span style={{ fontFamily: "Georgia, serif" }} className="text-2xl text-[#C9A84C] font-semibold tracking-tighter">CA.RO Clinic</span>
-              <span className="text-[9px] block text-neutral-500 font-mono tracking-widest uppercase">Precision Tricology</span>
-            </div>
+      {/* ─── Formulário ─── */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 relative">
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="w-full max-w-[380px]"
+        >
+          {/* Logo topo (mobile) */}
+          <div className="md:hidden flex items-center gap-2 mb-8 justify-center text-[#C9A84C]">
+            <Sparkles className="w-5 h-5" />
+            <span className="font-mono uppercase tracking-[0.3em] text-xs">CA.RO Clinic</span>
           </div>
 
-          <div className="mb-6">
-            <h2 style={{ fontFamily: "Georgia, serif" }} className="text-3xl text-[#0A0A0A] font-normal mb-2">Portal de Acesso</h2>
-            <p className="text-gray-500 text-sm">Selecione o seu perfil para prosseguir.</p>
-          </div>
+          <div className="relative rounded-2xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-7 sm:p-8 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
+            {/* Filete dourado superior */}
+            <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/70 to-transparent" />
 
-          {/* Tab Selector for Login Type */}
-          <div className="grid grid-cols-3 p-1 bg-gray-100 rounded-lg mb-6 text-xs font-semibold select-none gap-1">
-            <button
-              type="button"
-              onClick={() => { setLoginType("medica"); setErrorMsg(""); }}
-              className={`py-2 px-3 rounded-md transition text-center cursor-pointer font-bold ${
-                loginType === "medica"
-                  ? "bg-white text-black shadow-sm"
-                  : "text-gray-500 hover:text-black"
-              }`}
-            >
-              👩‍⚕️ Médica
-            </button>
-            <button
-              type="button"
-              onClick={() => { setLoginType("paciente"); setErrorMsg(""); }}
-              className={`py-2 px-3 rounded-md transition text-center cursor-pointer font-bold ${
-                loginType === "paciente"
-                  ? "bg-white text-black shadow-sm"
-                  : "text-gray-500 hover:text-black"
-              }`}
-            >
-              🙋‍♀️ Paciente
-            </button>
-            <button
-              type="button"
-              onClick={() => { 
-                // Dev auto-login bypass
-                onLogin("medica", "Dev Admin (Acesso Total)");
-              }}
-              className="py-2 px-3 rounded-md transition text-center cursor-pointer font-bold bg-[#C9A84C]/20 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-white"
-            >
-              👨‍💻 Acesso Dev
-            </button>
-          </div>
-
-          {errorMsg && (
-            <div className="p-3 mb-5 rounded bg-red-50 border border-red-200 text-red-700 text-xs font-sans font-semibold">
-              {errorMsg}
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold tracking-tight" style={{ fontFamily: "Georgia, serif" }}>
+                {modo === "cadastro" ? "Criar conta da clínica" : modo === "dev" ? "Acesso Desenvolvedor" : "Bem-vindo(a) de volta"}
+              </h2>
+              <p className="text-sm text-white/45 mt-1.5">
+                {modo === "medica" && "Acesse o painel clínico com seu email e senha."}
+                {modo === "paciente" && "Entre no seu portal com CPF e data de nascimento."}
+                {modo === "cadastro" && "Cadastre sua clínica e comece em segundos."}
+                {modo === "dev" && "Painel administrativo do sistema."}
+              </p>
             </div>
-          )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {loginType === "medica" ? (
-              <>
-                <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-wider text-[#0A0A0A]/70 font-semibold block">
-                    E-mail ou Usuário
-                  </label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                      <Mail className="w-4 h-4" />
-                    </span>
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="dra.mariah@caroclinic.com.br"
-                      className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-[#0A0A0A] text-sm py-3 pl-10 pr-4 rounded-md outline-none transition"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs uppercase tracking-wider text-[#0A0A0A]/70 font-semibold block">
-                      Senha de Segurança
-                    </label>
-                    <a href="#recuperar" className="text-xs text-gray-400 hover:text-[#C9A84C] transition">
-                      Esqueceu a senha?
-                    </a>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                      <Lock className="w-4 h-4" />
-                    </span>
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-[#0A0A0A] text-sm py-3 pl-10 pr-4 rounded-md outline-none transition"
-                    />
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-2 text-xs">
-                <label className="text-xs uppercase tracking-wider text-[#0A0A0A]/70 font-semibold block">
-                  Informe seu CPF Cadastrado
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                    <UserCheck className="w-4 h-4" />
-                  </span>
-                  <input
-                    type="text"
-                    required
-                    value={patientCpf}
-                    onChange={(e) => setPatientCpf(e.target.value)}
-                    placeholder="Ex: 123.456.789-00"
-                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-[#0A0A0A] text-sm py-3 pl-10 pr-4 rounded-md outline-none transition font-mono font-semibold"
-                  />
-                </div>
-                <span className="text-[10px] text-[#C9A84C] font-semibold tracking-wide block mt-1">
-                  💡 Credencial obtida diretamente na clínica da Dra. Mariah pelas guias de atendimento.
-                </span>
+            {/* Tabs */}
+            {modo !== "cadastro" && modo !== "dev" && (
+              <div className="flex gap-1 p-1 bg-black/30 border border-white/5 rounded-xl mb-6">
+                <button
+                  type="button"
+                  onClick={() => { setModo("medica"); setErrorMsg(""); }}
+                  className={`flex-1 text-xs font-semibold py-2.5 rounded-lg transition-all ${modo === "medica" ? "bg-[#C9A84C] text-black shadow" : "text-white/50 hover:text-white/80"}`}
+                >
+                  <UserCheck className="w-3.5 h-3.5 inline mr-1.5" /> Médica / Equipe
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setModo("paciente"); setErrorMsg(""); }}
+                  className={`flex-1 text-xs font-semibold py-2.5 rounded-lg transition-all ${modo === "paciente" ? "bg-[#C9A84C] text-black shadow" : "text-white/50 hover:text-white/80"}`}
+                >
+                  <Heart className="w-3.5 h-3.5 inline mr-1.5" /> Paciente
+                </button>
               </div>
             )}
 
-            <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded bg-white border-gray-300 text-[#C9A84C] focus:ring-0 focus:ring-offset-0"
-                />
-                Lembrar neste dispositivo
-              </label>
-              <span className="text-xs text-gray-400">CA.RO CLINIC</span>
-            </div>
-
-            <button
-              id="signin_btn"
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#C9A84C] hover:bg-[#D9B85C] disabled:opacity-55 active:scale-98 text-black text-sm uppercase tracking-widest font-semibold py-3.5 rounded-md transition shadow-[0_4px_20px_rgba(201,168,76,0.3)] mt-8 flex items-center justify-center gap-2 cursor-pointer"
-            >
-              {loading ? (
+            <form onSubmit={handleSubmit} className="space-y-3">
+              {modo === "cadastro" && (
                 <>
-                  <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                  <span>Acessando...</span>
-                </>
-              ) : (
-                <>
-                  <UserCheck className="w-4 h-4" />
-                  <span>{loginType === "medica" ? "Entrar na Plataforma" : "Acessar Meu Tratamento"}</span>
+                  <div className="relative">
+                    <Building2 className={icon} />
+                    <input className={field} placeholder="Nome da clínica" value={clinicaNome} onChange={(e) => setClinicaNome(e.target.value)} required />
+                  </div>
+                  <div className="relative">
+                    <UserCheck className={icon} />
+                    <input className={field} placeholder="Seu nome (ex: Dra. Ana Paula)" value={nomeMedica} onChange={(e) => setNomeMedica(e.target.value)} required />
+                  </div>
+                  <div className="relative">
+                    <IdCard className={icon} />
+                    <input className={field} placeholder="CRM (opcional)" value={crm} onChange={(e) => setCrm(e.target.value)} />
+                  </div>
                 </>
               )}
-            </button>
-          </form>
 
-          {/* Quick Demo Assist */}
-          <div className="mt-10 p-4 rounded-md border border-[#C9A84C]/20 bg-[#F5F0E8]/40 text-xs text-gray-500 space-y-1">
-            <p className="font-semibold text-[#C9A84C] uppercase tracking-wider flex items-center gap-1.5 font-sans">
-              <Sparkles className="w-3.5 h-3.5" /> Demonstração e Testes Rápidos
-            </p>
-            <p className="font-sans font-medium">
-              • **Médica**: Use credenciais padrão e entre diretamente.<br />
-              • **Pacientes cadastrados**: Entre utilizando o CPF fictício de um dos pacientes, ex: **123.456.789-00** (Helena Silveira) ou **987.654.321-11** (Gabriela Portela) para testar o Portal do Paciente com seu desenvolvimento, histórico e chat dedicado.
-            </p>
+              {(modo === "medica" || modo === "cadastro" || modo === "dev") && (
+                <>
+                  <div className="relative">
+                    <Mail className={icon} />
+                    <input type={modo === "dev" ? "text" : "email"} className={field} placeholder={modo === "dev" ? "Login" : "Email"} value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  </div>
+                  <div className="relative">
+                    <Lock className={icon} />
+                    <input type="password" className={field} placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                  </div>
+                </>
+              )}
+
+              {modo === "paciente" && (
+                <>
+                  <div className="relative">
+                    <IdCard className={icon} />
+                    <input className={field} placeholder="CPF" value={patientCpf} onChange={(e) => setPatientCpf(e.target.value)} required />
+                  </div>
+                  <div className="relative">
+                    <Lock className={icon} />
+                    <input type="date" className={`${field} [color-scheme:dark]`} value={nascimento} onChange={(e) => setNascimento(e.target.value)} required />
+                  </div>
+                </>
+              )}
+
+              {errorMsg && (
+                <div className="text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">{errorMsg}</div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="group w-full bg-gradient-to-r from-[#C9A84C] to-[#E0C36A] hover:to-[#C9A84C] text-black font-semibold text-sm py-3 rounded-xl transition-all disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2 shadow-[0_8px_24px_-8px_rgba(201,168,76,0.6)]"
+              >
+                {loading ? "Aguarde…" : modo === "cadastro" ? "Criar clínica e entrar" : "Entrar"}
+                {!loading && <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-5 border-t border-white/5 text-center text-xs text-white/40 space-y-2.5">
+              {modo === "dev" ? (
+                <button onClick={() => { setModo("medica"); setErrorMsg(""); }} className="hover:text-[#C9A84C] transition">
+                  ← Voltar ao acesso da clínica
+                </button>
+              ) : modo === "cadastro" ? (
+                <button onClick={() => { setModo("medica"); setErrorMsg(""); }} className="hover:text-[#C9A84C] transition">
+                  Já tem conta? <span className="font-semibold text-white/70">Entrar</span>
+                </button>
+              ) : (
+                <button onClick={() => { setModo("cadastro"); setErrorMsg(""); }} className="hover:text-[#C9A84C] transition">
+                  Não tem conta da clínica? <span className="font-semibold text-white/70">Cadastre-se</span>
+                </button>
+              )}
+
+              {modo !== "dev" && (
+                <div>
+                  <button onClick={() => { setModo("dev"); setErrorMsg(""); }} className="text-white/30 hover:text-[#C9A84C] transition">
+                    Acesso desenvolvedor
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+
+          <p className="mt-7 text-center text-[11px] text-white/30">
+            Desenvolvido por CA.RO Tech — 2026 · Todos os direitos reservados.
+          </p>
+        </motion.div>
       </div>
     </div>
   );
