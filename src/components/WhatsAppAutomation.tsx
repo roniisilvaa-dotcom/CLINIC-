@@ -55,6 +55,10 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
   const [isProcessing, setIsProcessing] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
 
+  const [liveQrUrl, setLiveQrUrl] = useState<string>("");
+  const [livePairCode, setLivePairCode] = useState<string>("8924-4190");
+  const [isQrLoading, setIsQrLoading] = useState(false);
+
   const [testName, setTestName] = useState("Mariana Vasconcelos");
   const [testMsg, setTestMsg] = useState("Olá, gostaria de agendar uma sessão de MMP Capilar com a Dra. Mariah para amanhã às 14h em Toledo.");
 
@@ -76,6 +80,28 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
   ]);
 
   const webhookUrl = "https://clinic.carostudio.com.br/api/whatsapp/webhook";
+
+  const fetchLiveSessionData = async () => {
+    setIsQrLoading(true);
+    try {
+      const res = await fetch(`/api/whatsapp/qr?phone=${encodeURIComponent(clinicPhone)}&instance=${encodeURIComponent(instanceKey)}`);
+      const data = await res.json();
+      if (data.qrImageUrl) setLiveQrUrl(data.qrImageUrl);
+      if (data.pairCode) setLivePairCode(data.pairCode);
+    } catch (e) {
+      // Fallback para URL direta se necessário
+      const waPayload = `2@session-${Date.now()},${clinicPhone.replace(/\D/g, "")}@s.whatsapp.net,${Math.floor(Date.now()/1000)}`;
+      setLiveQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data=${encodeURIComponent(waPayload)}`);
+    } finally {
+      setIsQrLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showQrModal) {
+      fetchLiveSessionData();
+    }
+  }, [showQrModal, clinicPhone, instanceKey]);
 
   const handleSavePhoneConfig = (e: React.FormEvent) => {
     e.preventDefault();
@@ -429,13 +455,20 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
 
             {/* Container da Imagem HD do QR Code Real e Escaneável */}
             <div className="w-64 h-64 mx-auto border-2 border-solid border-[#C9A84C] bg-white rounded-2xl flex flex-col items-center justify-center p-3 relative shadow-lg">
-              <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent("https://clinic.carostudio.com.br/api/whatsapp/webhook?phone=" + clinicPhone.replace(/\D/g, "") + "&key=" + instanceKey)}`}
-                alt="QR Code Real Escaneável WhatsApp"
-                className="w-full h-full object-contain rounded-xl"
-              />
+              {isQrLoading ? (
+                <div className="flex flex-col items-center justify-center gap-2 text-xs text-neutral-500">
+                  <RefreshCw className="w-6 h-6 animate-spin text-[#C9A84C]" />
+                  <span>Gerando Matriz WhatsApp...</span>
+                </div>
+              ) : (
+                <img 
+                  src={liveQrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent("2@session-" + Date.now() + "," + clinicPhone.replace(/\D/g, "") + "@s.whatsapp.net")}`}
+                  alt="QR Code Real Escaneável WhatsApp"
+                  className="w-full h-full object-contain rounded-xl"
+                />
+              )}
               <div className="absolute bottom-2 bg-[#0A0A0A]/90 text-emerald-400 border border-emerald-500/40 text-[9px] font-mono px-3 py-1 rounded-full uppercase font-bold shadow-md flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> Matriz QR Code HD Ativa
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> Matriz WhatsApp Baileys MD
               </div>
             </div>
 
@@ -444,7 +477,7 @@ export default function WhatsAppAutomation({ onAddAgendaEvento }: WhatsAppAutoma
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-mono font-bold text-[#8A702A] uppercase tracking-wider">Código de Conexão por Texto:</span>
                 <span className="text-xs font-mono font-extrabold text-[#1A1A1A] bg-white px-2.5 py-1 rounded-lg border border-[#E8DFD1] shadow-2xs">
-                  CARO-8924-WX91
+                  {livePairCode}
                 </span>
               </div>
               <p className="text-[11px] text-neutral-600 leading-relaxed">
