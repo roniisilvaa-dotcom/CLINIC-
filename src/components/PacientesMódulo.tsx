@@ -25,8 +25,7 @@ import {
   AlertTriangle,
   FileSignature,
   MessageSquare,
-  QrCode,
-  X
+  QrCode
 } from "lucide-react";
 import { Paciente, ExameLaboratorial, FotoCapilar, StatusPaciente } from "../types";
 
@@ -41,7 +40,6 @@ interface PacientesModuloProps {
   activePlan?: "Standard" | "Precision" | "Enterprise";
   aiRunsCounter?: number;
   onIncrementAiRuns?: () => void;
-  medicaNome?: string;
 }
 
 export default function PacientesModulo({ 
@@ -54,8 +52,7 @@ export default function PacientesModulo({
   onSendDoctorMessage,
   activePlan = "Precision",
   aiRunsCounter = 2,
-  onIncrementAiRuns,
-  medicaNome = "Médico(a) Responsável"
+  onIncrementAiRuns
 }: PacientesModuloProps) {
 
   // List State
@@ -83,58 +80,6 @@ export default function PacientesModulo({
 
   // Prescrição Letterhead Preview state
   const [showLetterheadPreview, setShowLetterheadPreview] = useState(false);
-
-  // New Patient Form State
-  const [showCreatePacienteModal, setShowCreatePacienteModal] = useState(false);
-  const [newNome, setNewNome] = useState("");
-  const [newCpf, setNewCpf] = useState("");
-  const [newNascimento, setNewNascimento] = useState("1995-05-20");
-  const [newTelefone, setNewTelefone] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newCidade, setNewCidade] = useState<"Toledo" | "Fátima do Sul">("Toledo");
-  const [newQueixa, setNewQueixa] = useState("Acompanhamento / Avaliação Capilar");
-
-  const handleSaveNewPaciente = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const idNew = `paciente-${Date.now()}`;
-    const novo: Paciente = {
-      id: idNew,
-      nome: newNome || "Novo Paciente Integrado",
-      idade: 30,
-      dataNascimento: newNascimento || "1995-05-20",
-      cpf: newCpf || "000.000.000-00",
-      telefone: newTelefone || "(45) 99999-9999",
-      email: newEmail || `${newCpf.replace(/\D/g, "")}@paciente.com`,
-      cidade: newCidade || "Toledo",
-      comoConheceu: "Indicação / Instagram",
-      queixaPrincipal: newQueixa || "Consulta de Tricologia Capilar",
-      status: "Em Tratamento",
-      progresso: 10,
-      ultimaAtualizacao: new Date().toISOString().split("T")[0],
-      antecedentes: { usoMedicamentos: "Nenhum", historicoFamiliar: "Pai calvo", gestacaoAmamentacao: "Nega", menopausa: "Nega", outros: "" },
-      diagnostico: { principal: "Eflúvio Telógeno Agudo", secundario: [], escalaLudwig: "Grau I", condicoesAssociadas: [], fatoresContribuintes: [], observacoes: "" },
-      exames: [],
-      protocolo: { medicamentos: "", procedimentos: "", cosmeticos: "", suplementacao: "", estiloVida: "", duracaoPrevista: "6 meses", dataInicio: new Date().toISOString().split("T")[0] },
-      galeria: [],
-      consultas: []
-    };
-
-    onChangePacientes([novo, ...pacientes]);
-    onSelectPaciente(idNew);
-    setShowCreatePacienteModal(false);
-
-    // Reset form
-    setNewNome("");
-    setNewCpf("");
-
-    try {
-      await fetch("/api/pacientes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(novo)
-      });
-    } catch {}
-  };
 
   // Finds current patient
   const curPaciente = pacientes.find(p => p.id === selectedPacienteId) || null;
@@ -294,8 +239,33 @@ export default function PacientesModulo({
               </div>
 
               <button
-                onClick={() => setShowCreatePacienteModal(true)}
-                className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black text-xs font-bold font-mono tracking-wider uppercase px-5 py-3 rounded-xl flex items-center gap-2 transition-all duration-200 cursor-pointer self-start sm:self-auto shadow-md"
+                onClick={() => {
+                  const idNew = `paciente-${Date.now()}`;
+                  const novo: Paciente = {
+                    id: idNew,
+                    nome: "Novo Paciente Integrado",
+                    idade: 30,
+                    dataNascimento: "1996-01-01",
+                    cpf: "000.000.000-00",
+                    telefone: "(45) 99999-9999",
+                    email: "email@provedor.com",
+                    cidade: "Toledo",
+                    comoConheceu: "Instagram",
+                    queixaPrincipal: "Fios fracos na hora de escovar.",
+                    status: "Em Tratamento",
+                    progresso: 10,
+                    ultimaAtualizacao: new Date().toISOString().split("T")[0],
+                    antecedentes: { usoMedicamentos: "Nenhum", historicoFamiliar: "Pai calvo", gestacaoAmamentacao: "Nega", menopausa: "Nega", outros: "" },
+                    diagnostico: { principal: "Eflúvio Telógeno Agudo", secundario: [], escalaLudwig: "Grau I", condicoesAssociadas: [], fatoresContribuintes: [], observacoes: "" },
+                    exames: [],
+                    protocolo: { medicamentos: "", procedimentos: "", cosmeticos: "", suplementacao: "", estiloVida: "", duracaoPrevista: "6 meses", dataInicio: new Date().toISOString().split("T")[0] },
+                    galeria: [],
+                    consultas: []
+                  };
+                  onChangePacientes([novo, ...pacientes]);
+                  onSelectPaciente(idNew);
+                }}
+                className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black text-xs font-bold font-mono tracking-wider uppercase px-5 py-3 rounded-lg flex items-center gap-2 transition-all duration-200 cursor-pointer self-start sm:self-auto shadow-sm"
               >
                 <Plus className="w-4 h-4" /> Cadastrar Paciente
               </button>
@@ -495,22 +465,6 @@ export default function PacientesModulo({
                     <FileSignature className="w-4 h-4" />
                     {isEditing ? "Cancelar" : "Editar"}
                   </button>
-
-                  <button
-                    onClick={() => {
-                      if (
-                        curPaciente &&
-                        confirm(`Excluir o paciente ${curPaciente.nome}? Esta ação não pode ser desfeita.`)
-                      ) {
-                        onChangePacientes(pacientes.filter((p) => p.id !== curPaciente.id));
-                        onSelectPaciente(null);
-                        setIsEditing(false);
-                      }
-                    }}
-                    className="border border-red-200 hover:border-red-400 hover:bg-red-50 bg-white text-red-500 text-xs font-mono uppercase tracking-wider px-3.5 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors duration-200 cursor-pointer"
-                  >
-                    <Trash className="w-4 h-4" /> Excluir
-                  </button>
                 </div>
               </div>
 
@@ -691,7 +645,7 @@ export default function PacientesModulo({
                     <div className="space-y-6">
                       <div className="flex justify-between items-center border-b border-[#1F1F1F] pb-3">
                         <h3 className="text-lg font-serif text-[#FAFAFA] font-medium">Diagnóstico Tricológico de Precisão</h3>
-                        <span className="text-[11px] text-[#C9A84C] font-mono">{medicaNome}</span>
+                        <span className="text-[11px] text-[#C9A84C] font-mono">Dra. Mariah Zibetti</span>
                       </div>
 
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
@@ -952,7 +906,7 @@ export default function PacientesModulo({
                             <div className="bg-[#1A1A1A] border border-[#2B2B2B] p-4 rounded-md text-[11px] text-neutral-400 flex items-start gap-2 leading-relaxed">
                               <AlertTriangle className="w-4 h-4 text-[#C9A84C] shrink-0" />
                               <p>
-                                <strong>Critérios Estritos de Redensificação:</strong> Na tricologia clássica, os níveis alvo bioquímicos diferem dos limites básicos que laboratórios de diagnóstico usam. Buscamos otimização para garantir o alongamento máximo da fase Anágena capilar.
+                                <strong>Critérios Estritos de Redensificação:</strong> Na tricologia clássica da Dra. Mariah, os níveis alvo bioquímicos diferem dos limites básicos que laboratórios de diagnóstico usam. Buscamos otimização para garantir o alongamento máximo da fase Anágena capilar.
                               </p>
                             </div>
                           </div>
@@ -1359,7 +1313,7 @@ export default function PacientesModulo({
                         <div className="bg-gray-50 border-b border-gray-150 p-4 flex justify-between items-center">
                           <div>
                             <h4 style={{ fontFamily: "Georgia, serif" }} className="text-sm font-bold text-[#0A0A0A]">Canal Direto com o Paciente</h4>
-                            <p className="text-[10px] text-gray-400 font-mono">{medicaNome} • Chat Criptografado</p>
+                            <p className="text-[10px] text-gray-400 font-mono">Dra. Mariah Zibetti • Chat Criptografado</p>
                           </div>
                           <span className="bg-[#C9A84C]/10 text-[#C9A84C] text-[9px] font-mono uppercase font-bold py-1 px-2.5 rounded">
                             Ativo
@@ -1530,9 +1484,9 @@ export default function PacientesModulo({
                 <div>
                   <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-5">
                     <div>
-                      <h2 className="text-xl font-serif text-[#0A0A0A] tracking-wider uppercase font-bold">{medicaNome}</h2>
+                      <h2 className="text-xl font-serif text-[#0A0A0A] tracking-wider uppercase font-bold">Dra. Mariah Zibetti</h2>
                       <p className="text-[10px] uppercase tracking-widest text-[#C9A84C] font-semibold -mt-1 block">Tricologia Médica e Capilar Avançada</p>
-                      <p className="text-[9px] text-neutral-500 font-mono tracking-wide mt-1">Especialista em Tricologia Médica</p>
+                      <p className="text-[9px] text-neutral-500 font-mono tracking-wide mt-1">CRM PR 57.133 • CRM SC 24.111</p>
                     </div>
                     <div className="text-right flex flex-col items-end">
                       <div className="w-8 h-8 rounded-full border border-[#C9A84C] flex items-center justify-center">
@@ -1573,11 +1527,11 @@ export default function PacientesModulo({
                 {/* Footer medical stamp lines */}
                 <div className="mt-12 text-center border-t border-neutral-300 pt-6">
                   <p className="text-[9px] text-neutral-400 font-sans uppercase tracking-widest">Toledo: Av. Parigot de Souza, 1222 • Fátima do Sul: Rua Tenente Fátima, 555</p>
-                  <p className="text-[9px] text-neutral-500 italic mt-0.5">CA.RO Clinic</p>
+                  <p className="text-[9px] text-neutral-500 italic mt-0.5">mariahzibetti.com.br</p>
 
                   <div className="w-48 mx-auto border-b border-neutral-800 mt-6 pb-1" />
-                  <p className="text-[10px] uppercase font-bold tracking-widest text-neutral-800 font-serif mt-1">{medicaNome}</p>
-                  <p className="text-[8px] text-neutral-400 font-mono">Médico(a) Responsável</p>
+                  <p className="text-[10px] uppercase font-bold tracking-widest text-neutral-800 font-serif mt-1">Dra. Mariah Zibetti</p>
+                  <p className="text-[8px] text-neutral-400 font-mono">CRM PR 57.133</p>
                 </div>
 
               </div>
@@ -1596,115 +1550,6 @@ export default function PacientesModulo({
                 Imprimir Documento
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ====== MODAL: CADASTRAR NOVO PACIENTE ====== */}
-      {showCreatePacienteModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-sans">
-          <div className="bg-white text-[#0A0A0A] w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-fadeIn border border-[#C9A84C]/40">
-            
-            <div className="bg-[#0A0A0A] text-white p-4 px-6 flex justify-between items-center border-b border-[#252525]">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#C9A84C]" />
-                <span className="font-mono text-xs uppercase tracking-wider text-[#C9A84C] font-bold">Cadastrar Paciente Capilar • Dra. Mariah Zibetti</span>
-              </div>
-              <button onClick={() => setShowCreatePacienteModal(false)} className="text-gray-400 hover:text-white transition p-1 rounded-lg cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveNewPaciente} className="p-6 space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Nome Completo do Paciente</label>
-                <input 
-                  type="text" 
-                  placeholder="Ex: Ana Carolina Silva" 
-                  value={newNome} 
-                  onChange={(e) => setNewNome(e.target.value)} 
-                  required 
-                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none" 
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs uppercase text-gray-500 font-mono font-bold block">CPF (para login do paciente)</label>
-                  <input 
-                    type="text" 
-                    placeholder="000.000.000-00" 
-                    value={newCpf} 
-                    onChange={(e) => setNewCpf(e.target.value)} 
-                    required 
-                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none font-mono" 
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Data de Nascimento</label>
-                  <input 
-                    type="date" 
-                    value={newNascimento} 
-                    onChange={(e) => setNewNascimento(e.target.value)} 
-                    required 
-                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none font-mono" 
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Telefone / WhatsApp</label>
-                  <input 
-                    type="text" 
-                    placeholder="(45) 99999-9999" 
-                    value={newTelefone} 
-                    onChange={(e) => setNewTelefone(e.target.value)} 
-                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none font-mono" 
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Unidade de Atendimento</label>
-                  <select 
-                    value={newCidade} 
-                    onChange={(e) => setNewCidade(e.target.value as any)} 
-                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-3 rounded-xl outline-none"
-                  >
-                    <option value="Toledo">📍 Toledo</option>
-                    <option value="Fátima do Sul">📍 Fátima do Sul</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1 border-t border-gray-100 pt-3">
-                <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Queixa Principal / Diagnóstico Inicial</label>
-                <textarea 
-                  rows={2} 
-                  placeholder="Ex: Queda acentuada de cabelo há 3 meses..." 
-                  value={newQueixa} 
-                  onChange={(e) => setNewQueixa(e.target.value)} 
-                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-3 rounded-xl outline-none" 
-                />
-              </div>
-
-              <div className="border-t border-gray-100 pt-4 flex justify-end gap-3 text-xs">
-                <button 
-                  type="button" 
-                  onClick={() => setShowCreatePacienteModal(false)} 
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold px-4 py-2.5 rounded-xl font-mono uppercase cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-semibold px-5 py-2.5 rounded-xl font-mono uppercase tracking-wider cursor-pointer transition shadow-md"
-                >
-                  Cadastrar Paciente
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

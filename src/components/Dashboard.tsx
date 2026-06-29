@@ -32,7 +32,6 @@ interface DashboardProps {
   agendaHoje: EventoAgenda[];
   onStartConsulta: (pacienteId: string) => void;
   onViewPaciente: (pacienteId: string) => void;
-  medicaNome: string;
 }
 
 export default function Dashboard({ 
@@ -40,13 +39,8 @@ export default function Dashboard({
   alertas, 
   agendaHoje, 
   onStartConsulta,
-  onViewPaciente,
-  medicaNome
+  onViewPaciente 
 }: DashboardProps) {
-
-  // Saudação dinâmica conforme o horário
-  const hora = new Date().getHours();
-  const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
 
   // Current date in Portuguese formatting
   const formattedDate = new Date().toLocaleDateString("pt-BR", {
@@ -118,10 +112,10 @@ export default function Dashboard({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#0A0A0A]/5 pb-6">
         <div>
           <h2 style={{ fontFamily: "Georgia, serif" }} className="text-3xl sm:text-4xl italic text-[#0A0A0A] font-normal tracking-tight">
-            {saudacao}, {medicaNome}
+            Bom dia, Dra. Mariah
           </h2>
           <p className="text-xs text-gray-400 uppercase tracking-widest mt-1.5 font-semibold">
-            {formattedDate}
+            {formattedDate} • CRM PR 57.133
           </p>
         </div>
         <div className="flex gap-3">
@@ -406,7 +400,7 @@ export default function Dashboard({
             </div>
           </div>
 
-          {/* Section: Clinical Tips / Quick Resources */}
+          {/* Section: Clinical Tips / Dra. Mariah Quick Resources */}
           <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-6 relative overflow-hidden bg-gradient-to-tr from-[#F5F0E8]/20 to-white">
             <h3 className="text-sm font-serif font-bold text-[#0A0A0A] tracking-wide flex items-center gap-1.5 mb-2 py-0.5 border-b border-gray-100 pb-2">
               <Sparkles className="w-4 h-4 text-[#C9A84C]" /> Assistências Ativas em IA
@@ -415,8 +409,8 @@ export default function Dashboard({
               Você pode solicitar análises inteligentes das bioquímicas laboratoriais diretamente na ficha de exames de cada paciente, ou comparar fotos microscópicas sequenciais de dermoscopia. Todas as interações contêm o selo de apoio da tecnologia CA.RO Clinic IA.
             </p>
             <div className="pt-4 mt-4 flex justify-between items-center border-t border-gray-150">
-              <span className="text-[9px] text-gray-400 font-mono uppercase">CA.RO Clinic IA</span>
-              <span className="text-xs text-[#C9A84C] font-semibold italic">{medicaNome}</span>
+              <span className="text-[9px] text-gray-400 font-mono uppercase">Certificado CRM PR 57.133</span>
+              <span className="text-xs text-[#C9A84C] font-semibold italic">Mariah Zibetti</span>
             </div>
           </div>
 

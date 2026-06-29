@@ -9,16 +9,8 @@ import {
   Sparkles, 
   Calendar,
   Lock,
-  Download,
-  MessageCircle
+  Download
 } from "lucide-react";
-
-// WhatsApp que recebe os pedidos de assinatura
-const WHATSAPP = "5511942302344";
-const linkAssinatura = (nome: string, preco: string) =>
-  `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(
-    `Olá! Tenho interesse no plano ${nome} (${preco}) do CA.RO Clinic. Poderia me enviar o link de assinatura?`
-  )}`;
 
 interface PlanosAssinaturasProps {
   activePlan?: "Standard" | "Precision" | "Enterprise";
@@ -104,7 +96,7 @@ export default function PlanosAssinaturas({
 
         <div className="bg-[#C9A84C]/15 border border-[#C9A84C]/35 px-3.5 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
           <Crown className="w-4.5 h-4.5 text-[#C9A84C]" />
-          <span className="text-xs text-[#C9A84C] font-mono tracking-wider uppercase font-bold">Plano {activePlan} Ativo</span>
+          <span className="text-xs text-[#C9A84C] font-mono tracking-wider uppercase font-bold">Dra. Mariah (Precision Ativo)</span>
         </div>
       </div>
 
@@ -174,14 +166,16 @@ export default function PlanosAssinaturas({
                   Licença Ativa com Sucesso
                 </div>
               ) : (
-                <a
-                  href={linkAssinatura(plan.name, plan.price)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full bg-[#0A0A0A] hover:bg-[#25D366] text-white py-2.5 rounded-lg text-xs font-mono font-bold uppercase transition cursor-pointer shadow-sm flex items-center justify-center gap-2"
+                <button
+                  onClick={() => {
+                    if (confirm(`Deseja alterar sua assinatura clínica para o plano ${plan.name}?`)) {
+                      onChangeActivePlan?.(plan.id as any);
+                    }
+                  }}
+                  className="w-full bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black py-2.5 rounded-lg text-xs font-mono font-bold uppercase transition cursor-pointer shadow-sm"
                 >
-                  <MessageCircle className="w-4 h-4" /> Assinar via WhatsApp
-                </a>
+                  Migrar para este Plano
+                </button>
               )}
             </div>
           );
