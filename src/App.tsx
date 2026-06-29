@@ -14,7 +14,6 @@ import GaleriaGlobal from "./components/GaleriaGlobal";
 import PlanosAssinaturas from "./components/PlanosAssinaturas";
 import PortalPaciente from "./components/PortalPaciente";
 import FinanceiroModulo from "./components/FinanceiroMódulo";
-import DevPanel from "./components/DevPanel";
 
 import { Paciente, AlertaClinico, EventoAgenda, ConsultaHistorial } from "./types";
 
@@ -37,12 +36,19 @@ interface Message {
 }
 
 export default function App() {
-  // Authentication states
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState<"medica" | "paciente" | "dev">("medica");
-  const [medicaNome, setMedicaNome] = useState("Dra. Mariah Zibetti");
-  const [loggedPacienteId, setLoggedPacienteId] = useState<string | null>(null);
-  const [devOpenApp, setDevOpenApp] = useState(false); // dev acessando o app clínico
+  // Authentication states with instant localStorage memory
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem("caro_clinic_auth") === "true";
+  });
+  const [userRole, setUserRole] = useState<"medica" | "paciente">(() => {
+    return (localStorage.getItem("caro_clinic_role") as "medica" | "paciente") || "medica";
+  });
+  const [medicaNome, setMedicaNome] = useState<string>(() => {
+    return localStorage.getItem("caro_clinic_doctor") || "Dra. Mariah Zibetti";
+  });
+  const [loggedPacienteId, setLoggedPacienteId] = useState<string | null>(() => {
+    return localStorage.getItem("caro_clinic_patient_id");
+  });
 
   // Patient chat state per-patientId
   const [patientChats, setPatientChats] = useState<Record<string, Message[]>>({});
@@ -123,18 +129,26 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  const handleStartLogin = (result: { role: "medica" | "paciente" | "dev"; nome: string; pacienteId?: string }) => {
+  const handleStartLogin = (result: { role: "medica" | "paciente"; nome: string; pacienteId?: string }) => {
     setUserRole(result.role);
-    if (result.role === "medica" || result.role === "dev") {
+    localStorage.setItem("caro_clinic_auth", "true");
+    localStorage.setItem("caro_clinic_role", result.role);
+    if (result.role === "medica") {
       setMedicaNome(result.nome);
+      localStorage.setItem("caro_clinic_doctor", result.nome);
     } else if (result.pacienteId) {
       setLoggedPacienteId(result.pacienteId);
+      localStorage.setItem("caro_clinic_patient_id", result.pacienteId);
     }
     setIsAuthenticated(true);
   };
 
   const handleLogout = async () => {
     try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
+    localStorage.removeItem("caro_clinic_auth");
+    localStorage.removeItem("caro_clinic_role");
+    localStorage.removeItem("caro_clinic_doctor");
+    localStorage.removeItem("caro_clinic_patient_id");
     setIsAuthenticated(false);
     setLoggedPacienteId(null);
     setUserRole("medica");
@@ -180,11 +194,6 @@ export default function App() {
 
   if (!isAuthenticated) {
     return <LoginScreen onLogin={handleStartLogin} />;
-  }
-
-  // Painel do desenvolvedor (admin do sistema) — pode abrir o app clínico
-  if (userRole === "dev" && !devOpenApp) {
-    return <DevPanel onLogout={handleLogout} onOpenApp={() => setDevOpenApp(true)} />;
   }
 
   // If patient logs in, render the dedicated client PortalPaciente directly

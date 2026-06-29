@@ -42,7 +42,7 @@ export default function Sidebar({
     { id: "financeiro", label: "Faturamento e Caixa", icon: Receipt },
     { id: "galeria_capilar", label: "Galeria Capilar", icon: ImageIcon },
     { id: "ia_assistente", label: "IA Assistente", icon: Bot },
-    ...(medicaNome === "Dev Admin (Acesso Total)" ? [{ id: "planos", label: "Planos e Assinaturas", icon: CreditCard }] : []),
+    { id: "planos", label: "Planos e Gestão", icon: CreditCard },
   ];
 
   return (
