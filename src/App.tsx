@@ -239,6 +239,35 @@ export default function App() {
 
       {/* Main Content Workspace viewport */}
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full pb-20 overflow-y-auto">
+        {/* Top Branding Bar — Dra. Mariah Zibetti */}
+        <div className="mb-8 p-4 md:p-5 rounded-2xl bg-[#0A0A0A] text-white border border-[#C9A84C]/30 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#C9A84C]/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative z-10 flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-full border border-[#C9A84C] bg-black flex items-center justify-center text-[#C9A84C] font-serif font-bold text-base shadow-inner shrink-0">
+              MZ
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 style={{ fontFamily: "Georgia, serif" }} className="text-xl md:text-2xl font-serif text-white tracking-tight font-medium">
+                  {medicaNome}
+                </h1>
+                <span className="bg-[#C9A84C]/20 text-[#C9A84C] text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  Dermatologia & Tricologia Avançada
+                </span>
+              </div>
+              <p className="text-xs text-white/50 font-mono mt-0.5">
+                Plataforma de Inteligência Capilar • Unidades Toledo & Fátima do Sul
+              </p>
+            </div>
+          </div>
+          
+          <div className="relative z-10 flex items-center gap-3 self-end md:self-auto text-xs font-mono">
+            <span className="text-[#C9A84C] flex items-center gap-1.5 bg-[#151515] px-3 py-1.5 rounded-lg border border-[#C9A84C]/20">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Sistema Clínico Conectado
+            </span>
+          </div>
+        </div>
+
         <AnimatePresence mode="wait">
           <motion.div
             key={currentTab}

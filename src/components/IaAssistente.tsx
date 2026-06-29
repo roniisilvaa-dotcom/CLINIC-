@@ -32,17 +32,17 @@ export default function IaAssistente({
   activePlan = "Precision",
   aiRunsCounter = 2,
   onIncrementAiRuns,
-  medicaNome = "Doutor(a)"
+  medicaNome = "Dra. Mariah Zibetti"
 }: IaAssistenteProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "init-1",
       role: "assistant",
-      content: `Olá, ${medicaNome}. Sou o **CA.RO Clinic IA**, seu copiloto de decisão diagnóstica e terapêutica em saúde capilar de precisão.
+      content: `Olá, ${medicaNome}. Sou seu **Copiloto de Inteligência Clínica em Tricologia Avançada**.
 
-Tenho pleno acesso aos prontuários, evoluções de consultas, laudos de exames e históricos fotográficos dos pacientes de suas unidades. 
+Estou sincronizado com os prontuários capilares, análises de tricoscopia, exames laboratoriais e fórmulas manipuladas das unidades de Toledo e Fátima do Sul.
 
-Como posso ajudá-la no raciocínio clínico ou na conduta de hoje?`
+Como posso auxiliá-la na conduta terapêutica ou no raciocínio diagnóstico de hoje?`
     }
   ]);
   const [inputMessage, setInputMessage] = useState("");
