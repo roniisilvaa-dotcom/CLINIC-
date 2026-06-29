@@ -1,4 +1,4 @@
-import whatsappRouter from './whatsapp';
+import whatsappRouter from '../src/routes/whatsapp';
 import express from "express";
 import { GoogleGenAI } from "@google/genai";
 import { db } from "../src/db/index";
