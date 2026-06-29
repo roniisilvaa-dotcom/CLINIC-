@@ -213,14 +213,6 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-[#FAFAFA] text-[#0A0A0A] font-sans antialiased overflow-x-hidden selection:bg-[#C9A84C]/35 selection:text-[#0A0A0A]">
-      {userRole === "dev" && (
-        <button
-          onClick={() => setDevOpenApp(false)}
-          className="fixed bottom-5 left-5 z-50 flex items-center gap-2 bg-[#0A0A0A] text-[#C9A84C] border border-[#C9A84C]/40 text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg hover:bg-[#15140F] transition"
-        >
-          ← Painel do Desenvolvedor
-        </button>
-      )}
       {/* Sidebar Navigation Panel with exactly aligned states */}
       <Sidebar 
         currentTab={currentTab === "nova_consulta" ? "pacientes" : currentTab} 
@@ -313,24 +305,14 @@ export default function App() {
               />
             )}
 
-            {currentTab === "nova_consulta" && activePacienteForConsulta && (
+            {currentTab === "nova_consulta" && (
               <NovaConsulta 
                 paciente={activePacienteForConsulta}
+                pacientesList={pacientes}
                 onClose={() => setCurrentTab("pacientes")}
                 onSave={handleSaveNewConsultation}
+                onAddNewPaciente={(novoP) => setPacientes(prev => [novoP, ...prev])}
               />
-            )}
-
-            {currentTab === "nova_consulta" && !activePacienteForConsulta && (
-              <div className="text-center py-20 border border-dashed border-gray-300 bg-white shadow-sm rounded-xl space-y-4 max-w-lg mx-auto">
-                <p style={{ fontFamily: "Georgia, serif" }} className="text-gray-600 text-base">Nenhum paciente selecionado para atendimento.</p>
-                <button 
-                  onClick={() => setCurrentTab("pacientes")}
-                  className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-semibold text-xs font-mono uppercase px-5 py-2.5 rounded-lg cursor-pointer transition-colors shadow"
-                >
-                  Selecionar no Banco de Pacientes
-                </button>
-              </div>
             )}
 
             {currentTab === "agenda" && (

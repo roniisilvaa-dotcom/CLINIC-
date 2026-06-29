@@ -25,7 +25,8 @@ import {
   AlertTriangle,
   FileSignature,
   MessageSquare,
-  QrCode
+  QrCode,
+  X
 } from "lucide-react";
 import { Paciente, ExameLaboratorial, FotoCapilar, StatusPaciente } from "../types";
 
