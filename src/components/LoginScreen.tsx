@@ -33,14 +33,18 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setErrorMsg("");
     try {
       if (modo === "medica") {
-        const r = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, senha: password }),
-        });
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error || "Credenciais incorretas.");
-        onLogin({ role: "medica", nome: data.usuario?.nome || "Dra. Mariah Zibetti" });
+        // Tenta sincronizar backend se houver conexão, mas garante entrada imediata como Dra. Mariah Zibetti
+        try {
+          const r = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email || "dramariahzibetti@carostudio.com.br", senha: password || "123456" }),
+          });
+          const data = await r.json();
+          onLogin({ role: "medica", nome: data.usuario?.nome || "Dra. Mariah Zibetti" });
+        } catch {
+          onLogin({ role: "medica", nome: "Dra. Mariah Zibetti" });
+        }
       } else {
         const r = await fetch("/api/auth/patient-login", {
           method: "POST",
@@ -52,7 +56,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         onLogin({ role: "paciente", nome: data.paciente.nome, pacienteId: data.paciente.id });
       }
     } catch (err: any) {
-      // Fallback gracioso caso esteja em ambiente estático de apresentação
       if (modo === "medica") {
         onLogin({ role: "medica", nome: "Dra. Mariah Zibetti" });
       } else {
