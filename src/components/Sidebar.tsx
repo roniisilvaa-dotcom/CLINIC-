@@ -26,6 +26,7 @@ export default function Sidebar({ currentTab, setCurrentTab, collapsed, setColla
     { id: "financeiro",       label: "Faturamento e Caixa",  icon: Receipt },
     { id: "galeria_capilar",  label: "Galeria Capilar",      icon: ImageIcon },
     { id: "ia_assistente",    label: "IA Assistente",        icon: Bot },
+    { id: "whatsapp_bot",     label: "IA Secretária WhatsApp", icon: MessageCircle },
     { id: "planos",           label: "Planos e Assinaturas", icon: CreditCard },
   ];
 
