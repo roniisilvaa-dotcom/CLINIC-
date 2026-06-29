@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   FileText, 
@@ -16,7 +16,9 @@ import {
   Share2,
   MapPin,
   ShieldCheck,
-  Award
+  Award,
+  Edit3,
+  X
 } from "lucide-react";
 import { PrescricaoTemplate } from "../types";
 
@@ -64,12 +66,24 @@ const INITIAL_CLINICAL_TEMPLATES: PrescricaoTemplate[] = [
 ];
 
 export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }: { medicaNome?: string }) {
-  const [library, setLibrary] = useState<PrescricaoTemplate[]>(INITIAL_CLINICAL_TEMPLATES);
+  const [library, setLibrary] = useState<PrescricaoTemplate[]>(() => {
+    try {
+      const saved = localStorage.getItem("caro_clinic_prescricoes");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_CLINICAL_TEMPLATES;
+  });
+
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
-  // Create Template form states
+  // Create & Edit Template form states
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  
   const [newTitle, setNewTitle] = useState("");
   const [newDiag, setNewDiag] = useState("");
   const [newCat, setNewCat] = useState<PrescricaoTemplate["categoria"]>("Medicamentoso");
@@ -82,6 +96,13 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
   const [previewTemplate, setPreviewTemplate] = useState<PrescricaoTemplate | null>(null);
   const [selectedUnidade, setSelectedUnidade] = useState<"Toledo" | "Fátima do Sul">("Toledo");
 
+  // Persist library in localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("caro_clinic_prescricoes", JSON.stringify(library));
+    } catch {}
+  }, [library]);
+
   // Search logic
   const filteredTemplates = library.filter(t => {
     const matchesSearch = t.titulo.toLowerCase().includes(search.toLowerCase()) || t.diagnosticoRef.toLowerCase().includes(search.toLowerCase());
@@ -89,32 +110,72 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
     return matchesSearch && matchesCat;
   });
 
-  const handleCreateTemplate = (e: React.FormEvent) => {
-    e.preventDefault();
-    const novo: PrescricaoTemplate = {
-      id: `temp-${Date.now()}`,
-      titulo: newTitle,
-      diagnosticoRef: newDiag || "Geral",
-      categoria: newCat,
-      medicamentos: newMeds,
-      procedimentos: newProcs,
-      suplementacao: newSupls,
-      cosmeticos: newCosms
-    };
-    setLibrary([novo, ...library]);
-    setShowCreateModal(false);
-
-    // Reset fields
+  const handleOpenNewModal = () => {
+    setEditingId(null);
     setNewTitle("");
     setNewDiag("");
+    setNewCat("Medicamentoso");
     setNewMeds("");
     setNewProcs("");
     setNewSupls("");
     setNewCosms("");
+    setShowCreateModal(true);
+  };
+
+  const handleOpenEditModal = (temp: PrescricaoTemplate) => {
+    setEditingId(temp.id);
+    setNewTitle(temp.titulo);
+    setNewDiag(temp.diagnosticoRef);
+    setNewCat(temp.categoria);
+    setNewMeds(temp.medicamentos);
+    setNewProcs(temp.procedimentos);
+    setNewSupls(temp.suplementacao);
+    setNewCosms(temp.cosmeticos);
+    setShowCreateModal(true);
+  };
+
+  const handleSaveTemplate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingId) {
+      // Atualiza protocolo existente
+      setLibrary(prev => prev.map(t => {
+        if (t.id === editingId) {
+          return {
+            ...t,
+            titulo: newTitle,
+            diagnosticoRef: newDiag || "Geral",
+            categoria: newCat,
+            medicamentos: newMeds,
+            procedimentos: newProcs,
+            suplementacao: newSupls,
+            cosmeticos: newCosms
+          };
+        }
+        return t;
+      }));
+    } else {
+      // Criar novo protocolo
+      const novo: PrescricaoTemplate = {
+        id: `temp-${Date.now()}`,
+        titulo: newTitle,
+        diagnosticoRef: newDiag || "Geral",
+        categoria: newCat,
+        medicamentos: newMeds,
+        procedimentos: newProcs,
+        suplementacao: newSupls,
+        cosmeticos: newCosms
+      };
+      setLibrary([novo, ...library]);
+    }
+
+    setShowCreateModal(false);
+    setEditingId(null);
   };
 
   const handleDeleteTemplate = (id: string) => {
-    setLibrary(library.filter(t => t.id !== id));
+    if (confirm("Deseja realmente excluir este protocolo de prescrição?")) {
+      setLibrary(library.filter(t => t.id !== id));
+    }
   };
 
   const handleShareWhatsApp = (temp: PrescricaoTemplate) => {
@@ -124,7 +185,7 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
   };
 
   return (
-    <div id="prescricoes_module_container" className="space-y-6">
+    <div id="prescricoes_module_container" className="space-y-6 select-none font-sans">
       
       {/* Header section with Create Template action */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#0A0A0A]/5 pb-6">
@@ -135,14 +196,14 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
               <Award className="w-3 h-3" /> Exclusivo Dra. Mariah
             </span>
           </div>
-          <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mt-1.5 font-sans">Lançamento rápido de fórmulas manipuladas, suplementações e protocolos de tricologia médica.</p>
+          <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mt-1.5 font-sans">Adicione, edite e emita fórmulas manipuladas, suplementações e protocolos de tricologia médica.</p>
         </div>
 
         <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black text-xs font-bold font-mono tracking-wider uppercase px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition duration-200 cursor-pointer self-start sm:self-auto shadow-md"
+          onClick={handleOpenNewModal}
+          className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black text-xs font-bold font-mono tracking-wider uppercase px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition duration-200 cursor-pointer self-start sm:self-auto shadow-md"
         >
-          <Plus className="w-4 h-4" /> Criar Novo Protocolo
+          <Plus className="w-4 h-4" /> Adicionar Prescrição
         </button>
       </div>
 
@@ -189,11 +250,11 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
         {filteredTemplates.map(temp => (
           <div 
             key={temp.id} 
-            className="bg-white border border-[#E5E5E5] rounded-xl p-5 hover:border-[#C9A84C]/60 shadow-sm hover:shadow-md transition duration-200 flex flex-col justify-between gap-4 relative overflow-hidden"
+            className="bg-white border border-[#E5E5E5] rounded-2xl p-6 hover:border-[#C9A84C]/60 shadow-sm hover:shadow-md transition duration-200 flex flex-col justify-between gap-4 relative overflow-hidden group"
           >
             <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#C9A84C] to-[#0A0A0A]" />
             
-            <div className="space-y-3 pl-2">
+            <div className="space-y-3.5 pl-2">
               <div className="flex justify-between items-start gap-2">
                 <div>
                   <span className="text-[10px] uppercase font-mono tracking-wider text-[#C9A84C] bg-[#C9A84C]/10 px-2.5 py-0.5 rounded font-bold inline-block">
@@ -203,13 +264,22 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
                   <p className="text-xs text-gray-400 font-mono mt-1 font-semibold">Indicação: {temp.diagnosticoRef}</p>
                 </div>
                 
-                <button 
-                  onClick={() => handleDeleteTemplate(temp.id)}
-                  className="text-gray-300 hover:text-red-500 p-1 rounded transition cursor-pointer shrink-0"
-                  title="Excluir"
-                >
-                  <Trash className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button 
+                    onClick={() => handleOpenEditModal(temp)}
+                    className="text-gray-400 hover:text-[#C9A84C] p-1.5 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                    title="Editar Prescrição"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteTemplate(temp.id)}
+                    className="text-gray-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                    title="Excluir"
+                  >
+                    <Trash className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Formula brief snippets representation */}
@@ -217,26 +287,36 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
                 {temp.medicamentos && (
                   <div className="text-xs">
                     <span className="text-[9px] text-gray-400 uppercase font-mono block font-bold">Fármacos Sistêmicos / Tópicos</span>
-                    <p className="text-gray-700 font-mono text-[11px] line-clamp-2 bg-gray-50/80 p-2 rounded border border-gray-100 mt-1 whitespace-pre-line">{temp.medicamentos}</p>
+                    <p className="text-gray-700 font-mono text-[11px] line-clamp-2 bg-gray-50/80 p-2.5 rounded-lg border border-gray-100 mt-1 whitespace-pre-line leading-relaxed">{temp.medicamentos}</p>
                   </div>
                 )}
                 {temp.suplementacao && (
                   <div className="text-xs">
                     <span className="text-[9px] text-gray-400 uppercase font-mono block font-bold">Suplementação Nutracêutica</span>
-                    <p className="text-gray-700 font-mono text-[11px] line-clamp-2 bg-gray-50/80 p-2 rounded border border-gray-100 mt-1 whitespace-pre-line">{temp.suplementacao}</p>
+                    <p className="text-gray-700 font-mono text-[11px] line-clamp-2 bg-gray-50/80 p-2.5 rounded-lg border border-gray-100 mt-1 whitespace-pre-line leading-relaxed">{temp.suplementacao}</p>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="border-t border-gray-100 pt-3 flex flex-wrap items-center justify-between gap-2 text-xs pl-2">
-              <button
-                onClick={() => handleShareWhatsApp(temp)}
-                className="text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-md flex items-center gap-1.5 transition cursor-pointer font-bold font-mono text-[10px]"
-                title="Compartilhar no WhatsApp"
-              >
-                <Share2 className="w-3.5 h-3.5" /> WhatsApp
-              </button>
+            <div className="border-t border-gray-100 pt-3.5 flex flex-wrap items-center justify-between gap-2 text-xs pl-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleShareWhatsApp(temp)}
+                  className="text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer font-bold font-mono text-[10px]"
+                  title="Compartilhar no WhatsApp"
+                >
+                  <Share2 className="w-3.5 h-3.5" /> WhatsApp
+                </button>
+                
+                <button
+                  onClick={() => handleOpenEditModal(temp)}
+                  className="text-gray-700 hover:text-black bg-gray-100 hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer font-bold font-mono text-[10px]"
+                  title="Editar Prescrição"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-gray-600" /> Editar
+                </button>
+              </div>
 
               <div className="flex gap-2">
                 <button
@@ -246,14 +326,14 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
                     );
                     alert("Todas as formulações deste protocolo foram copiadas para a área de transferência!");
                   }}
-                  className="text-gray-600 hover:text-[#0A0A0A] px-3 py-1.5 border border-gray-200 hover:bg-gray-50 rounded-md flex items-center gap-1.5 transition cursor-pointer font-bold font-mono text-[10px]"
+                  className="text-gray-600 hover:text-[#0A0A0A] px-3 py-1.5 border border-gray-200 hover:bg-gray-50 rounded-lg flex items-center gap-1.5 transition cursor-pointer font-bold font-mono text-[10px]"
                 >
                   <ClipboardCopy className="w-3.5 h-3.5" /> Copiar
                 </button>
 
                 <button
                   onClick={() => setPreviewTemplate(temp)}
-                  className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black px-3.5 py-1.5 rounded-md flex items-center gap-1.5 transition cursor-pointer font-bold font-mono text-[10px] shadow-sm"
+                  className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer font-bold font-mono text-[10px] shadow-sm"
                 >
                   <Printer className="w-3.5 h-3.5 text-[#C9A84C] group-hover:text-black" /> Receituário Timbrado
                 </button>
@@ -263,38 +343,59 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
         ))}
 
         {filteredTemplates.length === 0 && (
-          <div className="col-span-full py-12 text-center bg-white border border-dashed border-gray-300 rounded-xl">
+          <div className="col-span-full py-12 text-center bg-white border border-dashed border-gray-300 rounded-2xl">
             <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
             <p className="text-sm text-gray-500 font-medium">Nenhum protocolo encontrado com os termos pesquisados.</p>
           </div>
         )}
       </div>
 
-      {/* ====== DIALOG: CREATE NEW TEMPLATE MODAL ====== */}
+      {/* ====== DIALOG: CREATE / EDIT TEMPLATE MODAL ====== */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white text-[#0A0A0A] w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden animate-fadeIn border border-[#C9A84C]/30">
-            <div className="bg-[#0A0A0A] text-white p-4 flex justify-between items-center border-b border-[#252525]">
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-sans">
+          <div className="bg-white text-[#0A0A0A] w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-fadeIn border border-[#C9A84C]/40">
+            <div className="bg-[#0A0A0A] text-white p-4 px-6 flex justify-between items-center border-b border-[#252525]">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#C9A84C]" />
-                <span className="font-mono text-xs uppercase tracking-wider text-[#C9A84C] font-bold">Novo Protocolo Clínico • Dra. Mariah Zibetti</span>
+                <span className="font-mono text-xs uppercase tracking-wider text-[#C9A84C] font-bold">
+                  {editingId ? "Editar Prescrição / Protocolo" : "Adicionar Nova Prescrição • Dra. Mariah Zibetti"}
+                </span>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-white transition text-xs font-semibold px-2.5 py-1 bg-neutral-800 rounded cursor-pointer">Fechar</button>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-white transition p-1 rounded-lg cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <form onSubmit={handleCreateTemplate} className="p-6 space-y-4">
+            <form onSubmit={handleSaveTemplate} className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Título do Protocolo</label>
-                  <input required type="text" placeholder="Ex: Protocolo Alopecia Areata — Imunomodulação" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-2.5 rounded outline-none" />
+                  <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Título do Protocolo / Prescrição</label>
+                  <input 
+                    required 
+                    type="text" 
+                    placeholder="Ex: Protocolo Indução Capilar — AGA Feminina" 
+                    value={newTitle} 
+                    onChange={(e) => setNewTitle(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none font-sans" 
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Indicação / Diagnóstico</label>
-                  <input type="text" placeholder="Ex: Alopecia Areata em placas" value={newDiag} onChange={(e) => setNewDiag(e.target.value)} className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-2.5 rounded outline-none" />
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Alopecia Androgenética Feminina" 
+                    value={newDiag} 
+                    onChange={(e) => setNewDiag(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none font-sans" 
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Categoria</label>
-                  <select value={newCat} onChange={(e) => setNewCat(e.target.value as any)} className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-2.5 rounded outline-none">
+                  <select 
+                    value={newCat} 
+                    onChange={(e) => setNewCat(e.target.value as any)} 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-3 rounded-xl outline-none font-mono"
+                  >
                     <option value="Medicamentoso">Medicamentoso</option>
                     <option value="Procedimentos">Procedimentos</option>
                     <option value="Suplementação">Suplementação</option>
@@ -306,25 +407,60 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
               <div className="space-y-3.5 border-t border-gray-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Fármacos Sistêmicos / Tópicos</label>
-                  <textarea rows={3} placeholder="Prescrição de medicamentos..." value={newMeds} onChange={(e) => setNewMeds(e.target.value)} className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-mono" />
+                  <textarea 
+                    rows={3} 
+                    placeholder="Loções, cápsulas e medicamentos orais..." 
+                    value={newMeds} 
+                    onChange={(e) => setNewMeds(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-3 rounded-xl outline-none font-mono" 
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Procedimentos de Consultório</label>
-                  <textarea rows={3} placeholder="MMP, Laser, Microagulhamento..." value={newProcs} onChange={(e) => setNewProcs(e.target.value)} className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-mono" />
+                  <textarea 
+                    rows={3} 
+                    placeholder="MMP, Laser LLLT, Microagulhamento..." 
+                    value={newProcs} 
+                    onChange={(e) => setNewProcs(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-3 rounded-xl outline-none font-mono" 
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Suplementações Nutracêuticas</label>
-                  <textarea rows={3} placeholder="Vitamins, minerais, antioxidantes..." value={newSupls} onChange={(e) => setNewSupls(e.target.value)} className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-mono" />
+                  <textarea 
+                    rows={3} 
+                    placeholder="Vitamins, minerais quelatos, antioxidantes..." 
+                    value={newSupls} 
+                    onChange={(e) => setNewSupls(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-3 rounded-xl outline-none font-mono" 
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs uppercase text-gray-500 font-mono font-bold block">Cosméticos & Shampoos</label>
-                  <textarea rows={3} placeholder="Higienização e tônicos..." value={newCosms} onChange={(e) => setNewCosms(e.target.value)} className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-mono" />
+                  <textarea 
+                    rows={3} 
+                    placeholder="Shampoos manipulados, tônicos e higienizadores..." 
+                    value={newCosms} 
+                    onChange={(e) => setNewCosms(e.target.value)} 
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-3 rounded-xl outline-none font-mono" 
+                  />
                 </div>
               </div>
 
-              <div className="border-t border-gray-100 pt-4 flex justify-end gap-2.5 text-xs">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded font-mono uppercase cursor-pointer">Cancelar</button>
-                <button type="submit" className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-semibold px-4 py-2 rounded font-mono uppercase tracking-wider cursor-pointer transition">Salvar Protocolo</button>
+              <div className="border-t border-gray-100 pt-4 flex justify-end gap-3 text-xs">
+                <button 
+                  type="button" 
+                  onClick={() => setShowCreateModal(false)} 
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold px-4 py-2.5 rounded-xl font-mono uppercase cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black font-semibold px-5 py-2.5 rounded-xl font-mono uppercase tracking-wider cursor-pointer transition shadow-md"
+                >
+                  {editingId ? "Salvar Alterações" : "Adicionar Prescrição"}
+                </button>
               </div>
             </form>
           </div>
@@ -486,4 +622,3 @@ export default function PrescricoesModulo({ medicaNome = "Dra. Mariah Zibetti" }
     </div>
   );
 }
-export {};
