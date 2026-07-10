@@ -9,8 +9,8 @@
  */
 
 import express from "express";
-import { db } from "../db/index";
-import { conversasWhatsapp, agendaEventos, pacientes } from "../db/schema";
+import { db } from "../db/index.js";
+import { conversasWhatsapp, agendaEventos, pacientes } from "../db/schema.js";
 import { eq, desc } from "drizzle-orm";
 import {
   processarMensagem,
@@ -19,15 +19,15 @@ import {
   formatarConfirmacaoAgendamento,
   VALOR_SINAL,
   MensagemConversa,
-} from "../services/iaSecretaria";
+} from "../services/iaSecretaria.js";
 import {
   enviarMensagem,
   extrairTelefone,
   extrairMensagens,
   extrairEcosHumanos,
   validarAssinatura,
-} from "../services/metaWhatsappService";
-import { pagamentoConfirmado } from "../services/pagamentoService";
+} from "../services/metaWhatsappService.js";
+import { pagamentoConfirmado } from "../services/pagamentoService.js";
 
 const router = express.Router();
 

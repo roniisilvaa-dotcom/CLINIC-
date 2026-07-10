@@ -1,7 +1,7 @@
-import whatsappRouter from '../src/routes/whatsapp';
+import whatsappRouter from '../src/routes/whatsapp.js';
 import express from "express";
 import { GoogleGenAI } from "@google/genai";
-import { db } from "../src/db/index";
+import { db } from "../src/db/index.js";
 import {
   pacientes,
   consultas,
@@ -11,7 +11,7 @@ import {
   filaEspera,
   pacotesVendidos,
   users,
-} from "../src/db/schema";
+} from "../src/db/schema.js";
 import { eq } from "drizzle-orm";
 
 const app = express();
