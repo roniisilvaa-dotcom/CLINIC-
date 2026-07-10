@@ -15,7 +15,13 @@ import {
 import { eq } from "drizzle-orm";
 
 const app = express();
-app.use(express.json());
+// Captura o corpo raw da requisição (necessário pra validar a assinatura X-Hub-Signature-256
+// que a Meta envia em todo POST /api/whatsapp/webhook — ver src/services/metaWhatsappService.ts)
+app.use(express.json({
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf;
+  },
+}));
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 

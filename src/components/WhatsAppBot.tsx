@@ -4,7 +4,8 @@ import {
   MessageCircle, Bot, Zap, CheckCircle2, Clock, Users,
   Settings, Phone, DollarSign, Calendar, ChevronRight,
   Copy, CheckCheck, AlertCircle, Wifi, WifiOff, RefreshCw,
-  QrCode, Smartphone, Link2, Shield, BellRing, Send
+  ShieldCheck, Smartphone, Link2, Shield, BellRing, Send,
+  Pause, Play
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -20,13 +21,10 @@ interface Conversa {
   mensagens: { role: string; conteudo: string; timestamp: string }[];
   ultimaAtividade: string;
   status: "ativo" | "aguardando_pagamento" | "agendado";
+  iaPausada?: boolean;
 }
 
-interface ConfigBot {
-  zapiUrl: string;
-  zapiToken: string;
-  zapiInstanceId: string;
-  asaasKey: string;
+interface ConfigNotificacao {
   whatsappDra: string;
   iaAtiva: boolean;
 }
@@ -50,9 +48,7 @@ export default function WhatsAppBot() {
   const [conversaSelecionada, setConversaSelecionada] = useState<Conversa | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const [config, setConfig] = useState<ConfigBot>({
-    zapiUrl: "", zapiToken: "", zapiInstanceId: "", asaasKey: "", whatsappDra: "", iaAtiva: true,
-  });
+  const [config, setConfig] = useState<ConfigNotificacao>({ whatsappDra: "", iaAtiva: true });
   const [salvando, setSalvando] = useState(false);
   const [salvoOk, setSalvoOk] = useState(false);
   const [testando, setTestando] = useState(false);
@@ -95,6 +91,17 @@ export default function WhatsAppBot() {
   useEffect(() => {
     if (aba === "conversas") carregarConversas();
   }, [aba, carregarConversas]);
+
+  const togglePausaIA = async (telefone: string, pausarAgora: boolean) => {
+    try {
+      await fetch(`/api/whatsapp/${pausarAgora ? "pausar" : "retomar"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telefone }),
+      });
+      setConversas(prev => prev.map(c => c.telefone === telefone ? { ...c, iaPausada: pausarAgora } : c));
+    } catch { /* offline */ }
+  };
 
   const salvarConfig = async () => {
     setSalvando(true);
@@ -140,7 +147,7 @@ export default function WhatsAppBot() {
             <h1 style={{ fontFamily: "Georgia, serif" }} className="text-2xl text-[#0A0A0A]">
               IA Secretária WhatsApp
             </h1>
-            <p className="text-xs text-neutral-500 font-mono">Agendamento automático · Pix · 24 h</p>
+            <p className="text-xs text-neutral-500 font-mono">Agendamento automático · Pix · 24 h · Meta Cloud API</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -201,7 +208,7 @@ export default function WhatsAppBot() {
               <div className="flex flex-wrap gap-3">
                 {[
                   { n: "1", label: "Paciente manda mensagem no WhatsApp da clínica", icon: Smartphone },
-                  { n: "2", label: "IA Ana responde humanizada e coleta dados",       icon: Bot },
+                  { n: "2", label: "IA responde humanizada e coleta dados",           icon: Bot },
                   { n: "3", label: "Sistema verifica agenda da Dra. Mariah",          icon: Calendar },
                   { n: "4", label: "Paciente escolhe horário e confirma",             icon: CheckCircle2 },
                   { n: "5", label: "IA gera link Pix de R$ 100 (sinal)",             icon: DollarSign },
@@ -230,11 +237,11 @@ export default function WhatsAppBot() {
             <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-5">
               <h3 className="font-semibold text-neutral-700 mb-4 flex items-center gap-2">
                 <Link2 className="w-4 h-4" />
-                URLs para configurar no Z-API e Asaas
+                URLs para configurar no painel Meta e no Asaas
               </h3>
               <div className="space-y-3">
                 {[
-                  { label: "Webhook WhatsApp (Z-API)", url: webhookUrl },
+                  { label: "Webhook WhatsApp (Meta Cloud API)", url: webhookUrl },
                   { label: "Webhook Pagamentos (Asaas)", url: paymentWebhookUrl },
                 ].map(w => (
                   <div key={w.label} className="flex items-center gap-3 bg-white rounded-lg border border-neutral-200 px-4 py-3">
@@ -251,6 +258,9 @@ export default function WhatsAppBot() {
                   </div>
                 ))}
               </div>
+              <p className="text-xs text-neutral-400 mt-3">
+                O webhook do WhatsApp é configurado direto no painel do app Meta (developers.facebook.com), não aqui — cole essa URL lá em "Configure Webhooks".
+              </p>
             </div>
           </motion.div>
         )}
@@ -276,10 +286,10 @@ export default function WhatsAppBot() {
 
             <div className="grid gap-3">
               {conversas.map((c, i) => (
-                <button
+                <div
                   key={i}
                   onClick={() => setConversaSelecionada(conversaSelecionada?.telefone === c.telefone ? null : c)}
-                  className="w-full text-left bg-white border border-neutral-200 rounded-xl p-4 hover:border-neutral-300 hover:shadow-sm transition-all"
+                  className="w-full text-left bg-white border border-neutral-200 rounded-xl p-4 hover:border-neutral-300 hover:shadow-sm transition-all cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -294,10 +304,22 @@ export default function WhatsAppBot() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      {c.iaPausada && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-neutral-800 text-white flex items-center gap-1">
+                          <Pause className="w-3 h-3" /> IA pausada
+                        </span>
+                      )}
                       <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[c.status] || "bg-neutral-100 text-neutral-600"}`}>
                         {STATUS_LABELS[c.status] || c.status}
                       </span>
                       <span className="text-xs text-neutral-400">{c.ultimaAtividade}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); togglePausaIA(c.telefone, !c.iaPausada); }}
+                        title={c.iaPausada ? "Retomar atendimento pela IA" : "Pausar IA e assumir manualmente"}
+                        className={`p-1.5 rounded-lg border transition-colors ${c.iaPausada ? "border-emerald-200 text-emerald-600 hover:bg-emerald-50" : "border-neutral-200 text-neutral-500 hover:bg-neutral-100"}`}
+                      >
+                        {c.iaPausada ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                      </button>
                     </div>
                   </div>
 
@@ -307,7 +329,7 @@ export default function WhatsAppBot() {
                         {c.mensagens.slice(-6).map((m, j) => (
                           <div key={j} className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}>
                             <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${m.role === "user" ? "bg-neutral-100 text-neutral-700" : "bg-[#25D366]/10 text-neutral-800"}`}>
-                              <p className="text-[10px] text-neutral-400 mb-0.5 font-medium">{m.role === "user" ? "Paciente" : "IA Ana"}</p>
+                              <p className="text-[10px] text-neutral-400 mb-0.5 font-medium">{m.role === "user" ? "Paciente" : "IA"}</p>
                               {m.conteudo}
                             </div>
                           </div>
@@ -315,7 +337,7 @@ export default function WhatsAppBot() {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </button>
+                </div>
               ))}
             </div>
           </motion.div>
@@ -325,95 +347,42 @@ export default function WhatsAppBot() {
         {aba === "configurar" && (
           <motion.div key="cfg" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
 
-            {/* Z-API */}
+            {/* Meta Cloud API — status */}
             <div className="bg-white border border-neutral-200 rounded-xl p-6">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-9 h-9 rounded-lg bg-[#25D366]/10 flex items-center justify-center">
-                  <QrCode className="w-4.5 h-4.5 text-[#25D366]" />
+                  <ShieldCheck className="w-4.5 h-4.5 text-[#25D366]" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-neutral-800">Conexão WhatsApp · Z-API</h3>
-                  <p className="text-xs text-neutral-500">zapi.io · Conecte seu número em 2 minutos</p>
+                  <h3 className="font-semibold text-neutral-800">Conexão WhatsApp · Meta Cloud API (oficial)</h3>
+                  <p className="text-xs text-neutral-500">developers.facebook.com · Sem QR Code, sem risco de banimento</p>
                 </div>
               </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-600 mb-1.5">URL da instância Z-API</label>
-                  <input
-                    type="text"
-                    value={config.zapiUrl}
-                    onChange={e => setConfig(p => ({ ...p, zapiUrl: e.target.value }))}
-                    placeholder="https://api.z-api.io/instances/SEU_ID/token/SEU_TOKEN"
-                    className="w-full px-3 py-2.5 border border-neutral-200 rounded-lg text-sm font-mono focus:outline-none focus:border-[#C9A96E] transition-colors bg-neutral-50"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-600 mb-1.5">Instance ID</label>
-                    <input
-                      type="text"
-                      value={config.zapiInstanceId}
-                      onChange={e => setConfig(p => ({ ...p, zapiInstanceId: e.target.value }))}
-                      placeholder="ex: 3D9A81..."
-                      className="w-full px-3 py-2.5 border border-neutral-200 rounded-lg text-sm font-mono focus:outline-none focus:border-[#C9A96E] bg-neutral-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-600 mb-1.5">Token Z-API</label>
-                    <input
-                      type="password"
-                      value={config.zapiToken}
-                      onChange={e => setConfig(p => ({ ...p, zapiToken: e.target.value }))}
-                      placeholder="••••••••"
-                      className="w-full px-3 py-2.5 border border-neutral-200 rounded-lg text-sm font-mono focus:outline-none focus:border-[#C9A96E] bg-neutral-50"
-                    />
-                  </div>
-                </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                  <p className="font-semibold mb-1">📱 Como conectar seu WhatsApp:</p>
-                  <ol className="space-y-1 text-blue-700 list-decimal list-inside text-xs">
-                    <li>Acesse <strong>zapi.io</strong> e crie uma conta grátis</li>
-                    <li>Crie uma instância e copie o Instance ID e Token</li>
-                    <li>Cole os dados acima e salve</li>
-                    <li>No painel Z-API, escaneie o QR Code com o WhatsApp da clínica</li>
-                    <li>Cole o Webhook URL (da Visão Geral) no campo Webhook do Z-API</li>
-                  </ol>
-                </div>
-                <button
-                  onClick={testarConexao}
-                  disabled={testando || !config.zapiUrl}
-                  className="flex items-center gap-2 px-4 py-2 border border-[#25D366] text-[#25D366] rounded-lg text-sm font-medium hover:bg-[#25D366]/5 transition-colors disabled:opacity-40"
-                >
-                  {testando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
-                  {testando ? "Testando..." : "Testar Conexão"}
-                  {testeOk === true && <CheckCheck className="w-4 h-4 text-green-500" />}
-                  {testeOk === false && <AlertCircle className="w-4 h-4 text-red-500" />}
-                </button>
-              </div>
-            </div>
 
-            {/* Asaas */}
-            <div className="bg-white border border-neutral-200 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center">
-                  <DollarSign className="w-4.5 h-4.5 text-purple-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-neutral-800">Pagamentos · Asaas</h3>
-                  <p className="text-xs text-neutral-500">asaas.com · Cobrança Pix automática</p>
-                </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mb-4">
+                <p className="font-semibold mb-1">🔐 Por segurança, o token da Meta não é cadastrado por aqui.</p>
+                <p className="text-xs text-blue-700 leading-relaxed">
+                  As credenciais (<code className="font-mono">META_WHATSAPP_TOKEN</code>, <code className="font-mono">META_PHONE_NUMBER_ID</code>, <code className="font-mono">META_APP_SECRET</code>, <code className="font-mono">META_VERIFY_TOKEN</code>) ficam guardadas como variáveis de ambiente no painel da Vercel, não em texto na tela do sistema.
+                </p>
+                <ol className="space-y-1 text-blue-700 list-decimal list-inside text-xs mt-2">
+                  <li>Acesse developers.facebook.com → seu app → WhatsApp → Production setup</li>
+                  <li>Copie o token permanente e o Phone Number ID</li>
+                  <li>Cole a URL do webhook (acima, aba "Visão Geral") em "Configure Webhooks"</li>
+                  <li>Defina as 4 variáveis no painel da Vercel (Project Settings → Environment Variables)</li>
+                  <li>Faça um novo deploy pra aplicar</li>
+                </ol>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-neutral-600 mb-1.5">API Key Asaas</label>
-                <input
-                  type="password"
-                  value={config.asaasKey}
-                  onChange={e => setConfig(p => ({ ...p, asaasKey: e.target.value }))}
-                  placeholder="$aact_..."
-                  className="w-full px-3 py-2.5 border border-neutral-200 rounded-lg text-sm font-mono focus:outline-none focus:border-[#C9A96E] bg-neutral-50"
-                />
-                <p className="text-xs text-neutral-400 mt-1.5">Encontre em asaas.com → Integrações → API Keys</p>
-              </div>
+
+              <button
+                onClick={testarConexao}
+                disabled={testando}
+                className="flex items-center gap-2 px-4 py-2 border border-[#25D366] text-[#25D366] rounded-lg text-sm font-medium hover:bg-[#25D366]/5 transition-colors disabled:opacity-40"
+              >
+                {testando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
+                {testando ? "Testando..." : "Testar Conexão"}
+                {testeOk === true && <CheckCheck className="w-4 h-4 text-green-500" />}
+                {testeOk === false && <AlertCircle className="w-4 h-4 text-red-500" />}
+              </button>
             </div>
 
             {/* Notificação Dra */}
@@ -436,7 +405,7 @@ export default function WhatsAppBot() {
                   placeholder="5544999990000"
                   className="w-full px-3 py-2.5 border border-neutral-200 rounded-lg text-sm font-mono focus:outline-none focus:border-[#C9A96E] bg-neutral-50"
                 />
-                <p className="text-xs text-neutral-400 mt-1.5">Formato: 55 + DDD + número (sem espaços ou traços)</p>
+                <p className="text-xs text-neutral-400 mt-1.5">Formato: 55 + DDD + número (sem espaços ou traços). Também pode ser definido direto na variável WHATSAPP_DRA na Vercel.</p>
               </div>
             </div>
 
@@ -468,7 +437,7 @@ export default function WhatsAppBot() {
             </button>
 
             <p className="text-center text-xs text-neutral-400">
-              As configurações são salvas como variáveis de ambiente no servidor · Seguro e criptografado
+              Apenas as preferências acima (número da Dra., IA ativa) são salvas por aqui. Credenciais sensíveis (token Meta, chave Asaas) ficam nas variáveis de ambiente da Vercel.
             </p>
           </motion.div>
         )}
