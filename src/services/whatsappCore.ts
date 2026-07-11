@@ -83,6 +83,30 @@ async function checkAvailability(dataInicio: string, _dataFim?: string): Promise
     }
 }
 
+async function ensurePaciente(telefone: string, args: Record<string, any>) {
+    try {
+        const pacienteId = `wpp_${telefone}`;
+        await db.insert(pacientes).values({
+            id: pacienteId,
+            nome: args.nome_paciente || "Paciente WhatsApp",
+            idade: 0,
+            dataNascimento: "Nao informado",
+            cpf: args.cpf || `sem-cpf-${telefone}`,
+            telefone,
+            email: args.email || `${telefone}@whatsapp.placeholder`,
+            cidade: args.cidade || "Nao informado",
+            comoConheceu: "WhatsApp",
+            queixaPrincipal: args.procedimento || "Agendamento via WhatsApp",
+            status: "Agendado via WhatsApp",
+            ultimaAtualizacao: new Date().toISOString(),
+            antecedentes: {},
+            diagnostico: {},
+            protocolo: {},
+        }).onConflictDoNothing({ target: pacientes.id });
+    } catch (err) {
+        console.error("Erro ao criar paciente via WhatsApp:", err);
+    }
+}
 async function createAppointment(
     args: Record<string, any>,
     telefone: string,
@@ -95,6 +119,8 @@ async function createAppointment(
                   const totalMin = h * 60 + m + 90;
                   return `${String(Math.floor(totalMin / 60)).padStart(2, "0")}:${String(totalMin % 60).padStart(2, "0")}`;
           })();
+
+        await ensurePaciente(telefone, args);
 
       await db.insert(agendaEventos).values({
               id,
