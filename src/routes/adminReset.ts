@@ -47,3 +47,4 @@ router.post("/setup-auth", async (req, res) => {
     res.status(500).json({ ok: false, erro: String(err) });
   }
 });
+export default router;
