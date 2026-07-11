@@ -1,0 +1,13 @@
+name: Remarketing WhatsApp Cron
+on:
+  schedule:
+      - cron: '*/20 * * * *'
+  workflow_dispatch:
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar endpoint de remarketing
+        run: |
+          curl -sf -X POST "https://clinic-caro.vercel.app/api/whatsapp/remarketing-cron" \
+            -H "Authorization: Bearer ${{ secrets.REMARKETING_CRON_TOKEN }}"
