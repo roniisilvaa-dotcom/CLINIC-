@@ -159,10 +159,11 @@ export async function processarMensagem(
           return { texto: `IA indisponível no momento. Entre em contato com ${contato}.` };
     }
 
-  const systemFinal = contextoSistema
-      ? `${SYSTEM_PROMPT}\n\nCONTEXTO SISTEMA:\n${contextoSistema}`
-        : SYSTEM_PROMPT;
-
+const hojeStr = new Date().toISOString().slice(0, 10);
+const contextoData = `IMPORTANTE: hoje e ${hojeStr} (formato YYYY-MM-DD). Use sempre este ano ao calcular ou preencher datas de agendamento -- nunca use um ano anterior a este.`;
+const systemFinal = contextoSistema
+  ? `${SYSTEM_PROMPT}\n\n${contextoData}\n\nCONTEXTO SISTEMA:\n${contextoSistema}`
+  : `${SYSTEM_PROMPT}\n\n${contextoData}`;
   const messages = [
         ...historico.map(m => ({ role: m.role === "model" ? "assistant" : "user", content: m.content })),
     { role: "user" as const, content: mensagem },
