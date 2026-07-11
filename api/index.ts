@@ -1,6 +1,7 @@
 import whatsappRouter from '../src/routes/whatsapp.js';
 import whatsappEvolutionRouter from '../src/routes/whatsappEvolution.js';
 import remarketingRouter from '../src/routes/remarketing.js';
+import adminResetRouter from '../src/routes/adminReset.js';
 import express from "express";
 import { GoogleGenAI } from "@google/genai";
 import { db } from "../src/db/index.js";
@@ -319,5 +320,6 @@ app.post("/api/chat", async (req, res) => {
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/whatsapp', whatsappEvolutionRouter);
 app.use('/api/whatsapp', remarketingRouter);
+app.use('/api/admin', adminResetRouter);
 
 export default app;
