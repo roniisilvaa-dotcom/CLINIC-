@@ -1,4 +1,5 @@
 import whatsappRouter from '../src/routes/whatsapp.js';
+import whatsappEvolutionRouter from '../src/routes/whatsappEvolution.js';
 import express from "express";
 import { GoogleGenAI } from "@google/genai";
 import { db } from "../src/db/index.js";
@@ -316,3 +317,5 @@ app.post("/api/chat", async (req, res) => {
 app.use('/api/whatsapp', whatsappRouter);
 
 export default app;
+
+app.use('/api/whatsapp', whatsappEvolutionRouter);
