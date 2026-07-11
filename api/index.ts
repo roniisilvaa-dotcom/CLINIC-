@@ -211,22 +211,49 @@ app.post("/api/pacotes", async (req, res) => {
 });
 
 // ─── Auth (login simples) ────────────────────────────────────────────────────
+function gerarToken() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { cpf, senha } = req.body;
-    const result = await db.select().from(users).where(eq(users.cpf, cpf));
-    if (!result.length) return res.status(401).json({ error: "CPF não encontrado" });
+    const { email, senha } = req.body;
+    const result = await db.select().from(users).where(eq(users.email, email));
+    if (!result.length) return res.status(401).json({ error: "E-mail nao encontrado" });
     const user = result[0];
-    // Comparação simples — em produção usar bcrypt
     if (user.senhaHash !== senha) return res.status(401).json({ error: "Senha incorreta" });
-    res.json({ id: user.id, nome: user.nome, role: user.role });
+    const token = gerarToken();
+    await db.update(users).set({ sessionToken: token }).where(eq(users.id, user.id));
+    res.json({ token, id: user.id, nome: user.nome, role: user.role });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// ─── IA: Análise de Exames ───────────────────────────────────────────────────
-app.post("/api/analyze-exams", async (req, res) => {
+app.get("/api/auth/me", async (req, res) => {
+  try {
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    if (!token) return res.status(401).json({ error: "sem token" });
+    const result = await db.select().from(users).where(eq(users.sessionToken, token));
+    if (!result.length) return res.status(401).json({ error: "sessao invalida" });
+    const user = result[0];
+    res.json({ id: user.id, nome: user.nome, role: user.role, email: user.email });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/auth/logout", async (req, res) => {
+  try {
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    if (token) await db.update(users).set({ sessionToken: null }).where(eq(users.sessionToken, token));
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
   try {
     const { pacienteNome, idade, queixa, exames: examesData } = req.body;
     const prompt = `Você é o software CA.RO Clinic IA, assistente diagnóstico de precisão da Dra. Mariah Zibetti (CRM PR 57.133), especialista em Tricologia Médica e Capilar de Alto Padrão.
