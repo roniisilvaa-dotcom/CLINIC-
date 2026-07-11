@@ -224,3 +224,14 @@ export function formatarNotificacaoDra(d: {
 }): string {
     return `Um paciente acabou de realizar um agendamento\n\nNome: ${d.nome}\nTelefone: ${d.telefone}\nProcedimento: ${d.procedimento}\nObservação: ${d.observacao || `Consulta presencial em Toledo/PR. Sinal de R$ ${d.valorSinal},00 pago via Pix. CPF: ${d.cpf}.`}\nProfissional: Mariah Zibetti\nData: ${d.data}\nHorário: ${d.horario} às ${d.horarioFim}`;
 }
+
+
+// Remarketing (leads que conversaram mas nao agendaram)
+// Sequencia de reengajamento: 4h, 24h, 48h e 1 semana apos a Eduarda ficar
+// sem resposta. Disparada pelo endpoint /api/whatsapp/remarketing-cron.
+export const REMARKETING_MENSAGENS = [
+  "Oi! Vi que a gente conversou e voce ainda nao finalizou o agendamento. Ficou alguma duvida? Posso te ajudar a resolver.",
+  "Oi, tudo bem? Fiquei pensando em voce, ainda tem interesse em marcar sua consulta com a Dra. Mariah? Se precisar de mais alguma informacao, e so me chamar.",
+  "Oi! Passando pra saber se voce ainda gostaria de agendar. Os horarios vao preenchendo, mas ainda tenho boas opcoes pra te oferecer. Quer que eu confira pra voce?",
+  "Oi! Faz um tempo que a gente conversou sobre sua consulta com a Dra. Mariah. Se ainda tiver interesse, e so me avisar que ja te ajudo a encontrar um horario. Continuo a disposicao.",
+];
