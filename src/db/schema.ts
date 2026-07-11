@@ -6,6 +6,8 @@ export const users = pgTable('users', {
   nome: text('nome').notNull(),
   cpf: text('cpf').unique().notNull(),
   senhaHash: text('senha_hash').notNull(),
+  email: text('email'),
+  sessionToken: text('session_token'),
 });
 
 export const pacientes = pgTable('pacientes', {
