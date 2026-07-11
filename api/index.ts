@@ -254,6 +254,7 @@ app.post("/api/auth/logout", async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+app.post("/api/analyze-exams", async (req, res) => {
   try {
     const { pacienteNome, idade, queixa, exames: examesData } = req.body;
     const prompt = `Você é o software CA.RO Clinic IA, assistente diagnóstico de precisão da Dra. Mariah Zibetti (CRM PR 57.133), especialista em Tricologia Médica e Capilar de Alto Padrão.
