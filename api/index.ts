@@ -19,6 +19,7 @@ const app = express();
 // Captura o corpo raw da requisição (necessário pra validar a assinatura X-Hub-Signature-256
 // que a Meta envia em todo POST /api/whatsapp/webhook — ver src/services/metaWhatsappService.ts)
 app.use(express.json({
+    limit: "25mb",
   verify: (req: any, _res, buf) => {
     req.rawBody = buf;
   },
