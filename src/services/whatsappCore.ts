@@ -156,10 +156,23 @@ async function enviarMensagemFracionada(
     }
 }
 
+// Horário "de agora" já ajustado pro fuso de Brasília (UTC-3, sem horário de
+// verão desde 2019) — o servidor roda em UTC, e sem esse ajuste a IA podia
+// oferecer horários de HOJE que já tinham passado (ex: sugerir 08:00 quando já
+// são 19h), o que confundia o paciente e fazia ele ter que repetir a pergunta
+// várias vezes até a IA "perceber" que aquele horário não fazia mais sentido.
+function agoraBrasil(): Date {
+    return new Date(Date.now() - 3 * 60 * 60 * 1000);
+}
+
 async function checkAvailability(dataInicio: string, _dataFim?: string): Promise<string> {
     try {
-          const hoje = new Date().toISOString().slice(0, 10);
-          const inicio = dataInicio || hoje;
+          const agora = agoraBrasil();
+          const hoje = agora.toISOString().slice(0, 10);
+          const minutosAgora = agora.getUTCHours() * 60 + agora.getUTCMinutes();
+          const BUFFER_MINUTOS_HOJE = 60; // não oferece horário de hoje a menos de 1h de antecedência
+
+      const inicio = dataInicio || hoje;
           const fim = _dataFim || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
       const eventos = await db.select().from(agendaEventos)
@@ -177,6 +190,10 @@ async function checkAvailability(dataInicio: string, _dataFim?: string): Promise
               if (diaSemana !== 0 && diaSemana !== 6) {
                         const dataStr = d.toISOString().slice(0, 10);
                         for (const h of horariosBase) {
+                                    if (dataStr === hoje) {
+                                                  const [hh, mm] = h.split(":").map(Number);
+                                                  if (hh * 60 + mm <= minutosAgora + BUFFER_MINUTOS_HOJE) continue;
+                                    }
                                     if (!ocupados.has(`${dataStr}_${h}`)) {
                                                   const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
                                                   disponiveis.push(`${diasSemana[diaSemana]} ${dataStr} às ${h}`);
