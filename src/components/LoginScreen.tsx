@@ -12,7 +12,7 @@ type ActiveRole = "medica" | "paciente" | "dev" | null;
 
 const DEV_PIN_ENV = (import.meta as any).env?.VITE_DEV_PIN || "";
 
-export default function LoginScreen({ onLogin, pacientes }: LoginScreenProps) {
+export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [active, setActive]     = useState<ActiveRole>(null);
   const [email, setEmail]       = useState("");
   const [senha, setSenha]       = useState("");
@@ -48,15 +48,34 @@ export default function LoginScreen({ onLogin, pacientes }: LoginScreenProps) {
     setLoading(false);
   };
 
-  const handlePaciente = (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true);
+  // Antes, o CPF era comparado no navegador contra a lista COMPLETA de
+  // pacientes (baixada previamente, sem login nenhum) — qualquer visitante do
+  // site conseguia ver os dados de todo mundo pelo DevTools, só pra permitir
+  // essa checagem local. Agora a checagem é feita no servidor
+  // (/api/auth/paciente-login), que devolve só o id e nome de quem digitou o
+  // CPF certo — nada mais sai do banco.
+  const handlePaciente = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrPac("");
     const cpfLimpo = cpf.replace(/\D/g, "");
-    setTimeout(() => {
-      const found = pacientes.find(p => p.cpf.replace(/\D/g, "") === cpfLimpo);
-      if (found) onLogin("paciente", cpfLimpo);
-      else setErrPac("CPF não encontrado. Verifique com a clínica.");
-      setLoading(false);
-    }, 400);
+    try {
+      const r = await fetch("/api/auth/paciente-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cpf: cpfLimpo }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setErrPac(data.error || "CPF não encontrado. Verifique com a clínica.");
+        setLoading(false);
+        return;
+      }
+      onLogin("paciente", data.id);
+    } catch {
+      setErrPac("Não foi possível conectar ao servidor. Tente novamente.");
+    }
+    setLoading(false);
   };
 
   const handleDev = (e: React.FormEvent) => {
