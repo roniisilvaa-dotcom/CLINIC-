@@ -17,6 +17,7 @@ import {
     obterQrCode,
     obterStatusConexao,
     desconectarInstancia,
+    baixarMidiaBase64,
 } from "../services/evolutionWhatsappService.js";
 import { processarEventoWebhook } from "../services/whatsappCore.js";
 
@@ -40,7 +41,7 @@ router.post("/webhook-evolution", async (req, res) => {
 
       if (mensagens.length === 0 && ecos.length === 0) return res.sendStatus(200);
 
-      await processarEventoWebhook(mensagens, ecos, extrairTelefone, enviarMensagem);
+      await processarEventoWebhook(mensagens, ecos, extrairTelefone, enviarMensagem, baixarMidiaBase64);
               } catch (err) {
                     console.error("Erro processando webhook Evolution:", err);
               }
