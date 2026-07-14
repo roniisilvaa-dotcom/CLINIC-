@@ -1,24 +1,18 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Sparkles, Stethoscope, User, Terminal, Lock, CreditCard, ChevronRight } from "lucide-react";
+import { Paciente } from "../types";
 
 interface LoginScreenProps {
-  onLogin: (role: "medica" | "paciente" | "dev", data?: string) => void;
+  onLogin: (role: "medica" | "paciente" | "dev", data?: string, token?: string) => void;
+  pacientes: Paciente[];
 }
 
 type ActiveRole = "medica" | "paciente" | "dev" | null;
 
-const MEDICA_EMAIL = "dra.mariah@caroclinic.com.br";
-const MEDICA_SENHA = "caro2025";
-const DEV_PIN      = "caro2025";
+const DEV_PIN_ENV = (import.meta as any).env?.VITE_DEV_PIN || "";
 
-const PACIENTES_CPF: Record<string, string> = {
-  "12345678900": "Helena Silveira",
-  "98765432111": "Gabriela Portela",
-  "11122233344": "Roberto Almeida",
-};
-
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
+export default function LoginScreen({ onLogin, pacientes }: LoginScreenProps) {
   const [active, setActive]     = useState<ActiveRole>(null);
   const [email, setEmail]       = useState("");
   const [senha, setSenha]       = useState("");
@@ -31,32 +25,47 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
   const reset = () => { setActive(null); setEmail(""); setSenha(""); setCpf(""); setPin(""); setErrMedica(""); setErrPac(""); setErrDev(""); };
 
-  const handleMedica = (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true);
-    setTimeout(() => {
-      if (email === MEDICA_EMAIL && senha === MEDICA_SENHA) onLogin("medica", "Dra. Mariah Zibetti");
-      else setErrMedica("E-mail ou senha incorretos.");
-      setLoading(false);
-    }, 600);
+  const handleMedica = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrMedica("");
+    try {
+      const r = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, senha }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setErrMedica(data.error || "E-mail ou senha incorretos.");
+        setLoading(false);
+        return;
+      }
+      onLogin("medica", data.nome, data.token);
+    } catch {
+      setErrMedica("Não foi possível conectar ao servidor. Tente novamente.");
+    }
+    setLoading(false);
   };
 
   const handlePaciente = (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
     const cpfLimpo = cpf.replace(/\D/g, "");
     setTimeout(() => {
-      if (PACIENTES_CPF[cpfLimpo]) onLogin("paciente", cpfLimpo);
+      const found = pacientes.find(p => p.cpf.replace(/\D/g, "") === cpfLimpo);
+      if (found) onLogin("paciente", cpfLimpo);
       else setErrPac("CPF não encontrado. Verifique com a clínica.");
       setLoading(false);
-    }, 600);
+    }, 400);
   };
 
   const handleDev = (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
     setTimeout(() => {
-      if (pin === DEV_PIN) onLogin("dev");
+      if (DEV_PIN_ENV && pin === DEV_PIN_ENV) onLogin("dev");
       else { setErrDev("PIN incorreto."); setPin(""); }
       setLoading(false);
-    }, 600);
+    }, 400);
   };
 
   const formatCpf = (v: string) => {
@@ -83,8 +92,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           <div className="w-16 h-16 rounded-full border-2 border-[#C9A84C]/60 bg-black flex items-center justify-center shadow-[0_0_40px_rgba(201,168,76,0.15)] mb-4">
             <Sparkles className="w-7 h-7 text-[#C9A84C]" />
           </div>
-          <h1 style={{ fontFamily: "Georgia, serif" }} className="text-3xl text-[#C9A84C] font-semibold tracking-tight">CLINIC CA.RO</h1>
-          <p className="text-[10px] uppercase tracking-[0.35em] text-neutral-600 font-mono mt-1">Precision Medicine</p>
+          <h1 style={{ fontFamily: "Georgia, serif" }} className="text-3xl text-[#C9A84C] font-semibold tracking-tight">CA.RO CLINIC</h1>
+          <p className="text-[10px] uppercase tracking-[0.35em] text-neutral-600 font-mono mt-1">Dra. Mariah Zibetti · Precision Hair Medicine</p>
         </motion.div>
 
         <AnimatePresence mode="wait">
@@ -187,7 +196,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           )}
         </AnimatePresence>
 
-        <p className="text-center text-[10px] text-neutral-700 mt-8 font-mono">CLINIC CA.RO v3.0 · CA.RO Studio</p>
+        <p className="text-center text-[10px] text-neutral-700 mt-8 font-mono">CA.RO CLINIC · Desenvolvido por CA.RO Studio</p>
       </div>
     </div>
   );
