@@ -39,6 +39,11 @@ db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT
 // Migracao automatica: garante a coluna "horario" em galeria (fotos com data + hora exata)
 db.execute(sql`ALTER TABLE galeria ADD COLUMN IF NOT EXISTS horario text`).catch((e) => console.error("Migracao galeria.horario falhou:", e));
 
+// Migracao automatica: garante a coluna "session_token" em pacientes — permite que o
+// login por CPF (/api/auth/paciente-login) emita uma sessao real, do mesmo jeito que
+// a medica ja tinha, em vez do paciente ficar sem token nenhum (ver requireStaffOrOwnPaciente).
+db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS session_token text`).catch((e) => console.error("Migracao pacientes.session_token falhou:", e));
+
 // Migracao automatica: cria a tabela de templates de prescricoes e semeia com a biblioteca padrao
 db.execute(sql`CREATE TABLE IF NOT EXISTS prescricoes_templates (
   id text PRIMARY KEY,
@@ -74,18 +79,69 @@ status text NOT NULL,
 unidade text NOT NULL
 )`).catch((e) => console.error("Migracao transacoes falhou:", e));
 
-// Middleware: exige sessao valida (Bearer token) para operacoes destrutivas
+// ─── Autenticacao / autorizacao ───────────────────────────────────────────────
+//
+// Existem dois tipos de sessao, guardadas em tabelas diferentes mas com o
+// mesmo mecanismo (token aleatorio de 32 bytes no header "Authorization: Bearer <token>"):
+//   - "staff" (medica ou dev): token fica em users.sessionToken (/api/auth/login, /api/auth/dev-login)
+//   - "paciente": token fica em pacientes.sessionToken (/api/auth/paciente-login)
+//
+// resolveAuth() descobre quem é o dono do token (se houver e for valido).
+async function resolveAuth(req: any): Promise<{ kind: "staff"; id: string; role: string; nome: string } | { kind: "paciente"; id: string; nome: string } | null> {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!token) return null;
+  const staff = await db.select().from(users).where(eq(users.sessionToken, token));
+  if (staff.length) {
+    const u = staff[0];
+    return { kind: "staff", id: u.id, role: u.role, nome: u.nome };
+  }
+  const pac = await db.select({ id: pacientes.id, nome: pacientes.nome }).from(pacientes).where(eq(pacientes.sessionToken, token));
+  if (pac.length) return { kind: "paciente", id: pac[0].id, nome: pac[0].nome };
+  return null;
+}
+
+// Exige qualquer sessao valida (medica, dev ou paciente).
 async function requireAuth(req: any, res: any, next: any) {
   try {
-    const auth = req.headers.authorization || "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    if (!token) return res.status(401).json({ error: "Autenticacao necessaria" });
-    const result = await db.select().from(users).where(eq(users.sessionToken, token));
-    if (!result.length) return res.status(401).json({ error: "Sessao invalida" });
+    const auth = await resolveAuth(req);
+    if (!auth) return res.status(401).json({ error: "Autenticacao necessaria" });
+    req.auth = auth;
     next();
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
+}
+
+// Exige sessao de equipe da clinica (medica ou dev) — usado nas rotas que listam
+// ou alteram dados de varios pacientes de uma vez (nao faz sentido escopar por paciente).
+async function requireStaff(req: any, res: any, next: any) {
+  try {
+    const auth = await resolveAuth(req);
+    if (!auth || auth.kind !== "staff") return res.status(401).json({ error: "Acesso restrito a equipe da clinica" });
+    req.auth = auth;
+    next();
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+// Exige sessao de equipe OU do proprio paciente dono do recurso. `getPacienteId`
+// extrai o id do paciente sendo acessado a partir do request (query ou params) —
+// se nao houver id explicito, so equipe pode passar (paciente nunca acessa "tudo").
+function requireStaffOrOwnPaciente(getPacienteId: (req: any) => string | undefined) {
+  return async (req: any, res: any, next: any) => {
+    try {
+      const auth = await resolveAuth(req);
+      if (!auth) return res.status(401).json({ error: "Autenticacao necessaria" });
+      if (auth.kind === "staff") { req.auth = auth; return next(); }
+      const pacienteId = getPacienteId(req);
+      if (pacienteId && pacienteId === auth.id) { req.auth = auth; return next(); }
+      return res.status(403).json({ error: "Acesso negado" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  };
 }
 
 // ─── Health ──────────────────────────────────────────────────────────────────
@@ -94,7 +150,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 // ─── Pacientes ───────────────────────────────────────────────────────────────
-app.get("/api/pacientes", async (_req, res) => {
+app.get("/api/pacientes", requireStaff, async (_req, res) => {
   try {
     const result = await db.select().from(pacientes);
     res.json(result);
@@ -103,7 +159,7 @@ app.get("/api/pacientes", async (_req, res) => {
   }
 });
 
-app.get("/api/pacientes/:id", async (req, res) => {
+app.get("/api/pacientes/:id", requireStaffOrOwnPaciente((req) => req.params.id), async (req, res) => {
   try {
     const result = await db.select().from(pacientes).where(eq(pacientes.id, req.params.id));
     if (!result.length) return res.status(404).json({ error: "Paciente não encontrado" });
@@ -113,7 +169,7 @@ app.get("/api/pacientes/:id", async (req, res) => {
   }
 });
 
-app.post("/api/pacientes", async (req, res) => {
+app.post("/api/pacientes", requireStaff, async (req, res) => {
   try {
     const result = await db.insert(pacientes).values(req.body).returning();
     res.json(result[0]);
@@ -122,7 +178,7 @@ app.post("/api/pacientes", async (req, res) => {
   }
 });
 
-app.put("/api/pacientes/:id", async (req, res) => {
+app.put("/api/pacientes/:id", requireStaff, async (req, res) => {
   try {
     const result = await db.update(pacientes).set(req.body).where(eq(pacientes.id, req.params.id)).returning();
     res.json(result[0]);
@@ -131,7 +187,7 @@ app.put("/api/pacientes/:id", async (req, res) => {
   }
 });
 
-app.delete("/api/pacientes/:id", requireAuth, async (req, res) => {
+app.delete("/api/pacientes/:id", requireStaff, async (req, res) => {
   try {
     const { id } = req.params;
     await db.delete(consultas).where(eq(consultas.pacienteId, id));
@@ -148,7 +204,7 @@ app.delete("/api/pacientes/:id", requireAuth, async (req, res) => {
 });
 
 // ─── Consultas ───────────────────────────────────────────────────────────────
-app.get("/api/consultas", async (req, res) => {
+app.get("/api/consultas", requireStaffOrOwnPaciente((req) => req.query.pacienteId ? String(req.query.pacienteId) : undefined), async (req, res) => {
   try {
     const { pacienteId } = req.query;
     const result = pacienteId
@@ -160,7 +216,7 @@ app.get("/api/consultas", async (req, res) => {
   }
 });
 
-app.post("/api/consultas", async (req, res) => {
+app.post("/api/consultas", requireStaff, async (req, res) => {
   try {
     const result = await db.insert(consultas).values(req.body).returning();
     res.json(result[0]);
@@ -171,7 +227,7 @@ app.post("/api/consultas", async (req, res) => {
 });
 
 // ─── Exames ──────────────────────────────────────────────────────────────────
-app.get("/api/exames", async (req, res) => {
+app.get("/api/exames", requireStaffOrOwnPaciente((req) => req.query.pacienteId ? String(req.query.pacienteId) : undefined), async (req, res) => {
   try {
     const { pacienteId } = req.query;
     const result = pacienteId
@@ -183,7 +239,7 @@ app.get("/api/exames", async (req, res) => {
   }
 });
 
-app.post("/api/exames", async (req, res) => {
+app.post("/api/exames", requireStaff, async (req, res) => {
   try {
     const result = await db.insert(exames).values(req.body).returning();
     res.json(result[0]);
@@ -194,7 +250,7 @@ app.post("/api/exames", async (req, res) => {
 });
 
 // ─── Prescricoes (biblioteca de templates) ────────────────────────────────────
-    app.get("/api/prescricoes", async (_req, res) => {
+    app.get("/api/prescricoes", requireStaff, async (_req, res) => {
         try {
               const result = await db.select().from(prescricoesTemplates);
               res.json(result);
@@ -203,7 +259,7 @@ app.post("/api/exames", async (req, res) => {
         }
     });
 
-    app.post("/api/prescricoes", async (req, res) => {
+    app.post("/api/prescricoes", requireStaff, async (req, res) => {
         try {
               const result = await db.insert(prescricoesTemplates).values(req.body).returning();
               res.json(result[0]);
@@ -212,7 +268,7 @@ app.post("/api/exames", async (req, res) => {
         }
     });
 
-    app.put("/api/prescricoes/:id", async (req, res) => {
+    app.put("/api/prescricoes/:id", requireStaff, async (req, res) => {
         try {
               const result = await db.update(prescricoesTemplates).set(req.body).where(eq(prescricoesTemplates.id, req.params.id)).returning();
               res.json(result[0]);
@@ -221,7 +277,7 @@ app.post("/api/exames", async (req, res) => {
         }
     });
 
-    app.delete("/api/prescricoes/:id", async (req, res) => {
+    app.delete("/api/prescricoes/:id", requireStaff, async (req, res) => {
         try {
               await db.delete(prescricoesTemplates).where(eq(prescricoesTemplates.id, req.params.id));
               res.json({ ok: true });
@@ -231,7 +287,7 @@ app.post("/api/exames", async (req, res) => {
     });
 
 // ─── Galeria ─────────────────────────────────────────────────────────────────
-app.get("/api/galeria", async (req, res) => {
+app.get("/api/galeria", requireStaffOrOwnPaciente((req) => req.query.pacienteId ? String(req.query.pacienteId) : undefined), async (req, res) => {
   try {
     const { pacienteId } = req.query;
     const result = pacienteId
@@ -243,7 +299,7 @@ app.get("/api/galeria", async (req, res) => {
   }
 });
 
-app.post("/api/galeria", async (req, res) => {
+app.post("/api/galeria", requireStaff, async (req, res) => {
   try {
     const result = await db.insert(galeria).values(req.body).returning();
     res.json(result[0]);
@@ -252,7 +308,7 @@ app.post("/api/galeria", async (req, res) => {
   }
 });
 
-app.delete("/api/galeria/:id", requireAuth, async (req, res) => {
+app.delete("/api/galeria/:id", requireStaff, async (req, res) => {
   try {
     await db.delete(galeria).where(eq(galeria.id, req.params.id));
     res.json({ ok: true });
@@ -262,7 +318,7 @@ app.delete("/api/galeria/:id", requireAuth, async (req, res) => {
 });
 
 // ─── Agenda ──────────────────────────────────────────────────────────────────
-app.get("/api/agenda", async (req, res) => {
+app.get("/api/agenda", requireStaff, async (req, res) => {
   try {
     const { data } = req.query;
     const result = data
@@ -274,7 +330,7 @@ app.get("/api/agenda", async (req, res) => {
   }
 });
 
-app.post("/api/agenda", async (req, res) => {
+app.post("/api/agenda", requireStaff, async (req, res) => {
   try {
     const result = await db.insert(agendaEventos).values(req.body).returning();
     res.json(result[0]);
@@ -283,7 +339,7 @@ app.post("/api/agenda", async (req, res) => {
   }
 });
 
-app.put("/api/agenda/:id", async (req, res) => {
+app.put("/api/agenda/:id", requireStaff, async (req, res) => {
   try {
     const result = await db.update(agendaEventos).set(req.body).where(eq(agendaEventos.id, req.params.id)).returning();
     res.json(result[0]);
@@ -293,7 +349,7 @@ app.put("/api/agenda/:id", async (req, res) => {
 });
 
 // ─── Fila de Espera ──────────────────────────────────────────────────────────
-app.get("/api/fila-espera", async (_req, res) => {
+app.get("/api/fila-espera", requireStaff, async (_req, res) => {
   try {
     const result = await db.select().from(filaEspera);
     res.json(result);
@@ -302,7 +358,7 @@ app.get("/api/fila-espera", async (_req, res) => {
   }
 });
 
-app.post("/api/fila-espera", async (req, res) => {
+app.post("/api/fila-espera", requireStaff, async (req, res) => {
   try {
     const result = await db.insert(filaEspera).values(req.body).returning();
     res.json(result[0]);
@@ -312,7 +368,7 @@ app.post("/api/fila-espera", async (req, res) => {
 });
 
 // ─── Pacotes Vendidos ────────────────────────────────────────────────────────
-app.get("/api/pacotes", async (req, res) => {
+app.get("/api/pacotes", requireStaff, async (req, res) => {
   try {
     const { pacienteId } = req.query;
     const result = pacienteId
@@ -324,7 +380,7 @@ app.get("/api/pacotes", async (req, res) => {
   }
 });
 
-app.post("/api/pacotes", async (req, res) => {
+app.post("/api/pacotes", requireStaff, async (req, res) => {
   try {
     const result = await db.insert(pacotesVendidos).values(req.body).returning();
     res.json(result[0]);
@@ -333,7 +389,7 @@ app.post("/api/pacotes", async (req, res) => {
   }
 });
 
-app.put("/api/pacotes/:id", async (req, res) => {
+app.put("/api/pacotes/:id", requireStaff, async (req, res) => {
   try {
     const result = await db.update(pacotesVendidos).set(req.body).where(eq(pacotesVendidos.id, req.params.id)).returning();
     res.json(result[0]);
@@ -343,7 +399,7 @@ app.put("/api/pacotes/:id", async (req, res) => {
 });
 
 // ─── Faturamento (transacoes financeiras) ─────────────────────────────────────
-app.get("/api/transacoes", async (req, res) => {
+app.get("/api/transacoes", requireStaff, async (req, res) => {
   try {
     const { pacienteId } = req.query;
     const result = pacienteId
@@ -355,7 +411,7 @@ app.get("/api/transacoes", async (req, res) => {
   }
 });
 
-app.post("/api/transacoes", async (req, res) => {
+app.post("/api/transacoes", requireStaff, async (req, res) => {
   try {
     const result = await db.insert(transacoesFinanceiras).values(req.body).returning();
     res.json(result[0]);
@@ -364,7 +420,7 @@ app.post("/api/transacoes", async (req, res) => {
   }
 });
 
-app.put("/api/transacoes/:id", async (req, res) => {
+app.put("/api/transacoes/:id", requireStaff, async (req, res) => {
   try {
     const result = await db.update(transacoesFinanceiras).set(req.body).where(eq(transacoesFinanceiras.id, req.params.id)).returning();
     res.json(result[0]);
@@ -373,7 +429,7 @@ app.put("/api/transacoes/:id", async (req, res) => {
   }
 });
 
-app.delete("/api/transacoes/:id", requireAuth, async (req, res) => {
+app.delete("/api/transacoes/:id", requireStaff, async (req, res) => {
   try {
     await db.delete(transacoesFinanceiras).where(eq(transacoesFinanceiras.id, req.params.id));
     res.json({ ok: true });
@@ -409,13 +465,15 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// Login de paciente por CPF: valida no servidor e devolve só {id, nome} do
+// Login de paciente por CPF: valida no servidor e devolve só {id, nome, token} do
 // paciente encontrado. Antes, o app baixava a lista COMPLETA de pacientes
 // (CPF, diagnóstico, exames, tudo) pro navegador de QUALQUER visitante, mesmo
 // sem fazer login, só pra permitir essa checagem no lado do cliente — qualquer
 // pessoa que abrisse o site conseguia ver os dados de todos os pacientes pelo
 // DevTools. Agora a checagem acontece aqui no servidor, e nada sensível sai
-// dele além do id e nome da própria pessoa que está entrando.
+// dele além do id e nome da própria pessoa que está entrando. O token devolvido
+// (salvo em pacientes.sessionToken) é o que permite esse paciente ver só os
+// PRÓPRIOS dados depois — ver requireStaffOrOwnPaciente.
 app.post("/api/auth/paciente-login", async (req, res) => {
   try {
     const cpfLimpo = String(req.body?.cpf || "").replace(/\D/g, "");
@@ -423,7 +481,41 @@ app.post("/api/auth/paciente-login", async (req, res) => {
     const todos = await db.select({ id: pacientes.id, nome: pacientes.nome, cpf: pacientes.cpf }).from(pacientes);
     const found = todos.find((p) => (p.cpf || "").replace(/\D/g, "") === cpfLimpo);
     if (!found) return res.status(404).json({ error: "CPF não encontrado. Verifique com a clínica." });
-    res.json({ id: found.id, nome: found.nome });
+    const token = gerarToken();
+    await db.update(pacientes).set({ sessionToken: token }).where(eq(pacientes.id, found.id));
+    res.json({ id: found.id, nome: found.nome, token });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Login de desenvolvedor por PIN: antes o PIN ficava numa variável VITE_DEV_PIN,
+// que o Vite empacota no JS do navegador — qualquer pessoa inspecionando o site
+// (DevTools > Sources) conseguia ler o PIN direto do bundle, sem nem precisar
+// tentar adivinhar. Agora a checagem acontece só aqui no servidor: o valor
+// nunca é enviado pro navegador, só o resultado (sim/não + token de sessão).
+app.post("/api/auth/dev-login", async (req, res) => {
+  try {
+    const pin = String(req.body?.pin || "");
+    const devPin = process.env.DEV_PIN || process.env.VITE_DEV_PIN || "";
+    if (!devPin || pin !== devPin) return res.status(401).json({ error: "PIN incorreto." });
+    // Reaproveita a tabela "users" (que já tem sessionToken e o mecanismo de
+    // requireStaff pronto) pra guardar a sessão do console de desenvolvedor —
+    // ninguém loga com senha nessa conta, ela só existe pra segurar o token.
+    const existente = await db.select().from(users).where(eq(users.id, "dev-console"));
+    if (!existente.length) {
+      await db.insert(users).values({
+        id: "dev-console",
+        role: "dev",
+        nome: "Desenvolvedor",
+        cpf: "dev-console-sem-cpf",
+        senhaHash: hashSenha(crypto.randomBytes(24).toString("hex")),
+        email: null,
+      });
+    }
+    const token = gerarToken();
+    await db.update(users).set({ sessionToken: token }).where(eq(users.id, "dev-console"));
+    res.json({ token, role: "dev", nome: "Desenvolvedor" });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -431,13 +523,13 @@ app.post("/api/auth/paciente-login", async (req, res) => {
 
 app.get("/api/auth/me", async (req, res) => {
   try {
-    const auth = req.headers.authorization || "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    if (!token) return res.status(401).json({ error: "sem token" });
-    const result = await db.select().from(users).where(eq(users.sessionToken, token));
-    if (!result.length) return res.status(401).json({ error: "sessao invalida" });
-    const user = result[0];
-    res.json({ id: user.id, nome: user.nome, role: user.role, email: user.email });
+    const auth = await resolveAuth(req);
+    if (!auth) return res.status(401).json({ error: "sessao invalida" });
+    if (auth.kind === "staff") {
+      res.json({ id: auth.id, nome: auth.nome, role: auth.role });
+    } else {
+      res.json({ id: auth.id, nome: auth.nome, role: "paciente" });
+    }
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -447,13 +539,18 @@ app.post("/api/auth/logout", async (req, res) => {
   try {
     const auth = req.headers.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    if (token) await db.update(users).set({ sessionToken: null }).where(eq(users.sessionToken, token));
+    if (token) {
+      await db.update(users).set({ sessionToken: null }).where(eq(users.sessionToken, token));
+      await db.update(pacientes).set({ sessionToken: null }).where(eq(pacientes.sessionToken, token));
+    }
     res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
-app.post("/api/analyze-exams", async (req, res) => {
+
+// ─── IA: Análise de Exames (uso clínico da equipe — protegido pra evitar custo indevido de API) ──
+app.post("/api/analyze-exams", requireStaff, async (req, res) => {
   try {
     const { pacienteNome, idade, queixa, exames: examesData } = req.body;
     const prompt = `Você é o software CA.RO Clinic IA, assistente diagnóstico de precisão da Dra. Mariah Zibetti (CRM PR 57.133), especialista em Tricologia Médica e Capilar de Alto Padrão.
@@ -488,7 +585,7 @@ Assine como: "CA.RO Clinic IA | Inteligência Clínica de Precisão Capilar".`;
 });
 
 // ─── IA: Análise de Fotos ────────────────────────────────────────────────────
-app.post("/api/analyze-photos", async (req, res) => {
+app.post("/api/analyze-photos", requireStaff, async (req, res) => {
   try {
     const { pacienteNome, fotosInfo } = req.body;
     const prompt = `Você é o CA.RO Clinic IA, assistente de análise de evolução capilar para a Dra. Mariah Zibetti.
@@ -507,7 +604,7 @@ Gere um Relatório de Evolução Capilar com:
 });
 
 // ─── IA: Resumo de Consulta ──────────────────────────────────────────────────
-app.post("/api/summarize-consultation", async (req, res) => {
+app.post("/api/summarize-consultation", requireStaff, async (req, res) => {
   try {
     const { pacienteNome, queixaDoDia, evolucaoObservada, alteracoesProtocolo } = req.body;
     const prompt = `Gere um sumário clínico para o prontuário de ${pacienteNome}.
@@ -526,7 +623,7 @@ Escreva em português médico formal.`;
 });
 
 // ─── IA: Chat ────────────────────────────────────────────────────────────────
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", requireStaff, async (req, res) => {
   try {
     const { messages, systemInstruction } = req.body;
     const formattedContents = messages.map((m: any) => ({
