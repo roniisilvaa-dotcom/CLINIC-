@@ -2,7 +2,7 @@ import { pgTable, text, integer, jsonb , doublePrecision} from 'drizzle-orm/pg-c
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
-  role: text('role').notNull(), // 'medica' | 'paciente'
+  role: text('role').notNull(), // 'medica' | 'dev'
   nome: text('nome').notNull(),
   cpf: text('cpf').unique().notNull(),
   senhaHash: text('senha_hash').notNull(),
@@ -28,6 +28,10 @@ export const pacientes = pgTable('pacientes', {
   diagnostico: jsonb('diagnostico').notNull(),
   protocolo: jsonb('protocolo').notNull(),
     tags: jsonb('tags').default([]),
+  // Token de sessão do próprio paciente (login por CPF em /api/auth/paciente-login).
+  // Permite que ele veja só os próprios dados nas rotas protegidas — ver
+  // requireStaffOrOwnPaciente em api/index.ts.
+  sessionToken: text('session_token'),
 });
 
 export const consultas = pgTable('consultas', {
