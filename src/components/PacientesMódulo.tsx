@@ -25,9 +25,31 @@ import {
   AlertTriangle,
   FileSignature,
   MessageSquare,
-  QrCode
+  QrCode,
+  Tag,
+  Clock,
+  X,
+  Moon
 } from "lucide-react";
 import { Paciente, ExameLaboratorial, FotoCapilar, StatusPaciente } from "../types";
+
+// Etiquetas sugeridas (pedido do Igor: tricologia, dermato estética, etc.)
+const ETIQUETAS_SUGERIDAS = ["Tricologia", "Dermato Estética", "Estética Facial", "Nutrologia Capilar", "Pacote Fechado"];
+
+// Dias desde a última atualização do prontuário (para detectar pacientes "adormecidos")
+function diasDesdeAtualizacao(dataStr?: string): number {
+  if (!dataStr) return 0;
+  const then = new Date(dataStr).getTime();
+  if (isNaN(then)) return 0;
+  const diffMs = Date.now() - then;
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+function inatividadeInfo(dias: number): { label: string; classe: string } {
+  if (dias > 60) return { label: `${dias}d — Adormecido`, classe: "bg-red-50 text-red-700 border-red-200/60" };
+  if (dias > 30) return { label: `${dias}d — Atenção`, classe: "bg-yellow-50 text-yellow-700 border-yellow-200/60" };
+  return { label: `${dias}d atrás`, classe: "bg-gray-50 text-gray-500 border-gray-200" };
+}
 
 interface PacientesModuloProps {
   pacientes: Paciente[];
@@ -60,12 +82,20 @@ export default function PacientesModulo({
   const [filterDiag, setFilterDiag] = useState("all");
   const [filterCidade, setFilterCidade] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterTag, setFilterTag] = useState("all");
+  const [filterInatividade, setFilterInatividade] = useState("all");
 
   // Profile Active Tab State
   const [activeTab, setActiveTab] = useState<"pessoais" | "diagnostico" | "exames" | "protocolo" | "galeria" | "consultas" | "mensagens">("pessoais");
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
+  const [salvandoPaciente, setSalvandoPaciente] = useState(false);
+  const [criandoPaciente, setCriandoPaciente] = useState(false);
+
+  // Etiquetas em edição (pedido do Igor)
+  const [tagsDraft, setTagsDraft] = useState<string[]>([]);
+  const [novaTagInput, setNovaTagInput] = useState("");
 
   // Before/After comparative slider state (percentage of slide from 0 to 100)
   const [sliderPosition, setSliderPosition] = useState(50);
@@ -86,6 +116,7 @@ export default function PacientesModulo({
 
   // Gather unique options for filter dropdowns
   const uniqueDiags = Array.from(new Set(pacientes.map(p => p.diagnostico.principal)));
+  const uniqueTags = Array.from(new Set(pacientes.flatMap(p => p.tags || [])));
 
   // Filter logic
   const filteredPacientes = pacientes.filter(p => {
@@ -93,7 +124,14 @@ export default function PacientesModulo({
     const matchesDiag = filterDiag === "all" || p.diagnostico.principal === filterDiag;
     const matchesCidade = filterCidade === "all" || p.cidade === filterCidade;
     const matchesStatus = filterStatus === "all" || p.status === filterStatus;
-    return matchesSearch && matchesDiag && matchesCidade && matchesStatus;
+    const matchesTag = filterTag === "all" || (p.tags || []).includes(filterTag);
+    const dias = diasDesdeAtualizacao(p.ultimaAtualizacao);
+    const matchesInatividade =
+      filterInatividade === "all" ||
+      (filterInatividade === "ativos" && dias <= 30) ||
+      (filterInatividade === "atencao" && dias > 30 && dias <= 60) ||
+      (filterInatividade === "adormecidos" && dias > 60);
+    return matchesSearch && matchesDiag && matchesCidade && matchesStatus && matchesTag && matchesInatividade;
   });
 
   // Calculate status thresholds for Exames
@@ -200,8 +238,44 @@ export default function PacientesModulo({
     }
   };
 
-  // Patient Fields Saving Handler
-  const handleSavePatientFields = (updatedPaciente: Paciente) => {
+  // Patient Fields Saving Handler — agora persiste de fato no backend (PUT /api/pacientes/:id)
+  const handleSavePatientFields = async (updatedPaciente: Paciente) => {
+    setSalvandoPaciente(true);
+    const payload = {
+      nome: updatedPaciente.nome,
+      idade: updatedPaciente.idade,
+      dataNascimento: updatedPaciente.dataNascimento,
+      cpf: updatedPaciente.cpf,
+      telefone: updatedPaciente.telefone,
+      email: updatedPaciente.email,
+      cidade: updatedPaciente.cidade,
+      comoConheceu: updatedPaciente.comoConheceu,
+      queixaPrincipal: updatedPaciente.queixaPrincipal,
+      status: updatedPaciente.status,
+      progresso: updatedPaciente.progresso,
+      ultimaAtualizacao: updatedPaciente.ultimaAtualizacao,
+      antecedentes: updatedPaciente.antecedentes,
+      diagnostico: updatedPaciente.diagnostico,
+      protocolo: updatedPaciente.protocolo,
+      tags: updatedPaciente.tags || [],
+    };
+    try {
+      const token = localStorage.getItem("caro_clinic_token");
+      const res = await fetch(`/api/pacientes/${updatedPaciente.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Falha ao salvar no servidor");
+    } catch (err) {
+      console.error("Erro ao salvar paciente:", err);
+      alert("Não foi possível salvar no servidor. Verifique sua conexão — as alterações podem não persistir após recarregar a página.");
+    } finally {
+      setSalvandoPaciente(false);
+    }
     const updatedList = pacientes.map(p => p.id === updatedPaciente.id ? updatedPaciente : p);
     onChangePacientes(updatedList);
     setIsEditing(false);
@@ -239,7 +313,8 @@ export default function PacientesModulo({
               </div>
 
               <button
-                onClick={() => {
+                disabled={criandoPaciente}
+                onClick={async () => {
                   const idNew = `paciente-${Date.now()}`;
                   const novo: Paciente = {
                     id: idNew,
@@ -260,14 +335,34 @@ export default function PacientesModulo({
                     exames: [],
                     protocolo: { medicamentos: "", procedimentos: "", cosmeticos: "", suplementacao: "", estiloVida: "", duracaoPrevista: "6 meses", dataInicio: new Date().toISOString().split("T")[0] },
                     galeria: [],
-                    consultas: []
+                    consultas: [],
+                    tags: []
                   };
+                  setCriandoPaciente(true);
+                  try {
+                    const token = localStorage.getItem("caro_clinic_token");
+                    const { exames, galeria: g, consultas, ...pacientePayload } = novo;
+                    const res = await fetch("/api/pacientes", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                      },
+                      body: JSON.stringify(pacientePayload),
+                    });
+                    if (!res.ok) throw new Error("Falha ao cadastrar no servidor");
+                  } catch (err) {
+                    console.error("Erro ao cadastrar paciente:", err);
+                    alert("Não foi possível cadastrar no servidor. Verifique sua conexão — o paciente pode não persistir após recarregar a página.");
+                  } finally {
+                    setCriandoPaciente(false);
+                  }
                   onChangePacientes([novo, ...pacientes]);
                   onSelectPaciente(idNew);
                 }}
-                className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black text-xs font-bold font-mono tracking-wider uppercase px-5 py-3 rounded-lg flex items-center gap-2 transition-all duration-200 cursor-pointer self-start sm:self-auto shadow-sm"
+                className="bg-[#0A0A0A] hover:bg-[#C9A84C] disabled:opacity-50 text-white hover:text-black text-xs font-bold font-mono tracking-wider uppercase px-5 py-3 rounded-lg flex items-center gap-2 transition-all duration-200 cursor-pointer self-start sm:self-auto shadow-sm"
               >
-                <Plus className="w-4 h-4" /> Cadastrar Paciente
+                <Plus className="w-4 h-4" /> {criandoPaciente ? "Cadastrando..." : "Cadastrar Paciente"}
               </button>
             </div>
 
@@ -329,6 +424,34 @@ export default function PacientesModulo({
                     <option value="Sem Retorno">Sem Retorno</option>
                   </select>
                 </div>
+
+                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 rounded-lg col-span-2 lg:col-span-1">
+                  <Tag className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <select
+                    value={filterTag}
+                    onChange={(e) => setFilterTag(e.target.value)}
+                    className="bg-transparent text-xs text-gray-700 py-2 outline-none border-none cursor-pointer"
+                  >
+                    <option value="all">Todas Etiquetas</option>
+                    {uniqueTags.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 rounded-lg col-span-2 lg:col-span-1">
+                  <Moon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <select
+                    value={filterInatividade}
+                    onChange={(e) => setFilterInatividade(e.target.value)}
+                    className="bg-transparent text-xs text-gray-700 py-2 outline-none border-none cursor-pointer"
+                  >
+                    <option value="all">Qualquer Atividade</option>
+                    <option value="ativos">Ativos (≤ 30 dias)</option>
+                    <option value="atencao">Atenção (31–60 dias)</option>
+                    <option value="adormecidos">Adormecidos (&gt; 60 dias)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -374,6 +497,24 @@ export default function PacientesModulo({
                         <span className="text-[9px] text-gray-400 uppercase tracking-widest block font-mono">Queixa</span>
                         <span className="text-xs text-gray-500 line-clamp-1">{paciente.queixaPrincipal}</span>
                       </div>
+                    </div>
+
+                    {/* Etiquetas + alerta de inatividade (pedido do Igor) */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      {(paciente.tags || []).map(tag => (
+                        <span key={tag} className="text-[9px] px-2 py-0.5 rounded-full font-mono font-semibold bg-[#F5F0E8] text-[#8A6D2A] border border-[#C9A84C]/30">
+                          {tag}
+                        </span>
+                      ))}
+                      {(() => {
+                        const dias = diasDesdeAtualizacao(paciente.ultimaAtualizacao);
+                        const info = inatividadeInfo(dias);
+                        return (
+                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-semibold border flex items-center gap-1 ${info.classe}`}>
+                            <Clock className="w-2.5 h-2.5" /> {info.label}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -435,12 +576,26 @@ export default function PacientesModulo({
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <h2 style={{ fontFamily: "Georgia, serif" }} className="text-2xl sm:text-3xl text-[#0A0A0A] font-normal leading-tight">{curPaciente?.nome}</h2>
                       <span className={`text-[10px] px-2.5 py-0.5 rounded font-mono uppercase border ${
-                        curPaciente?.status === "Em Tratamento" 
-                          ? "bg-green-50 text-green-700 border-green-200/50" 
+                        curPaciente?.status === "Em Tratamento"
+                          ? "bg-green-50 text-green-700 border-green-200/50"
                           : "bg-yellow-50 text-yellow-700 border-yellow-200/50"
                       }`}>
                         {curPaciente?.status}
                       </span>
+                      {curPaciente && (() => {
+                        const dias = diasDesdeAtualizacao(curPaciente.ultimaAtualizacao);
+                        const info = inatividadeInfo(dias);
+                        return (
+                          <span className={`text-[10px] px-2.5 py-0.5 rounded font-mono uppercase border flex items-center gap-1 ${info.classe}`}>
+                            <Clock className="w-3 h-3" /> {info.label}
+                          </span>
+                        );
+                      })()}
+                      {(curPaciente?.tags || []).map(tag => (
+                        <span key={tag} className="text-[10px] px-2.5 py-0.5 rounded font-mono uppercase bg-[#F5F0E8] text-[#8A6D2A] border border-[#C9A84C]/30">
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                     <p className="text-xs text-gray-400 mt-1 font-mono">
                       Prontuário: <span className="text-[#C9A84C] font-semibold">{curPaciente?.id}</span> • CPF: {curPaciente?.cpf} • Cidade Atendimento: {curPaciente?.cidade}
@@ -459,7 +614,10 @@ export default function PacientesModulo({
                   </button>
 
                   <button
-                    onClick={() => setIsEditing(!isEditing)}
+                    onClick={() => {
+                      if (!isEditing && curPaciente) setTagsDraft(curPaciente.tags || []);
+                      setIsEditing(!isEditing);
+                    }}
                     className="border border-gray-250 hover:border-[#C9A84C] hover:text-[#C9A84C] bg-white text-gray-700 text-xs font-mono uppercase tracking-wider px-3.5 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors duration-200 cursor-pointer"
                   >
                     <FileSignature className="w-4 h-4" />
@@ -529,6 +687,7 @@ export default function PacientesModulo({
                             email: (f.elements.namedItem("email") as HTMLInputElement).value,
                             comoConheceu: (f.elements.namedItem("comoConheceu") as HTMLInputElement).value,
                             queixaPrincipal: (f.elements.namedItem("queixaPrincipal") as HTMLTextAreaElement).value,
+                            tags: tagsDraft,
                           };
                           handleSavePatientFields(updated);
                         }} className="space-y-5">
@@ -568,8 +727,56 @@ export default function PacientesModulo({
                             <textarea name="queixaPrincipal" rows={3} defaultValue={curPaciente.queixaPrincipal} className="w-full bg-[#1A1A1A] border border-[#2B2B2B] focus:border-[#C9A84C] text-sm text-neutral-200 p-3 rounded outline-none" />
                           </div>
 
-                          <button type="submit" className="bg-[#C9A84C] hover:bg-[#D9B85C] text-black text-xs font-semibold px-5 py-2.5 rounded font-mono uppercase tracking-widest cursor-pointer">
-                            Salvar Alterações
+                          {/* Etiquetas — pedido do Igor: tricologia, dermato estética, etc. */}
+                          <div className="space-y-2 border-t border-[#1F1F1F] pt-4">
+                            <label className="text-xs uppercase text-neutral-500 font-mono block flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" /> Etiquetas do Paciente</label>
+                            <div className="flex flex-wrap gap-2">
+                              {tagsDraft.map(tag => (
+                                <span key={tag} className="text-xs px-2.5 py-1 rounded-full font-mono bg-[#C9A84C]/15 text-[#C9A84C] border border-[#C9A84C]/40 flex items-center gap-1.5">
+                                  {tag}
+                                  <button type="button" onClick={() => setTagsDraft(tagsDraft.filter(t => t !== tag))} className="hover:text-red-400 cursor-pointer">
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))}
+                              {tagsDraft.length === 0 && <span className="text-xs text-neutral-500 italic">Nenhuma etiqueta ainda.</span>}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {ETIQUETAS_SUGERIDAS.filter(s => !tagsDraft.includes(s)).map(sugestao => (
+                                <button
+                                  key={sugestao}
+                                  type="button"
+                                  onClick={() => setTagsDraft([...tagsDraft, sugestao])}
+                                  className="text-[11px] px-2.5 py-1 rounded-full font-mono border border-dashed border-neutral-600 text-neutral-400 hover:border-[#C9A84C] hover:text-[#C9A84C] cursor-pointer"
+                                >
+                                  + {sugestao}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="flex gap-2 pt-1">
+                              <input
+                                type="text"
+                                value={novaTagInput}
+                                onChange={(e) => setNovaTagInput(e.target.value)}
+                                placeholder="Nova etiqueta personalizada..."
+                                className="flex-1 bg-[#1A1A1A] border border-[#2B2B2B] focus:border-[#C9A84C] text-xs text-neutral-200 p-2 rounded outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const t = novaTagInput.trim();
+                                  if (t && !tagsDraft.includes(t)) setTagsDraft([...tagsDraft, t]);
+                                  setNovaTagInput("");
+                                }}
+                                className="text-xs font-semibold px-3 py-2 rounded border border-neutral-600 text-neutral-300 hover:border-[#C9A84C] hover:text-[#C9A84C] cursor-pointer"
+                              >
+                                Adicionar
+                              </button>
+                            </div>
+                          </div>
+
+                          <button type="submit" disabled={salvandoPaciente} className="bg-[#C9A84C] hover:bg-[#D9B85C] disabled:opacity-50 text-black text-xs font-semibold px-5 py-2.5 rounded font-mono uppercase tracking-widest cursor-pointer">
+                            {salvandoPaciente ? "Salvando..." : "Salvar Alterações"}
                           </button>
                         </form>
                       ) : (
