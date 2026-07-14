@@ -47,4 +47,17 @@ router.post("/setup-auth", async (req, res) => {
     res.status(500).json({ ok: false, erro: String(err) });
   }
 });
+router.post("/setup-tags", async (req, res) => {
+    if (!ADMIN_TOKEN || req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) {
+          return res.status(401).json({ ok: false, erro: "unauthorized" });
+    }
+    try {
+          await db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT '[]'::jsonb`);
+          res.json({ ok: true });
+    } catch (err) {
+          console.error("Erro setup-tags:", err);
+          res.status(500).json({ ok: false, erro: String(err) });
+    }
+});
+
 export default router;
