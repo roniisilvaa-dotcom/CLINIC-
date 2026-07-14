@@ -29,7 +29,8 @@ import {
   Tag,
   Clock,
   X,
-  Moon
+  Moon,
+  Loader2
 } from "lucide-react";
 import { Paciente, ExameLaboratorial, FotoCapilar, StatusPaciente } from "../types";
 
@@ -49,6 +50,34 @@ function inatividadeInfo(dias: number): { label: string; classe: string } {
   if (dias > 60) return { label: `${dias}d — Adormecido`, classe: "bg-red-50 text-red-700 border-red-200/60" };
   if (dias > 30) return { label: `${dias}d — Atenção`, classe: "bg-yellow-50 text-yellow-700 border-yellow-200/60" };
   return { label: `${dias}d atrás`, classe: "bg-gray-50 text-gray-500 border-gray-200" };
+}
+
+// Galeria Capilar: ordena fotos por data+horário (mais antiga primeiro) — usado no comparador Antes/Depois
+function ordenarFotosPorData(fotos: FotoCapilar[]): FotoCapilar[] {
+  return [...fotos].sort((a, b) =>
+    `${a.data}T${a.horario || "00:00"}`.localeCompare(`${b.data}T${b.horario || "00:00"}`)
+  );
+}
+
+const NOMES_MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+// Galeria Capilar: agrupa fotos por mês/ano (mês mais recente primeiro, fotos mais recentes primeiro dentro do mês)
+function agruparFotosPorMes(fotos: FotoCapilar[]): { chave: string; label: string; fotos: FotoCapilar[] }[] {
+  const ordenadasDesc = [...fotos].sort((a, b) =>
+    `${b.data}T${b.horario || "00:00"}`.localeCompare(`${a.data}T${a.horario || "00:00"}`)
+  );
+  const grupos = new Map<string, FotoCapilar[]>();
+  for (const foto of ordenadasDesc) {
+    const [ano, mes] = foto.data.split("-");
+    const chave = `${ano}-${mes}`;
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave)!.push(foto);
+  }
+  return Array.from(grupos.entries()).map(([chave, lista]) => {
+    const [ano, mesNum] = chave.split("-");
+    const label = `${NOMES_MESES[parseInt(mesNum, 10) - 1] || mesNum} de ${ano}`;
+    return { chave, label, fotos: lista };
+  });
 }
 
 interface PacientesModuloProps {
@@ -92,27 +121,7 @@ export default function PacientesModulo({
   const [isEditing, setIsEditing] = useState(false);
   const [salvandoPaciente, setSalvandoPaciente] = useState(false);
   const [criandoPaciente, setCriandoPaciente] = useState(false);
-  const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
-  const handleDeletePaciente = async (paciente: Paciente) => {
-    if (!window.confirm(`Excluir permanentemente o paciente ${paciente.nome}? Todo o historico (consultas, exames, fotos, agenda) sera apagado. Esta acao nao pode ser desfeita.`)) return;
-    const token = localStorage.getItem("caro_clinic_token");
-    setExcluindoId(paciente.id);
-    try {
-      const res = await fetch(`/api/pacientes/${paciente.id}`, {
-        method: "DELETE",
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
-      if (!res.ok) throw new Error("Falha ao excluir paciente");
-      onChangePacientes(pacientes.filter(p => p.id !== paciente.id));
-      if (selectedPacienteId === paciente.id) onSelectPaciente(null);
-    } catch (err) {
-      console.error("Erro ao excluir paciente:", err);
-      alert("Nao foi possivel excluir o paciente. Verifique se sua sessao ainda esta ativa e tente novamente.");
-    } finally {
-      setExcluindoId(null);
-    }
-  };
   // Etiquetas em edição (pedido do Igor)
   const [tagsDraft, setTagsDraft] = useState<string[]>([]);
   const [novaTagInput, setNovaTagInput] = useState("");
@@ -120,6 +129,11 @@ export default function PacientesModulo({
   // Before/After comparative slider state (percentage of slide from 0 to 100)
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isSliding, setIsSliding] = useState(false);
+
+  // Galeria Capilar: upload real de foto (posição escolhida + arquivo) e exclusão
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [posicaoUpload, setPosicaoUpload] = useState<FotoCapilar["posicao"]>("Dermoscopia");
+  const [deletingFotoId, setDeletingFotoId] = useState<string | null>(null);
 
   // IA Loading states
   const [loadingExamsIa, setLoadingExamsIa] = useState(false);
@@ -299,6 +313,93 @@ export default function PacientesModulo({
     const updatedList = pacientes.map(p => p.id === updatedPaciente.id ? updatedPaciente : p);
     onChangePacientes(updatedList);
     setIsEditing(false);
+  };
+
+  // Galeria Capilar: envia a foto real (comprimida em JPEG via canvas) pro backend, com data + horário exatos
+  const handleUploadFoto = async (file: File) => {
+    if (!curPaciente) return;
+    setUploadingFoto(true);
+    try {
+      const base64: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Falha ao ler o arquivo"));
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = () => reject(new Error("Arquivo de imagem inválido"));
+          img.onload = () => {
+            const MAX_DIM = 1280;
+            let { width, height } = img;
+            if (width > MAX_DIM || height > MAX_DIM) {
+              const scale = MAX_DIM / Math.max(width, height);
+              width = Math.round(width * scale);
+              height = Math.round(height * scale);
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return reject(new Error("Canvas indisponível neste navegador"));
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL("image/jpeg", 0.82));
+          };
+          img.src = reader.result as string;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      const agora = new Date();
+      const novaFoto = {
+        id: `foto-${Date.now()}`,
+        pacienteId: curPaciente.id,
+        data: agora.toISOString().split("T")[0],
+        horario: agora.toTimeString().slice(0, 5),
+        posicao: posicaoUpload,
+        url: base64,
+        notaIa: null,
+      };
+
+      const res = await fetch("/api/galeria", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(novaFoto),
+      });
+      if (!res.ok) throw new Error("Falha ao salvar a foto no servidor");
+      const salva = await res.json();
+
+      const updatedList = pacientes.map(p =>
+        p.id === curPaciente.id ? { ...p, galeria: [...p.galeria, salva] } : p
+      );
+      onChangePacientes(updatedList);
+    } catch (err: any) {
+      console.error("Erro ao enviar foto da galeria:", err);
+      alert("Não foi possível enviar a foto. Verifique sua conexão e tente novamente.");
+    } finally {
+      setUploadingFoto(false);
+    }
+  };
+
+  // Galeria Capilar: exclusão real (protegida por sessão) de uma foto específica
+  const handleDeleteFoto = async (fotoId: string) => {
+    if (!curPaciente) return;
+    if (!window.confirm("Excluir esta fotografia da galeria? Essa ação não pode ser desfeita.")) return;
+    setDeletingFotoId(fotoId);
+    try {
+      const token = localStorage.getItem("caro_clinic_token");
+      const res = await fetch(`/api/galeria/${fotoId}`, {
+        method: "DELETE",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error("Falha ao excluir no servidor");
+      const updatedList = pacientes.map(p =>
+        p.id === curPaciente.id ? { ...p, galeria: p.galeria.filter(f => f.id !== fotoId) } : p
+      );
+      onChangePacientes(updatedList);
+    } catch (err) {
+      console.error("Erro ao excluir foto da galeria:", err);
+      alert("Não foi possível excluir a foto. Verifique sua conexão e tente novamente.");
+    } finally {
+      setDeletingFotoId(null);
+    }
   };
 
   // Status Color indicators helper
@@ -497,25 +598,15 @@ export default function PacientesModulo({
                           </span>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1.5">
                       <span className={`text-[10px] px-2.5 py-1 rounded-full font-mono uppercase font-bold border ${
-                  paciente.status === "Em Tratamento"
-                  ? "bg-green-50 text-green-700 border-green-200/50"
-                  : paciente.status === "Alta"
-                  ? "bg-blue-50 text-blue-700 border-blue-200/50"
-                  : "bg-yellow-50 text-yellow-700 border-yellow-200/50"
-                }`}>
+                        paciente.status === "Em Tratamento" 
+                          ? "bg-green-50 text-green-700 border-green-200/50" 
+                          : paciente.status === "Alta" 
+                          ? "bg-blue-50 text-blue-700 border-blue-200/50" 
+                          : "bg-yellow-50 text-yellow-700 border-yellow-200/50"
+                      }`}>
                         {paciente.status}
                       </span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeletePaciente(paciente); }}
-                        disabled={excluindoId === paciente.id}
-                        className="text-gray-300 hover:text-red-500 disabled:opacity-40 p-1 rounded transition cursor-pointer"
-                        title="Excluir paciente"
-                        >
-                      <Trash className="w-3.5 h-3.5" />
-                      </button>
-                      </div>
                     </div>
 
                     <div className="border-t border-gray-100 pt-3.5 space-y-1.5">
@@ -1288,7 +1379,7 @@ export default function PacientesModulo({
                       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#1F1F1F] pb-3">
                         <div>
                           <h3 className="text-lg font-serif text-[#FAFAFA] font-medium">Comparativo Capilar e Densitometria</h3>
-                          <p className="text-xs text-neutral-400 mt-0.5">Controle timeline das fotografias microscópicas.</p>
+                          <p className="text-xs text-neutral-400 mt-0.5">Controle timeline das fotografias, organizado por data, horário e mês.</p>
                         </div>
 
                         <button
@@ -1301,24 +1392,70 @@ export default function PacientesModulo({
                         </button>
                       </div>
 
+                      {/* Upload real: escolhe a posição/tipo e envia a foto de verdade pro servidor */}
+                      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <div className="flex-1">
+                          <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-mono block mb-1">Posição / Tipo da Foto</span>
+                          <select
+                            value={posicaoUpload}
+                            onChange={(e) => setPosicaoUpload(e.target.value as FotoCapilar["posicao"])}
+                            className="w-full bg-[#141414] border border-[#2B2B2B] rounded-lg px-3 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-[#C9A84C]/60"
+                          >
+                            <option value="Frontal">Frontal</option>
+                            <option value="Topo/Vértex">Topo/Vértex</option>
+                            <option value="Lateral Direita">Lateral Direita</option>
+                            <option value="Lateral Esquerda">Lateral Esquerda</option>
+                            <option value="Nuca">Nuca</option>
+                            <option value="Dermoscopia">Dermoscopia</option>
+                          </select>
+                        </div>
+
+                        <label className={`shrink-0 ${uploadingFoto ? "opacity-60 pointer-events-none" : ""} bg-[#C9A84C] hover:bg-[#D9B85C] text-black text-xs font-mono font-bold uppercase tracking-wider px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition cursor-pointer`}>
+                          {uploadingFoto ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" /> Enviando...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4" /> Adicionar Foto
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploadingFoto}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadFoto(file);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      </div>
+
                       {curPaciente.galeria.length === 0 ? (
                         <div className="text-center py-10 text-neutral-500">
-                          Nenhuma fotografia salva na galeria deste paciente ainda.
+                          Nenhuma fotografia salva na galeria deste paciente ainda. Use o botão acima para registrar a primeira.
                         </div>
                       ) : (
                         <div className="space-y-6">
-                          
-                          {/* COMPARATIVE BEFORE/AFTER DRAGGABLE SLIDER DETAILED CODE */}
-                          {curPaciente.galeria.length >= 2 && (
+
+                          {/* COMPARATIVE BEFORE/AFTER DRAGGABLE SLIDER — usa a foto mais antiga e a mais recente, por data+horário real */}
+                          {curPaciente.galeria.length >= 2 && (() => {
+                            const fotosOrdenadas = ordenarFotosPorData(curPaciente.galeria);
+                            const fotoAntes = fotosOrdenadas[0];
+                            const fotoDepois = fotosOrdenadas[fotosOrdenadas.length - 1];
+                            return (
                             <div className="space-y-3">
                               <span className="text-xs font-semibold text-neutral-400 block uppercase tracking-wider h-6">
                                 Comparativo Longitudinal Antes & Depois (Linha de Evolução)
                               </span>
-                              
+
                               <div className="flex flex-col lg:flex-row gap-6">
                                 {/* The Slider Sandbox */}
                                 <div className="flex-1 max-w-xl mx-auto lg:mx-0">
-                                  <div 
+                                  <div
                                     className="relative h-80 rounded-xl overflow-hidden shadow-2xl border border-[#2B2B2B] select-none cursor-ew-resize"
                                     onMouseMove={(e) => {
                                       if (!isSliding) return;
@@ -1339,35 +1476,35 @@ export default function PacientesModulo({
                                     }}
                                   >
                                     {/* BEFORE PHOTO (Left baseline, full size) */}
-                                    <img 
-                                      src={curPaciente.galeria[0].url} 
-                                      alt="Antes" 
-                                      className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
+                                    <img
+                                      src={fotoAntes.url}
+                                      alt="Antes"
+                                      className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                                       referrerPolicy="no-referrer"
                                     />
                                     <div className="absolute top-3 left-3 bg-black/60 border border-black text-[10px] uppercase font-bold tracking-widest text-[#C9A84C] px-2 py-1 rounded">
-                                      Antes ({curPaciente.galeria[0].data})
+                                      Antes ({fotoAntes.data}{fotoAntes.horario ? ` ${fotoAntes.horario}` : ""})
                                     </div>
 
                                     {/* AFTER PHOTO (Right overlaid with fractional clipped width) */}
-                                    <div 
+                                    <div
                                       className="absolute inset-y-0 right-0 overflow-hidden pointer-events-none transition-all"
                                       style={{ left: `${sliderPosition}%` }}
                                     >
-                                      <img 
-                                        src={curPaciente.galeria[1].url} 
-                                        alt="Depois" 
+                                      <img
+                                        src={fotoDepois.url}
+                                        alt="Depois"
                                         className="absolute inset-y-0 right-0 w-[576px] h-full object-cover pointer-events-none max-w-none"
                                         style={{ width: "576px", transform: `translateX(${sliderPosition - 100}%)` }}
                                         referrerPolicy="no-referrer"
                                       />
                                       <div className="absolute top-3 right-3 bg-[#C9A84C] text-black text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded">
-                                        Depois ({curPaciente.galeria[1].data})
+                                        Depois ({fotoDepois.data}{fotoDepois.horario ? ` ${fotoDepois.horario}` : ""})
                                       </div>
                                     </div>
 
                                     {/* Slider divider line and golden bubble */}
-                                    <div 
+                                    <div
                                       className="absolute inset-y-0 w-0.5 bg-[#C9A84C]/80 pointer-events-none shadow-[0_0_10px_rgba(201,168,76,0.6)]"
                                       style={{ left: `${sliderPosition}%` }}
                                     >
@@ -1383,17 +1520,17 @@ export default function PacientesModulo({
                                 <div className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-col justify-between">
                                   <div className="space-y-4">
                                     <span className="text-xs uppercase tracking-widest font-bold text-[#C9A84C] block font-mono">Notas e Triagem Genética Capilar</span>
-                                    
+
                                     {(analisePhotosResult) ? (
                                       <p className="text-xs text-neutral-300 leading-relaxed bg-black/30 p-3.5 border border-[#212121] rounded whitespace-pre-wrap max-h-56 overflow-y-auto">
                                         {analisePhotosResult}
                                       </p>
                                     ) : (
                                       <div className="space-y-3.5 text-xs text-neutral-400">
-                                        <p><strong>Dermoscopia mais recente ({curPaciente.galeria[1].posicao}):</strong></p>
+                                        <p><strong>Foto mais recente ({fotoDepois.posicao}):</strong></p>
                                         <div className="bg-[#121212] p-3 rounded border border-[#252525]">
-                                          <span className="font-mono text-[#C9A84C] block text-[10px] mb-1">Nota médica original:</span>
-                                          "{curPaciente.galeria[1].notaIa || "Evolução clínica perceptível em redensificação na área frontoparietal."}"
+                                          <span className="font-mono text-[#C9A84C] block text-[10px] mb-1">Nota médica:</span>
+                                          "{fotoDepois.notaIa || "Sem nota registrada para esta fotografia."}"
                                         </div>
                                         <p className="text-[11px] leading-relaxed">Você pode rodar a IA no topo para gerar dados preditivos volumétricos baseados no cruzamento dos metadados fotográficos.</p>
                                       </div>
@@ -1409,59 +1546,47 @@ export default function PacientesModulo({
                                 </div>
                               </div>
                             </div>
-                          )}
+                            );
+                          })()}
 
-                          {/* Historical Timeline list for all pictures in gallery */}
-                          <div className="border-t border-[#1F1F1F] pt-6 space-y-4">
-                            <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider block">Timeline Cronológica Inteira</span>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-                              {curPaciente.galeria.map(foto => (
-                                <div key={foto.id} className="bg-neutral-900 border border-neutral-800 p-2.5 rounded-lg space-y-2">
-                                  <div className="h-28 rounded overflow-hidden relative">
-                                    <img src={foto.url} alt={foto.posicao} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                    <div className="absolute inset-0 bg-black/40 hover:bg-transparent transition text-[9px] uppercase font-bold text-white p-1.5 flex flex-col justify-end">
-                                      <span>{foto.posicao}</span>
-                                    </div>
-                                  </div>
-                                  <div className="flex justify-between items-center text-[10px] text-neutral-500 font-mono">
-                                    <span>{foto.data}</span>
-                                    <button 
-                                      onClick={() => {
-                                        const updatedGaleria = curPaciente.galeria.filter(f => f.id !== foto.id);
-                                        const updated = { ...curPaciente, galeria: updatedGaleria };
-                                        handleSavePatientFields(updated);
-                                      }}
-                                      className="text-red-400 hover:text-red-500 transition shrink-0 cursor-pointer"
-                                    >
-                                      <Trash className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
+                          {/* Timeline organizada por mês, mês mais recente primeiro */}
+                          <div className="border-t border-[#1F1F1F] pt-6 space-y-8">
+                            <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider block">Timeline Cronológica por Mês</span>
+                            {agruparFotosPorMes(curPaciente.galeria).map(grupo => (
+                              <div key={grupo.chave} className="space-y-3">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-[11px] font-mono uppercase tracking-widest text-[#C9A84C] font-bold">{grupo.label}</span>
+                                  <span className="text-[10px] text-neutral-600 font-mono">{grupo.fotos.length} foto{grupo.fotos.length > 1 ? "s" : ""}</span>
+                                  <div className="flex-1 h-px bg-[#1F1F1F]" />
                                 </div>
-                              ))}
-                              
-                              {/* Photo Simulation added */}
-                              <label className="bg-[#161616]/70 hover:bg-[#1C1C1C] border border-dashed border-[#2B2B2B] hover:border-[#C9A84C]/40 rounded-lg h-36 flex flex-col justify-center items-center text-center p-3 cursor-pointer select-none transition">
-                                <Plus className="w-6 h-6 text-[#C9A84C] mb-1" />
-                                <span className="text-[10px] uppercase tracking-wider block text-neutral-400 font-mono">Adicionar Foto</span>
-                                <span className="text-[9px] text-neutral-600">Simular nova dermoscopia</span>
-                                <input 
-                                  type="file" 
-                                  accept="image/*"
-                                  className="hidden" 
-                                  onChange={() => {
-                                    const testPic: FotoCapilar = {
-                                      id: `foto-${Date.now()}`,
-                                      data: new Date().toISOString().split("T")[0],
-                                      posicao: "Dermoscopia",
-                                      url: "https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?auto=format&fit=crop&q=80&w=600",
-                                      notaIa: "Novas hastes capilares visíveis com óstios desobstruídos."
-                                    };
-                                    const updated = { ...curPaciente, galeria: [...curPaciente.galeria, testPic] };
-                                    handleSavePatientFields(updated);
-                                  }}
-                                />
-                              </label>
-                            </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+                                  {grupo.fotos.map(foto => (
+                                    <div key={foto.id} className="bg-neutral-900 border border-neutral-800 p-2.5 rounded-lg space-y-2">
+                                      <div className="h-28 rounded overflow-hidden relative">
+                                        <img src={foto.url} alt={foto.posicao} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                        <div className="absolute inset-0 bg-black/40 hover:bg-transparent transition text-[9px] uppercase font-bold text-white p-1.5 flex flex-col justify-end">
+                                          <span>{foto.posicao}</span>
+                                        </div>
+                                      </div>
+                                      <div className="flex justify-between items-center text-[10px] text-neutral-500 font-mono">
+                                        <span>{foto.data}{foto.horario ? ` · ${foto.horario}` : ""}</span>
+                                        <button
+                                          onClick={() => handleDeleteFoto(foto.id)}
+                                          disabled={deletingFotoId === foto.id}
+                                          className="text-red-400 hover:text-red-500 disabled:opacity-40 transition shrink-0 cursor-pointer"
+                                        >
+                                          {deletingFotoId === foto.id ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          ) : (
+                                            <Trash className="w-3.5 h-3.5" />
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
                           </div>
 
                         </div>
