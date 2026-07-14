@@ -139,7 +139,8 @@ export default function App() {
 
   const [currentTab, setCurrentTab]   = useState<TabOption>("dashboard");
   const [collapsed, setCollapsed]     = useState(false);
-  const [activePlan, setActivePlan]   = useState<"Standard" | "Precision" | "Enterprise">("Precision");
+  // Plano real e atual da Dra. Mariah: Standard Clínica IA.
+  const [activePlan, setActivePlan]   = useState<"Standard" | "Precision" | "Enterprise">("Standard");
   const [aiRunsCounter, setAiRunsCounter] = useState(0);
 
   const [pacientes, setPacientes]     = useState<Paciente[]>([]);
