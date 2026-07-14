@@ -78,6 +78,7 @@ function montarPacientesCompletos(
     exames: exames.filter((e) => e.pacienteId === p.id),
     galeria: galeriaFotos.filter((g) => g.pacienteId === p.id),
     consultas: consultas.filter((c) => c.pacienteId === p.id),
+      tags: Array.isArray(p.tags) ? p.tags : [],
   }));
 }
 
