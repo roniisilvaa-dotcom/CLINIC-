@@ -439,6 +439,20 @@ export default function App() {
         />
       );
     }
+    // Enquanto carregarDadosPaciente() ainda está buscando os dados (logo após
+    // o login), "pacientes" ainda está vazio — isso é normal, não um erro. Antes
+    // esse caso caía direto no handleLogout() abaixo, o que disparava um logout
+    // de verdade (limpando o token no servidor) NO MEIO do carregamento e
+    // derrubava as chamadas de exames/galeria que ainda estavam em voo. Agora só
+    // desloga se o carregamento já terminou e mesmo assim o paciente não apareceu
+    // (aí sim é uma falha real — CPF apagado, erro de rede, etc).
+    if (loadingDados) {
+      return (
+        <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+        </div>
+      );
+    }
     handleLogout();
     return null;
   }
