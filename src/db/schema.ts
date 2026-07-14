@@ -1,4 +1,4 @@
-import { pgTable, text, integer, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, jsonb , doublePrecision} from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -120,4 +120,17 @@ export const prescricoesTemplates = pgTable('prescricoes_templates', {
     procedimentos: text('procedimentos'),
     suplementacao: text('suplementacao'),
     cosmeticos: text('cosmeticos'),
+});
+
+// ── Faturamento (transacoes financeiras) ────────────────────────────
+export const transacoesFinanceiras = pgTable('transacoes_financeiras', {
+    id: text('id').primaryKey(),
+    pacienteId: text('paciente_id').notNull(),
+    pacienteNome: text('paciente_nome').notNull(),
+    data: text('data').notNull(),
+    descricao: text('descricao').notNull(),
+    valor: doublePrecision('valor').notNull(),
+    metodo: text('metodo').notNull(),
+    status: text('status').notNull(),
+    unidade: text('unidade').notNull(),
 });
