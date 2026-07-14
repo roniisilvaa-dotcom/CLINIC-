@@ -161,9 +161,14 @@ export async function processarMensagem(
 
 const hojeStr = new Date().toISOString().slice(0, 10);
 const contextoData = `IMPORTANTE: hoje e ${hojeStr} (formato YYYY-MM-DD). Use sempre este ano ao calcular ou preencher datas de agendamento -- nunca use um ano anterior a este.`;
-const systemFinal = contextoSistema
-  ? `${SYSTEM_PROMPT}\n\n${contextoData}\n\nCONTEXTO SISTEMA:\n${contextoSistema}`
-  : `${SYSTEM_PROMPT}\n\n${contextoData}`;
+  // Prompt caching: o SYSTEM_PROMPT é sempre idêntico entre TODAS as chamadas (qualquer
+  // paciente, qualquer conversa) — é o bloco de longe mais caro (maior contagem de tokens).
+  // Isolado num bloco próprio com cache_control, a Anthropic reaproveita esse processamento
+  // por até 5 minutos entre requisições, cobrando uma fração do preço normal nos "cache hits".
+  // Só o contexto dinâmico (data de hoje + dados do paciente atual) fica fora do cache.
+  const contextoDinamico = contextoSistema
+    ? `${contextoData}\n\nCONTEXTO SISTEMA:\n${contextoSistema}`
+    : contextoData;
   const messages = [
         ...historico.map(m => ({ role: m.role === "model" ? "assistant" : "user", content: m.content })),
     { role: "user" as const, content: mensagem },
@@ -176,11 +181,15 @@ const systemFinal = contextoSistema
                           "Content-Type": "application/json",
                           "x-api-key": apiKey,
                           "anthropic-version": "2023-06-01",
+                          "anthropic-beta": "prompt-caching-2024-07-31",
                 },
                 body: JSON.stringify({
                           model: CLAUDE_MODEL,
                           max_tokens: 1024,
-                          system: systemFinal,
+                          system: [
+                                    { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+                                    { type: "text", text: contextoDinamico },
+                          ],
                           messages,
                           tools: CLAUDE_TOOLS,
                 }),
