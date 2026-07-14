@@ -1,29 +1,34 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  FileText, 
-  Search, 
-  Plus, 
-  Filter, 
-  Sparkles, 
-  Printer, 
-  Trash, 
-  Check, 
-  FileSignature, 
+import {
+  FileText,
+  Search,
+  Plus,
+  Filter,
+  Sparkles,
+  Printer,
+  Trash,
+  Check,
+  FileSignature,
   FolderLock,
   ChevronRight,
-  ClipboardCopy
+  ClipboardCopy,
+  Pencil,
+  Loader2
 } from "lucide-react";
 import { PrescricaoTemplate } from "../types";
-import { MOCK_PRESCRIÇÕES_TEMPLATES } from "../mockData";
 
 export default function PrescricoesModulo() {
-  const [library, setLibrary] = useState<PrescricaoTemplate[]>(MOCK_PRESCRIÇÕES_TEMPLATES);
+  const [library, setLibrary] = useState<PrescricaoTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
-  // Create Template form states
+  // Create / Edit Template form states
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [newDiag, setNewDiag] = useState("");
   const [newCat, setNewCat] = useState<PrescricaoTemplate["categoria"]>("Medicamentoso");
@@ -35,6 +40,23 @@ export default function PrescricoesModulo() {
   // Print Preview state
   const [previewTemplate, setPreviewTemplate] = useState<PrescricaoTemplate | null>(null);
 
+  useEffect(() => {
+    const carregarTemplates = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/prescricoes");
+        if (!res.ok) throw new Error("Falha ao carregar templates");
+        const data = await res.json();
+        setLibrary(data);
+      } catch (err) {
+        console.error("Erro ao carregar prescrições:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    carregarTemplates();
+  }, []);
+
   // Search logic
   const filteredTemplates = library.filter(t => {
     const matchesSearch = t.titulo.toLowerCase().includes(search.toLowerCase()) || t.diagnosticoRef.toLowerCase().includes(search.toLowerCase());
@@ -42,37 +64,96 @@ export default function PrescricoesModulo() {
     return matchesSearch && matchesCat;
   });
 
-  const handleCreateTemplate = (e: React.FormEvent) => {
+  const resetForm = () => {
+    setNewTitle("");
+    setNewDiag("");
+    setNewCat("Medicamentoso");
+    setNewMeds("");
+    setNewProcs("");
+    setNewSupls("");
+    setNewCosms("");
+    setEditingId(null);
+  };
+
+  const handleOpenCreate = () => {
+    resetForm();
+    setShowCreateModal(true);
+  };
+
+  const handleOpenEdit = (temp: PrescricaoTemplate) => {
+    setEditingId(temp.id);
+    setNewTitle(temp.titulo);
+    setNewDiag(temp.diagnosticoRef);
+    setNewCat(temp.categoria);
+    setNewMeds(temp.medicamentos);
+    setNewProcs(temp.procedimentos);
+    setNewSupls(temp.suplementacao);
+    setNewCosms(temp.cosmeticos);
+    setShowCreateModal(true);
+  };
+
+  const handleSubmitTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const novo: PrescricaoTemplate = {
-      id: `temp-${Date.now()}`,
+    const payload = {
       titulo: newTitle,
       diagnosticoRef: newDiag || "Geral",
       categoria: newCat,
       medicamentos: newMeds,
       procedimentos: newProcs,
       suplementacao: newSupls,
-      cosmeticos: newCosms
+      cosmeticos: newCosms,
     };
-    setLibrary([novo, ...library]);
-    setShowCreateModal(false);
 
-    // Reset fields
-    setNewTitle("");
-    setNewDiag("");
-    setNewMeds("");
-    setNewProcs("");
-    setNewSupls("");
-    setNewCosms("");
+    setSalvando(true);
+    try {
+      if (editingId) {
+        const res = await fetch(`/api/prescricoes/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("Falha ao atualizar template");
+        const atualizado = await res.json();
+        setLibrary(prev => prev.map(t => t.id === editingId ? atualizado : t));
+      } else {
+        const novo = { id: `temp-${Date.now()}`, ...payload };
+        const res = await fetch("/api/prescricoes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(novo),
+        });
+        if (!res.ok) throw new Error("Falha ao criar template");
+        const criado = await res.json();
+        setLibrary(prev => [criado, ...prev]);
+      }
+      setShowCreateModal(false);
+      resetForm();
+    } catch (err) {
+      console.error("Erro ao salvar template:", err);
+      alert("Não foi possível salvar o template no servidor. Verifique sua conexão e tente novamente.");
+    } finally {
+      setSalvando(false);
+    }
   };
 
-  const handleDeleteTemplate = (id: string) => {
-    setLibrary(library.filter(t => t.id !== id));
+  const handleDeleteTemplate = async (id: string) => {
+    if (!window.confirm("Excluir este template da biblioteca? Esta ação não pode ser desfeita.")) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/prescricoes/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Falha ao excluir template");
+      setLibrary(prev => prev.filter(t => t.id !== id));
+    } catch (err) {
+      console.error("Erro ao excluir template:", err);
+      alert("Não foi possível excluir o template no servidor. Tente novamente.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
     <div id="prescricoes_module_container" className="space-y-6">
-      
+
       {/* Header section with Create Template action */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#0A0A0A]/5 pb-6">
         <div>
@@ -81,7 +162,7 @@ export default function PrescricoesModulo() {
         </div>
 
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={handleOpenCreate}
           className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black text-xs font-bold font-mono tracking-wider uppercase px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition duration-200 cursor-pointer self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" /> Criar Novo Template
@@ -115,8 +196,8 @@ export default function PrescricoesModulo() {
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
               className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded transition whitespace-nowrap cursor-pointer ${
-                activeCategory === cat.id 
-                  ? "bg-[#C9A84C] text-black font-semibold" 
+                activeCategory === cat.id
+                  ? "bg-[#C9A84C] text-black font-semibold"
                   : "text-gray-500 hover:text-[#0A0A0A]"
               }`}
             >
@@ -126,11 +207,20 @@ export default function PrescricoesModulo() {
         </div>
       </div>
 
+      {/* Loading state */}
+      {loading && (
+        <div className="col-span-full py-20 text-center space-y-3 border border-dashed border-gray-300 rounded-xl bg-gray-50 flex flex-col items-center">
+          <Loader2 className="w-8 h-8 text-[#C9A84C] animate-spin" />
+          <p className="text-gray-500 font-serif text-lg">Carregando biblioteca de prescrições...</p>
+        </div>
+      )}
+
       {/* Template lists representation */}
+      {!loading && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredTemplates.map(temp => (
-          <div 
-            key={temp.id} 
+          <div
+            key={temp.id}
             className="bg-white border border-[#E5E5E5] rounded-xl p-5 hover:border-[#C9A84C]/50 shadow-sm hover:shadow-md transition duration-200 flex flex-col justify-between gap-4"
           >
             <div className="space-y-3">
@@ -142,14 +232,24 @@ export default function PrescricoesModulo() {
                   <h3 style={{ fontFamily: "Georgia, serif" }} className="text-lg font-semibold text-[#0A0A0A] mt-2">{temp.titulo}</h3>
                   <p className="text-xs text-gray-400 font-mono mt-0.5 font-semibold">Ref: {temp.diagnosticoRef}</p>
                 </div>
-                
-                <button 
-                  onClick={() => handleDeleteTemplate(temp.id)}
-                  className="text-gray-400 hover:text-red-500 p-1 rounded transition cursor-pointer"
-                  title="Excluir"
-                >
-                  <Trash className="w-4 h-4" />
-                </button>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleOpenEdit(temp)}
+                    className="text-gray-400 hover:text-[#C9A84C] p-1 rounded transition cursor-pointer"
+                    title="Editar"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTemplate(temp.id)}
+                    disabled={deletingId === temp.id}
+                    className="text-gray-400 hover:text-red-500 disabled:opacity-40 p-1 rounded transition cursor-pointer"
+                    title="Excluir"
+                  >
+                    {deletingId === temp.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               {/* Formula brief snippets representation */}
@@ -205,17 +305,18 @@ export default function PrescricoesModulo() {
           </div>
         )}
       </div>
+      )}
 
-      {/* ====== DIALOG: CREATE NEW TEMPLATE MODAL ====== */}
+      {/* ====== DIALOG: CREATE / EDIT TEMPLATE MODAL ====== */}
       {showCreateModal && (
         <div id="create_template_modal" className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/60 font-sans">
           <div className="bg-white border-none text-[#0A0A0A] w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden animate-fadeIn">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center text-xs bg-[#F5F0E8]/40">
-              <span className="font-mono text-xs uppercase tracking-wider text-[#C9A84C] font-semibold">Novo Template Clínico</span>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-500 hover:text-black transition cursor-pointer font-bold font-mono">Fechar</button>
+              <span className="font-mono text-xs uppercase tracking-wider text-[#C9A84C] font-semibold">{editingId ? "Editar Template Clínico" : "Novo Template Clínico"}</span>
+              <button onClick={() => { setShowCreateModal(false); resetForm(); }} className="text-gray-500 hover:text-black transition cursor-pointer font-bold font-mono">Fechar</button>
             </div>
 
-            <form onSubmit={handleCreateTemplate} className="p-6 space-y-4">
+            <form onSubmit={handleSubmitTemplate} className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs uppercase text-gray-400 font-mono font-bold">Título do Template</label>
@@ -260,8 +361,11 @@ export default function PrescricoesModulo() {
               </div>
 
               <div className="border-t border-gray-100 pt-4 flex justify-end gap-2.5 text-xs">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="bg-gray-100 hover:bg-gray-250 text-gray-600 px-4 py-2 rounded font-mono uppercase cursor-pointer">Fechar</button>
-                <button type="submit" className="bg-[#C9A84C] hover:bg-[#D9B85C] text-black font-semibold px-4 py-2 rounded font-mono uppercase tracking-wider cursor-pointer">Salvar Template</button>
+                <button type="button" onClick={() => { setShowCreateModal(false); resetForm(); }} className="bg-gray-100 hover:bg-gray-250 text-gray-600 px-4 py-2 rounded font-mono uppercase cursor-pointer">Fechar</button>
+                <button type="submit" disabled={salvando} className="bg-[#C9A84C] hover:bg-[#D9B85C] disabled:opacity-50 text-black font-semibold px-4 py-2 rounded font-mono uppercase tracking-wider cursor-pointer flex items-center gap-1.5">
+                  {salvando && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {salvando ? "Salvando..." : editingId ? "Salvar Alterações" : "Salvar Template"}
+                </button>
               </div>
             </form>
           </div>
@@ -279,7 +383,7 @@ export default function PrescricoesModulo() {
 
             <div className="p-8 font-sans">
               <div className="border border-neutral-300 p-6 bg-[#FCFAF7] min-h-[400px] flex flex-col justify-between shadow-sm">
-                
+
                 <div>
                   <div className="flex justify-between border-b-2 border-[#C9A84C]/40 pb-4">
                     <div>
@@ -291,7 +395,7 @@ export default function PrescricoesModulo() {
 
                   <div className="mt-6 space-y-4 text-xs text-neutral-800 pr-2 leading-relaxed">
                     <p style={{ fontFamily: "Georgia, serif" }} className="font-semibold text-[#0A0A0A] uppercase tracking-widest text-[10px]">Estratégia de Tratamento: {previewTemplate.titulo}</p>
-                    
+
                     {previewTemplate.medicamentos && (
                       <div className="space-y-1">
                         <strong>I. Fármacos Sistêmicos / Tópicos:</strong>
@@ -299,10 +403,24 @@ export default function PrescricoesModulo() {
                       </div>
                     )}
 
+                    {previewTemplate.procedimentos && (
+                      <div className="space-y-1">
+                        <strong>II. Procedimentos Clínicos:</strong>
+                        <p className="bg-white border border-gray-200/60 p-3 rounded font-mono text-[11px] whitespace-pre-wrap text-gray-700">{previewTemplate.procedimentos}</p>
+                      </div>
+                    )}
+
                     {previewTemplate.suplementacao && (
                       <div className="space-y-1">
-                        <strong>II. Suplementações Nutracêuticas:</strong>
+                        <strong>III. Suplementações Nutracêuticas:</strong>
                         <p className="bg-white border border-gray-200/60 p-3 rounded font-mono text-[11px] whitespace-pre-wrap text-gray-700">{previewTemplate.suplementacao}</p>
+                      </div>
+                    )}
+
+                    {previewTemplate.cosmeticos && (
+                      <div className="space-y-1">
+                        <strong>IV. Cosméticos de Higienização:</strong>
+                        <p className="bg-white border border-gray-200/60 p-3 rounded font-mono text-[11px] whitespace-pre-wrap text-gray-700">{previewTemplate.cosmeticos}</p>
                       </div>
                     )}
                   </div>
@@ -317,7 +435,7 @@ export default function PrescricoesModulo() {
             </div>
 
             <div className="bg-[#121212] p-4 flex justify-end text-xs">
-              <button 
+              <button
                 onClick={() => {
                   alert("Impressão simulada com sucesso!");
                   setPreviewTemplate(null);
