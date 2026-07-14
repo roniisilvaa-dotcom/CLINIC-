@@ -2,6 +2,7 @@ import express from "express";
 import { db } from "../db/index.js";
 import { conversasWhatsapp, agendaEventos, pacientes, users } from "../db/schema.js";
 import { like, sql } from "drizzle-orm";
+import { hashSenha } from "../lib/senha.js";
 
 const router = express.Router();
 const ADMIN_TOKEN = process.env.ADMIN_RESET_TOKEN || "";
@@ -38,7 +39,9 @@ router.post("/setup-auth", async (req, res) => {
       role: "medica",
       nome: nome || "Dra. Mariah Zibetti",
       cpf: "medica-mariah-cpf",
-      senhaHash: senha,
+      // Antes a senha era salva em texto puro aqui (senhaHash: senha). Agora
+      // usa hash real (scrypt + salt) — ver src/lib/senha.ts.
+      senhaHash: hashSenha(senha),
       email,
     });
     res.json({ ok: true });
