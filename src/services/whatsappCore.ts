@@ -15,6 +15,7 @@ import {
     formatarNotificacaoDra,
     formatarSolicitacaoPix,
     formatarConfirmacaoAgendamento,
+    validarComprovantePix,
     VALOR_SINAL,
     MensagemConversa,
 } from "./iaSecretaria.js";
@@ -50,6 +51,22 @@ async function limiteMensalAtingido(): Promise<boolean> {
     return cacheContagemIa.contagem >= LIMITE_MENSAL_IA_WHATSAPP;
 }
 
+// ─── Números de teste ────────────────────────────────────────────────────────
+// Com a validação real de comprovante Pix, testar o fluxo de agendamento do
+// zero exigiria fazer um Pix de verdade a cada teste. Números listados aqui
+// (env var, separados por vírgula) pulam a validação da imagem — qualquer
+// imagem enviada por eles é aceita como "comprovante", só pra testes internos.
+// NUNCA inclua o número real de pacientes aqui.
+const TELEFONES_TESTE = (process.env.WHATSAPP_TELEFONES_TESTE || "")
+    .split(",")
+    .map(t => t.replace(/\D/g, ""))
+    .filter(Boolean);
+
+function ehTelefoneDeTeste(telefone: string): boolean {
+    const limpo = telefone.replace(/\D/g, "");
+    return TELEFONES_TESTE.includes(limpo) || TELEFONES_TESTE.includes(limpo.replace(/^55/, ""));
+}
+
 export const sessions = new Map<string, {
     historico: MensagemConversa[];
     dadosColeta: Record<string, any>;
@@ -76,13 +93,13 @@ export function iaEstaPausada(telefone: string): boolean {
 }
 
 // ─── Envio fracionado de mensagens ──────────────────────────────────────────
-// A IA às vezes gera respostas longas (parágrafos inteiros), e receber isso como
-// um único balão gigante no WhatsApp fica estranho e difícil de ler — não é como
-// uma pessoa de verdade digita. Aqui a resposta é quebrada em pedaços menores
-// (por parágrafo e, se ainda estiver grande, por frase) e enviada como vários
-// balões curtos em sequência, com uma pequena pausa entre eles pra imitar o
-// ritmo natural de digitação.
-const LIMITE_CARACTERES_POR_BALAO = 280;
+// A IA às vezes gera respostas longas, e receber isso como um único balão gigante
+// no WhatsApp fica estranho e difícil de ler — não é como uma pessoa de verdade
+// digita. Aqui a resposta é quebrada por FRASE (cada frase vira um balão), que é
+// como alguém digitando de verdade manda mensagem — só junta frases bem curtas
+// (tipo "Perfeito!") na frase seguinte pra não virar um balão de uma palavra só.
+const LIMITE_CARACTERES_POR_BALAO = 150;
+const LIMITE_FRASE_CURTA = 30;
 
 function dividirMensagem(texto: string): string[] {
     const blocos = texto.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
@@ -90,22 +107,24 @@ function dividirMensagem(texto: string): string[] {
 
     const partes: string[] = [];
     for (const bloco of blocos) {
-          if (bloco.length <= LIMITE_CARACTERES_POR_BALAO) {
-                  partes.push(bloco);
-                  continue;
-          }
-          // Bloco grande demais pra um balão só: agrupa frase por frase até o limite.
-          const frases = bloco.split(/(?<=[.!?])\s+/);
-          let atual = "";
-          for (const frase of frases) {
-                    if (atual && (atual.length + frase.length + 1) > LIMITE_CARACTERES_POR_BALAO) {
-                                partes.push(atual.trim());
-                                atual = frase;
-                    } else {
-                                atual = atual ? `${atual} ${frase}` : frase;
+          // Quebra o bloco em linhas primeiro (preserva listas de horários, por exemplo),
+          // e cada linha em frases.
+          const linhas = bloco.split(/\n/).map(l => l.trim()).filter(Boolean);
+          for (const linha of linhas) {
+                    const frases = linha.split(/(?<=[.!?])\s+/).map(f => f.trim()).filter(Boolean);
+                    let atual = "";
+                    for (const frase of frases) {
+                              const juntaria = atual ? `${atual} ${frase}` : frase;
+                              const podeJuntar = atual && (atual.length < LIMITE_FRASE_CURTA || frase.length < LIMITE_FRASE_CURTA) && juntaria.length <= LIMITE_CARACTERES_POR_BALAO;
+                              if (podeJuntar) {
+                                            atual = juntaria;
+                              } else {
+                                            if (atual) partes.push(atual);
+                                            atual = frase;
+                              }
                     }
+                    if (atual) partes.push(atual);
           }
-          if (atual.trim()) partes.push(atual.trim());
     }
     return partes.length ? partes : [texto];
 }
@@ -132,7 +151,7 @@ async function checkAvailability(dataInicio: string, _dataFim?: string): Promise
           const fim = _dataFim || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
       const eventos = await db.select().from(agendaEventos)
-            .where(eq(agendaEventos.status, "Agendado"));
+            .where(eq(agendaEventos.status, "Confirmada"));
 
       const horariosBase = ["08:00", "09:30", "11:00", "13:30", "15:00", "16:30", "17:30"];
           const ocupados = new Set(eventos.map(e => `${e.data}_${e.horario}`));
@@ -163,6 +182,54 @@ async function checkAvailability(dataInicio: string, _dataFim?: string): Promise
     }
 }
 
+// Garante que existe um paciente cadastrado (com id válido) antes de criar o
+// agendamento — agenda_eventos.paciente_id é uma foreign key pra pacientes.id,
+// e criar o evento sem isso falha silenciosamente (o insert é ignorado, mas a
+// Eduarda continuava mandando "confirmado" pro paciente mesmo assim, fazendo o
+// agendamento sumir do sistema). Se já existe cadastro com esse CPF, reaproveita
+// o cadastro real; senão cria um cadastro mínimo vinculado ao telefone.
+async function garantirPacienteParaAgendamento(args: Record<string, any>, telefone: string): Promise<string> {
+    const cpfLimpo = String(args.cpf || "").replace(/\D/g, "");
+
+    if (cpfLimpo) {
+          try {
+                  const existente = await db.select({ id: pacientes.id }).from(pacientes)
+                    .where(eq(pacientes.cpf, cpfLimpo)).limit(1);
+                  if (existente[0]) return existente[0].id;
+          } catch {}
+    }
+
+    const idWpp = `wpp_${telefone}`;
+    try {
+          const jaExiste = await db.select({ id: pacientes.id }).from(pacientes)
+            .where(eq(pacientes.id, idWpp)).limit(1);
+          if (!jaExiste[0]) {
+                  const hoje = new Date().toISOString().slice(0, 10);
+                  await db.insert(pacientes).values({
+                          id: idWpp,
+                          nome: args.nome_paciente || "Paciente WhatsApp",
+                          idade: 0,
+                          dataNascimento: "",
+                          cpf: cpfLimpo || idWpp,
+                          telefone: args.telefone || telefone,
+                          email: "",
+                          cidade: "Toledo",
+                          comoConheceu: "WhatsApp",
+                          queixaPrincipal: args.procedimento || "Agendamento via WhatsApp",
+                          status: "Em Tratamento",
+                          progresso: 0,
+                          ultimaAtualizacao: hoje,
+                          antecedentes: { usoMedicamentos: "", historicoFamiliar: "", gestacaoAmamentacao: "", menopausa: "", outros: "" },
+                          diagnostico: { principal: args.procedimento || "A avaliar na consulta", secundario: [], condicoesAssociadas: [], fatoresContribuintes: [], observacoes: "Lead originado pelo WhatsApp (Eduarda IA)." },
+                          protocolo: { medicamentos: "", procedimentos: "", cosmeticos: "", suplementacao: "", estiloVida: "", duracaoPrevista: "", dataInicio: hoje },
+                  }).onConflictDoNothing();
+          }
+    } catch (err) {
+          console.error("Erro ao garantir paciente do WhatsApp:", err);
+    }
+    return idWpp;
+}
+
 async function createAppointment(
     args: Record<string, any>,
     telefone: string,
@@ -176,15 +243,17 @@ async function createAppointment(
                   return `${String(Math.floor(totalMin / 60)).padStart(2, "0")}:${String(totalMin % 60).padStart(2, "0")}`;
           })();
 
+      const pacienteId = await garantirPacienteParaAgendamento(args, telefone);
+
       await db.insert(agendaEventos).values({
               id,
-              pacienteId: `wpp_${telefone}`,
+              pacienteId,
               data: args.data,
               horario: args.horario,
               tipo: "Consulta",
               procedimentoTag: args.procedimento,
               duracaoMinutos: 90,
-              status: "Agendado",
+              status: "Confirmada",
               diagnosticoResumo: args.observacao || `Agendado via WhatsApp. CPF: ${args.cpf}. Sinal de R$ ${VALOR_SINAL},00 pago via Pix.`,
       });
 
@@ -231,6 +300,7 @@ export interface MensagemGenerica {
     pushName?: string;
     imagemId?: string;
     legendaImagem?: string;
+    chaveMidia?: any;
 }
 
 export interface EcoGenerico {
@@ -243,6 +313,7 @@ export async function processarEventoWebhook(
     ecos: EcoGenerico[],
     extrairTelefone: (from: string) => string,
     enviarMensagem: (telefone: string, mensagem: string) => Promise<boolean>,
+    baixarMidia?: (chave: any) => Promise<{ base64: string; mimetype?: string } | null>,
   ): Promise<void> {
     for (const eco of ecos) {
           const session = getSession(eco.paraTelefone);
@@ -261,17 +332,53 @@ export async function processarEventoWebhook(
           if (iaEstaPausada(telefone)) continue;
 
           if (session.aguardandoPagamento && session.dadosColeta?.data && session.dadosColeta?.horario) {
-                    await createAppointment(session.dadosColeta, telefone, enviarMensagem);
-                    const confirmacao = formatarConfirmacaoAgendamento({
-                                nome: session.dadosColeta.nome_paciente,
-                                procedimento: session.dadosColeta.procedimento,
-                                data: session.dadosColeta.data,
-                                horario: session.dadosColeta.horario,
-                    });
-                    await enviarMensagemFracionada(telefone, confirmacao, enviarMensagem);
-                    await salvarMensagem(telefone, "ia", confirmacao);
-                    session.aguardandoPagamento = false;
-                    session.historico = [];
+                    // Antes de confirmar qualquer coisa, a IA precisa realmente OLHAR a imagem —
+                    // antes disso, qualquer foto/print era aceita como comprovante só por ter
+                    // chegado uma imagem enquanto "aguardando pagamento", sem checar o conteúdo.
+                    let comprovanteValido = false;
+                    let motivoInvalido = "Não consegui confirmar o comprovante nessa imagem.";
+
+              if (ehTelefoneDeTeste(telefone)) {
+                        // Número de teste: pula a validação real pra não precisar de Pix de verdade.
+                        comprovanteValido = true;
+              } else if (baixarMidia && m.chaveMidia) {
+                        const midia = await baixarMidia(m.chaveMidia);
+                        if (midia?.base64) {
+                                    const validacao = await validarComprovantePix(midia.base64, midia.mimetype);
+                                    comprovanteValido = validacao.valido;
+                                    motivoInvalido = validacao.motivo;
+                        } else {
+                                    motivoInvalido = "Não consegui abrir a imagem que você enviou.";
+                        }
+              } else {
+                        // Sem forma de baixar/validar a mídia (ex: transporte não implementou isso
+                        // ainda) — por segurança, NÃO confirma automaticamente. Fica pendente pra
+                        // revisão manual em vez de arriscar confirmar algo não verificado.
+                        motivoInvalido = "Comprovante recebido, aguardando confirmação da equipe.";
+              }
+
+              if (comprovanteValido) {
+                        const resultadoCriacao = await createAppointment(session.dadosColeta, telefone, enviarMensagem);
+                        // Só confirma pro paciente se o agendamento realmente foi salvo no banco —
+                        // antes disso era enviado mesmo quando o insert falhava por baixo dos panos.
+                        const confirmacao = resultadoCriacao.startsWith("Erro")
+                                  ? "Recebi seu comprovante, mas tive um problema técnico ao confirmar no sistema. A equipe já foi avisada e vai confirmar seu horário manualmente em breve."
+                                  : formatarConfirmacaoAgendamento({
+                                              nome: session.dadosColeta.nome_paciente,
+                                              procedimento: session.dadosColeta.procedimento,
+                                              data: session.dadosColeta.data,
+                                              horario: session.dadosColeta.horario,
+                                    });
+                        await enviarMensagemFracionada(telefone, confirmacao, enviarMensagem);
+                        await salvarMensagem(telefone, "ia", confirmacao);
+                        session.aguardandoPagamento = false;
+                        session.historico = [];
+              } else {
+                        const aviso = `Essa imagem não parece ser o comprovante do Pix. ${motivoInvalido} Pode me enviar o comprovante certinho, com o valor e a confirmação da transferência? Se preferir, a equipe também pode confirmar manualmente.`;
+                        await enviarMensagemFracionada(telefone, aviso, enviarMensagem);
+                        await salvarMensagem(telefone, "ia", aviso);
+                        // Mantém aguardandoPagamento true — ainda não recebemos um comprovante válido.
+              }
           } else {
                     const aviso = "Recebi sua imagem! Pode me contar mais sobre o que você precisa? 💜";
                     await enviarMensagemFracionada(telefone, aviso, enviarMensagem);
@@ -352,13 +459,15 @@ export async function processarEventoWebhook(
                                 session.aguardandoPagamento = true;
                                 textoResposta = formatarSolicitacaoPix(args.procedimento || session.dadosColeta.procedimento || "consulta");
                     } else {
-                                await createAppointment({ ...args, ...session.dadosColeta }, telefone, enviarMensagem);
-                                textoResposta = formatarConfirmacaoAgendamento({
-                                              nome: args.nome_paciente,
-                                              procedimento: args.procedimento,
-                                              data: args.data,
-                                              horario: args.horario,
-                                });
+                                const resultadoCriacao = await createAppointment({ ...args, ...session.dadosColeta }, telefone, enviarMensagem);
+                                textoResposta = resultadoCriacao.startsWith("Erro")
+                                          ? "Recebi seu comprovante, mas tive um problema técnico ao confirmar no sistema. A equipe já foi avisada e vai confirmar seu horário manualmente em breve."
+                                          : formatarConfirmacaoAgendamento({
+                                                        nome: args.nome_paciente,
+                                                        procedimento: args.procedimento,
+                                                        data: args.data,
+                                                        horario: args.horario,
+                                            });
                                 session.aguardandoPagamento = false;
                                 session.historico = [];
                     }

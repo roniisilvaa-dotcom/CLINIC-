@@ -14,6 +14,8 @@ export const VALOR_CONSULTA = 550;
 const SYSTEM_PROMPT = `Você é Eduarda, secretária oficial da Dra. Mariah Zibetti — Clínica CA.RO, especialista em Tricologia e Procedimentos Estéticos, em Toledo/PR.
 
 TOM DE VOZ (obrigatório): humana, natural, educada, acolhedora (nível 4), simples, clara e objetiva. Zero textão, zero frase robótica. Nunca use emojis. Nunca revele que é uma IA — você é a Eduarda, da equipe da Dra. Mariah.
+Escreva em frases curtas, uma ideia por vez — como alguém digitando de verdade no WhatsApp, não como quem escreve um parágrafo de e-mail. Nunca narre seu próprio raciocínio em voz alta (nunca diga "antes de eu verificar isso, preciso..." ou "vou analisar sua mensagem e..." ) — apenas aja e fale naturalmente, como uma pessoa faria ("Só um instante, já te confirmo os horários.").
+Nunca repita uma pergunta que a pessoa já respondeu antes na conversa — releia o histórico antes de perguntar qualquer coisa. Seja proativa: sempre que possível, avance a conversa com um próximo passo claro (uma sugestão, uma pergunta nova, uma opção), em vez de ficar só esperando passivamente ou travando no mesmo ponto.
 
 REGRAS ABSOLUTAS — NUNCA IGNORAR
 
@@ -21,9 +23,9 @@ REGRAS ABSOLUTAS — NUNCA IGNORAR
 Nunca informe valores de procedimentos antes de entender: o motivo do contato, o objetivo da pessoa, se o atendimento será presencial ou online, se ela busca consulta ou procedimento, e se é de Toledo-PR ou Fátima do Sul-MS. Valores de procedimentos só são informados durante a consulta com a Dra. Mariah.
 Se perguntarem valor de procedimento antes disso, responda: "Os valores variam, por ser um procedimento médico determinado pela Dra. Mariah. Mas posso te garantir que disponibilizamos ótimas condições e pagamentos em até 10x sem juros!"
 
-2) VALOR DA CONSULTA (exceção controlada):
-Se a pessoa perguntar exclusivamente sobre o valor da CONSULTA logo na primeira mensagem (ex: "qual o valor?", "quanto custa a consulta?", "quanto vocês cobram?"), pode responder direto, sem qualificar antes:
-"A primeira consulta com a Dra. Mariah é uma avaliação médica completa, com tempo aproximado de 1h30. Nesse momento, a Dra. Mariah entende seu histórico, suas queixas, seus objetivos e avalia o melhor plano para você, seja para pele, cabelo, estética ou acompanhamento dermatológico. É um atendimento particular, individualizado e com tempo reservado para você ser avaliada com calma e segurança. O valor da consulta é R$ ${VALOR_CONSULTA},00, com pagamento à vista ou no cartão. Posso te passar os horários disponíveis?"
+2) VALOR DA CONSULTA (exceção controlada — seja sutil, você está vendendo o valor do atendimento da Dra., não só informando um preço):
+Se a pessoa perguntar exclusivamente sobre o valor da CONSULTA logo na primeira mensagem (ex: "qual o valor?", "quanto custa a consulta?", "quanto vocês cobram?"), responda sem qualificar antes, mas sempre valorizando a experiência ANTES de citar o número — nunca jogue o preço seco de cara. Venda o peixe da Dra.: destaque que é uma avaliação médica completa e individualizada (1h30), feita pela própria Dra. Mariah, com atenção e tempo reservado só para aquela pessoa. Só depois disso, mencione o valor de forma natural, como um investimento nessa experiência, não como uma tarifa fria. Exemplo de abordagem (adapte o texto, não repita sempre igual):
+"A primeira consulta com a Dra. Mariah é bem completa — uma avaliação médica individualizada de cerca de 1h30, onde ela entende seu histórico, suas queixas e seus objetivos com calma, pra montar o plano certo pra você. É um atendimento particular, só seu, sem pressa. O investimento nessa consulta é de R$ ${VALOR_CONSULTA},00, à vista ou no cartão. Posso te mostrar os horários disponíveis?"
 Depois disso, siga o fluxo normal de atendimento.
 
 IMPORTANTE — não confunda intenção de agendar com pedido de valor: se a pessoa apenas disser que quer agendar, marcar uma consulta ou um horário (sem perguntar o valor), NUNCA informe o valor da consulta de imediato. Nesse caso, siga o fluxo normal de atendimento: entenda o motivo do contato, explique brevemente como funciona a consulta, colete nome completo e CPF. O valor da consulta só é dito quando perguntado diretamente, ou de forma natural dentro do fluxo — nunca como resposta automática a "quero agendar".
@@ -217,6 +219,66 @@ const contextoData = `IMPORTANTE: hoje e ${hojeStr} (formato YYYY-MM-DD). Use se
   } catch (err) {
         console.error("Erro IA:", err);
         return { texto: "Tive um probleminha. Pode repetir?" };
+  }
+}
+
+export interface ResultadoValidacaoComprovante {
+    valido: boolean;
+    motivo: string;
+}
+
+/**
+ * Analisa (com visão do Claude) se uma imagem recebida realmente parece um comprovante
+ * de pagamento Pix — antes disso, o sistema tratava QUALQUER imagem recebida como
+ * comprovante válido só por ter chegado uma imagem, sem olhar o conteúdo. Isso permitia
+ * confirmar agendamento com uma foto qualquer (risco real de erro ou golpe).
+ * Fail-safe: em caso de erro/indisponibilidade da API, retorna inválido — melhor pedir
+ * pro paciente reenviar do que confirmar algo não verificado.
+ */
+export async function validarComprovantePix(base64Imagem: string, mimetype: string = "image/jpeg"): Promise<ResultadoValidacaoComprovante> {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return { valido: false, motivo: "IA indisponível para validar a imagem." };
+
+  try {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: {
+                          "Content-Type": "application/json",
+                          "x-api-key": apiKey,
+                          "anthropic-version": "2023-06-01",
+                },
+                body: JSON.stringify({
+                          model: CLAUDE_MODEL,
+                          max_tokens: 200,
+                          messages: [
+                                    {
+                                                role: "user",
+                                                content: [
+                                                              {
+                                                                            type: "image",
+                                                                            source: { type: "base64", media_type: mimetype, data: base64Imagem },
+                                                              },
+                                                              {
+                                                                            type: "text",
+                                                                            text: `Essa imagem é um comprovante de transferência/pagamento Pix (extrato bancário, tela de "transferência realizada", "pagamento efetuado" ou similar de um banco/app de pagamento, no valor aproximado de R$ ${VALOR_SINAL},00)?\n\nResponda ESTRITAMENTE nesse formato, nada mais:\nVALIDO: sim ou nao\nMOTIVO: uma frase curta explicando por quê`,
+                                                              },
+                                                ],
+                                    },
+                          ],
+                }),
+        });
+        const json = await res.json() as any;
+        if (!res.ok) {
+                console.error("Erro Claude API (validação comprovante):", res.status, JSON.stringify(json).slice(0, 300));
+                return { valido: false, motivo: "Não consegui analisar a imagem agora." };
+        }
+        const texto: string = (json.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
+        const valido = /VALIDO:\s*sim/i.test(texto);
+        const motivoMatch = texto.match(/MOTIVO:\s*(.+)/i);
+        return { valido, motivo: motivoMatch?.[1]?.trim() || (valido ? "Parece um comprovante válido." : "A imagem não parece um comprovante de Pix.") };
+  } catch (err) {
+        console.error("Erro ao validar comprovante:", err);
+        return { valido: false, motivo: "Não consegui analisar a imagem agora." };
   }
 }
 

@@ -82,6 +82,10 @@ export interface MensagemRecebidaEvolution {
   pushName?: string;
     imagemId?: string;
     legendaImagem?: string;
+    // Chave completa da mensagem (necessária pra baixar a mídia depois, via
+    // baixarMidiaBase64 — o endpoint de mídia da Evolution API pede a key inteira,
+    // não só o ID).
+    chaveMidia?: { remoteJid: string; id: string; fromMe: boolean };
 }
 
 /**
@@ -113,9 +117,47 @@ export function extrairMensagens(body: any): MensagemRecebidaEvolution[] {
               pushName: data?.pushName,
               imagemId: temImagem ? data?.key?.id : undefined,
               legendaImagem: temImagem ? msg.imageMessage?.caption : undefined,
+              chaveMidia: temImagem
+                        ? { remoteJid, id: data?.key?.id || "", fromMe: !!data?.key?.fromMe }
+                        : undefined,
       });
     }
     return mensagens;
+}
+
+/**
+ * Baixa o conteúdo (base64) de uma imagem recebida, usando a chave da mensagem.
+ * Necessário pra IA realmente "olhar" a imagem antes de aceitar como comprovante de
+ * Pix — antes disso, qualquer imagem enviada era tratada como comprovante válido só
+ * por ter chegado uma imagem, sem checar o conteúdo (risco real de golpe/erro).
+ */
+export async function baixarMidiaBase64(chave: { remoteJid: string; id: string; fromMe: boolean }): Promise<{ base64: string; mimetype?: string } | null> {
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE_NAME) return null;
+    try {
+          const res = await fetch(`${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${EVOLUTION_INSTANCE_NAME}`, {
+                  method: "POST",
+                  headers: {
+                            "Content-Type": "application/json",
+                            apikey: EVOLUTION_API_KEY,
+                  },
+                  body: JSON.stringify({
+                            message: { key: chave },
+                            convertToMp4: false,
+                  }),
+          });
+          if (!res.ok) {
+                  const errBody = await res.text().catch(() => "");
+                  console.error("Erro ao baixar mídia (Evolution API):", res.status, errBody);
+                  return null;
+          }
+          const data = await res.json().catch(() => null);
+          const base64: string | undefined = data?.base64;
+          if (!base64) return null;
+          return { base64, mimetype: data?.mimetype || "image/jpeg" };
+    } catch (err) {
+          console.error("Erro de rede ao baixar mídia (Evolution):", err);
+          return null;
+    }
 }
 
 /** Mesma interface usada pelo lado Meta — telefone "curto" (sem 55) de quem recebeu a resposta manual */
