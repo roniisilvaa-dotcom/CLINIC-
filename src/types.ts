@@ -38,6 +38,7 @@ export interface ExameLaboratorial {
 export interface FotoCapilar {
   id: string;
   data: string;
+  horario?: string;
   posicao: "Frontal" | "Topo/Vértex" | "Lateral Direita" | "Lateral Esquerda" | "Nuca" | "Dermoscopia";
   url: string;
   notaIa?: string;
