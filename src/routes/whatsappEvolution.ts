@@ -1,6 +1,9 @@
 /**
  * API Route: IA Secretária WhatsApp via Evolution API (não-oficial, QR Code)
  * POST /api/whatsapp/webhook-evolution — recebe eventos da Evolution API
+ * GET  /api/whatsapp/qr               — gera QR Code para a Dra. conectar o WhatsApp
+ * GET  /api/whatsapp/status-conexao   — checa se o WhatsApp já está conectado
+ * DELETE /api/whatsapp/desconectar    — desconecta o WhatsApp atual (parear outro aparelho)
  *
  * Usa o mesmo núcleo de processamento (src/services/whatsappCore.ts) que a integração
  * oficial da Meta — só troca o transporte de envio/recebimento.
@@ -11,6 +14,9 @@ import {
     extrairTelefone,
     extrairMensagens,
     extrairEcosHumanos,
+    obterQrCode,
+    obterStatusConexao,
+    desconectarInstancia,
 } from "../services/evolutionWhatsappService.js";
 import { processarEventoWebhook } from "../services/whatsappCore.js";
 
@@ -40,6 +46,23 @@ router.post("/webhook-evolution", async (req, res) => {
               }
 
               res.sendStatus(200);
+});
+
+// Autoconexão pela Dra.: gera o QR Code para escanear com o WhatsApp da clínica,
+// sem precisar mexer em nenhum painel técnico (Meta, Asaas etc.).
+router.get("/qr", async (req, res) => {
+    const resultado = await obterQrCode();
+    res.status(resultado.ok ? 200 : 503).json(resultado);
+});
+
+router.get("/status-conexao", async (req, res) => {
+    const resultado = await obterStatusConexao();
+    res.status(resultado.ok ? 200 : 503).json(resultado);
+});
+
+router.delete("/desconectar", async (req, res) => {
+    const resultado = await desconectarInstancia();
+    res.status(resultado.ok ? 200 : 503).json(resultado);
 });
 
 export default router;
