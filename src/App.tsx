@@ -269,6 +269,46 @@ export default function App() {
     setCurrentTab("pacientes");
   };
 
+  // Cria um novo evento de agenda a partir do modal "Novo Agendamento" (AgendaModulo).
+  const handleCreateEvento = async (dados: {
+    pacienteId: string;
+    data: string;
+    horario: string;
+    tipo: EventoAgenda["tipo"];
+    procedimentoTag: string;
+    duracaoMinutos: number;
+    status: EventoAgenda["status"];
+    diagnosticoResumo?: string;
+  }) => {
+    const id = `evt-${Date.now()}`;
+    await api("/api/agenda", {
+      method: "POST",
+      body: JSON.stringify({
+        id,
+        pacienteId: dados.pacienteId,
+        data: dados.data,
+        horario: dados.horario,
+        tipo: dados.tipo,
+        procedimentoTag: dados.procedimentoTag,
+        duracaoMinutos: dados.duracaoMinutos,
+        status: dados.status,
+        diagnosticoResumo: dados.diagnosticoResumo || "",
+      }),
+    });
+    const paciente = pacientes.find((p) => p.id === dados.pacienteId);
+    const novoEvento: EventoAgenda = {
+      id,
+      pacienteId: dados.pacienteId,
+      pacienteNome: paciente?.nome || "Paciente",
+      data: dados.data,
+      horario: dados.horario,
+      tipo: dados.tipo,
+      status: dados.status,
+      diagnosticoResumo: dados.diagnosticoResumo || dados.procedimentoTag || "",
+    };
+    setAgendaHoje(prev => [...prev, novoEvento]);
+  };
+
   const handleSendPatientMessage = (pacienteId: string, content: string, sender: "medica" | "paciente") => {
     const ts = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     const msg: Message = { id: `msg-${Date.now()}`, sender, content, timestamp: ts };
@@ -367,7 +407,8 @@ export default function App() {
             {currentTab === "agenda" && (
               <AgendaModulo agendaHoje={agendaHoje} pacientes={pacientes}
                 onViewPaciente={(id) => { setSelectedPacienteId(id); setCurrentTab("pacientes"); }}
-                onOpenNovaConsulta={(id) => { setSelectedPacienteId(id); setCurrentTab("nova_consulta"); }} />
+                onOpenNovaConsulta={(id) => { setSelectedPacienteId(id); setCurrentTab("nova_consulta"); }}
+                onCreateEvento={handleCreateEvento} />
             )}
             {currentTab === "ia_assistente" && (
               <IaAssistente pacientes={pacientes} activePlan={activePlan}
