@@ -1,24 +1,34 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { 
-  Dna, 
-  Bot, 
-  CheckCircle, 
-  AlertTriangle, 
-  Sparkles, 
-  FileText, 
-  TrendingUp, 
+import {
+  Dna,
+  Bot,
+  CheckCircle,
+  AlertTriangle,
+  Sparkles,
+  FileText,
+  TrendingUp,
   ChevronLeft,
   Activity,
   Mic,
-  MicOff
+  MicOff,
+  History,
+  CalendarClock
 } from "lucide-react";
 import { Paciente, ConsultaHistorial } from "../types";
 
 interface NovaConsultaProps {
   paciente: Paciente;
   onClose: () => void;
-  onSave: (pacienteId: string, novaConsulta: ConsultaHistorial) => void;
+  onSave: (pacienteId: string, novaConsulta: ConsultaHistorial) => void | Promise<void>;
+}
+
+function formatarDataBR(iso: string) {
+  try {
+    return new Date(`${iso}T00:00:00`).toLocaleDateString("pt-BR");
+  } catch {
+    return iso;
+  }
 }
 
 export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsultaProps) {
@@ -33,6 +43,11 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
   // Hair Pull test physical diagnostic state
   const [hairPullTest, setHairPullTest] = useState<"Positivo" | "Negativo">("Negativo");
 
+  // Tipo de atendimento desta consulta (antes ficava fixo em "Online")
+  const tipoDefault: ConsultaHistorial["tipo"] =
+    paciente.cidade === "Fátima do Sul" ? "Presencial - Fátima do Sul" : "Presencial - Toledo";
+  const [tipoConsulta, setTipoConsulta] = useState<ConsultaHistorial["tipo"]>(tipoDefault);
+
   // Densitometry volumes
   const [densidadeVertex, setDensidadeVertex] = useState("120");
   const [densidadeOccipital, setDensidadeOccipital] = useState("180");
@@ -40,14 +55,20 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
   // Medical modifications notes
   const [condutas, setCondutas] = useState("");
   const [evolucaoNota, setEvolucaoNota] = useState("");
+  const [examesSolicitados, setExamesSolicitados] = useState("");
 
   // AI Summary generation state
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [aiSummaryText, setAiSummaryText] = useState("");
 
+  // Saving state (persistencia real no backend)
+  const [salvando, setSalvando] = useState(false);
+
   // Speech Recognition state
   const [isRecording, setIsRecording] = useState(false);
-  
+
+  const historicoOrdenado = [...paciente.consultas].sort((a, b) => b.data.localeCompare(a.data));
+
   const toggleRecording = () => {
     if (isRecording) {
       setIsRecording(false);
@@ -66,7 +87,7 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
     recognition.continuous = true;
 
     recognition.onstart = () => setIsRecording(true);
-    
+
     recognition.onresult = (event: any) => {
       let currentTranscript = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -86,7 +107,7 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
   const handleGenerateSummaryWithIA = async () => {
     setLoadingSummary(true);
     setAiSummaryText("");
-    
+
     try {
       const response = await fetch("/api/summarize", {
         method: "POST",
@@ -116,29 +137,36 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
     }
   };
 
-  const handleFinishAndPublish = () => {
+  const handleFinishAndPublish = async () => {
     const novaVisita: ConsultaHistorial = {
       id: `vis-${Date.now()}`,
       data: new Date().toISOString().split("T")[0],
-      tipo: "Online", // Must match types definition literal
+      tipo: tipoConsulta,
       queixa: queixa || "Queixa de afinamento ativo acompanhada no consultório.",
       evolucao: evolucaoNota || `Paciente apresenta densitometria capilar de ${densidadeVertex} fios/cm² em região de ápice e miniaturização classificada como ${indicadorMiniaturizacao}.`,
       alteracoesProtocolo: condutas || "Continuidade das loções padrão prescritas.",
-      examesSolicitados: "Nenhum no momento",
+      examesSolicitados: examesSolicitados || "Nenhum no momento",
       resumoIa: aiSummaryText || "Resumo inteligente não gerado para esta visita."
     };
 
-    onSave(paciente.id, novaVisita);
-    alert("Consulta finalizada e gravada com sucesso no prontuário capilar!");
+    setSalvando(true);
+    try {
+      await onSave(paciente.id, novaVisita);
+      alert("Consulta finalizada e gravada com sucesso no prontuário capilar!");
+    } catch (err: any) {
+      alert(`Não foi possível gravar a consulta no servidor: ${err?.message || err}`);
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
     <div id="nova_consulta_sheet" className="p-1 max-w-4xl mx-auto space-y-6 animate-fadeIn text-[#0A0A0A]">
-      
+
       {/* Header controls back */}
       <div className="flex justify-between items-center border-b border-gray-150 pb-4">
         <div>
-          <button 
+          <button
             onClick={onClose}
             className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#C9A84C] font-mono uppercase tracking-wider font-bold mb-1.5 cursor-pointer transition-colors"
           >
@@ -155,10 +183,37 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Left Column: Form Fields details */}
         <div className="lg:col-span-2 space-y-5">
-          
+
+          {/* Section: Historico de Consultas Anteriores */}
+          <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-5 space-y-4">
+            <h3 style={{ fontFamily: "Georgia, serif" }} className="text-base text-[#0A0A0A] font-semibold tracking-wide pb-1.5 border-b border-gray-100 flex items-center gap-2">
+              <History className="w-4.5 h-4.5 text-[#C9A84C]" /> Histórico de Consultas Anteriores
+            </h3>
+
+            {historicoOrdenado.length === 0 ? (
+              <p className="text-xs text-gray-400 italic font-sans">Esta é a primeira consulta registrada para {paciente.nome.split(" ")[0]}.</p>
+            ) : (
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {historicoOrdenado.map((c) => (
+                  <div key={c.id} className="border border-gray-100 bg-gray-50 rounded-lg p-3 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-mono font-bold text-gray-700">{formatarDataBR(c.data)}</span>
+                      <span className="text-[10px] font-mono uppercase text-[#C9A84C] font-bold">{c.tipo}</span>
+                    </div>
+                    <p className="text-xs text-gray-600"><span className="text-gray-400 font-mono uppercase text-[10px] mr-1">Queixa:</span>{c.queixa}</p>
+                    <p className="text-xs text-gray-600"><span className="text-gray-400 font-mono uppercase text-[10px] mr-1">Evolução:</span>{c.evolucao}</p>
+                    {c.alteracoesProtocolo && (
+                      <p className="text-xs text-gray-500"><span className="text-gray-400 font-mono uppercase text-[10px] mr-1">Conduta:</span>{c.alteracoesProtocolo}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Section: Symptoms / Anamnese Capilar */}
           <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-5 space-y-4">
             <h3 style={{ fontFamily: "Georgia, serif" }} className="text-base text-[#0A0A0A] font-semibold tracking-wide pb-1.5 border-b border-gray-100 flex items-center gap-2">
@@ -167,30 +222,50 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
 
             <div className="space-y-4">
               <div className="space-y-1">
+                <label className="text-xs uppercase text-gray-400 font-mono block font-bold">Tipo de Atendimento desta Visita</label>
+                <div className="flex flex-wrap gap-2">
+                  {(["Presencial - Toledo", "Presencial - Fátima do Sul", "Online"] as ConsultaHistorial["tipo"][]).map((op) => (
+                    <button
+                      key={op}
+                      type="button"
+                      onClick={() => setTipoConsulta(op)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold uppercase tracking-wide border transition cursor-pointer ${
+                        tipoConsulta === op
+                          ? "bg-[#C9A84C]/15 border-[#C9A84C]/60 text-[#C9A84C]"
+                          : "bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300"
+                      }`}
+                    >
+                      <CalendarClock className="w-3.5 h-3.5" /> {op}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
                 <div className="flex justify-between items-center">
                   <label className="text-xs uppercase text-gray-400 font-mono block font-bold">Anamnese clínica detalhada desta visita</label>
-                  <button 
-                    onClick={toggleRecording} 
+                  <button
+                    onClick={toggleRecording}
                     className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition ${isRecording ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-black'}`}
                   >
                     {isRecording ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
                     {isRecording ? "Gravando..." : "Ditar"}
                   </button>
                 </div>
-                <textarea 
-                  value={queixa} 
+                <textarea
+                  value={queixa}
                   onChange={(e) => setQueixa(e.target.value)}
                   placeholder="Ex: Refere controle da queda ativa após 2 meses de Minoxidil, mas nota afinamento bitemporal persistente..."
-                  rows={2} 
-                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-sans font-medium" 
+                  rows={2}
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-sans font-medium"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs uppercase text-gray-400 font-mono block font-bold">Grau de miniaturização clínica detectada</label>
-                  <select 
-                    value={indicadorMiniaturizacao} 
+                  <select
+                    value={indicadorMiniaturizacao}
                     onChange={(e) => setIndicadorMiniaturizacao(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-gray-700 p-2.5 rounded outline-none cursor-pointer"
                   >
@@ -214,8 +289,8 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
                         type="button"
                         onClick={() => setHairPullTest(test as any)}
                         className={`px-3 py-1 text-[10px] font-mono rounded transition cursor-pointer font-bold ${
-                          hairPullTest === test 
-                            ? "bg-red-50 text-red-700 border border-red-200 shadow-sm" 
+                          hairPullTest === test
+                            ? "bg-red-50 text-red-700 border border-red-200 shadow-sm"
                             : "text-gray-400 hover:text-black"
                         }`}
                       >
@@ -235,7 +310,7 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
             </h3>
 
             <p className="text-xs text-gray-500 leading-relaxed font-sans font-medium">Assinale quaisquer biomarcadores inflamatórios de couro cabeludo visíveis sob retroiluminação microscópica:</p>
-            
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               {[
                 { k: "eritema", label: "Eritema Perifolicular", value: eritema, set: setEritema },
@@ -248,8 +323,8 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
                   type="button"
                   onClick={() => sinal.set(!sinal.value)}
                   className={`p-3 rounded-lg border text-center transition cursor-pointer select-none ${
-                    sinal.value 
-                      ? "bg-[#C9A84C]/15 border-[#C9A84C]/50 text-[#C9A84C] font-semibold" 
+                    sinal.value
+                      ? "bg-[#C9A84C]/15 border-[#C9A84C]/50 text-[#C9A84C] font-semibold"
                       : "bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300"
                   }`}
                 >
@@ -268,22 +343,22 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs uppercase text-gray-400 font-mono block font-bold">Densitometria de Ápice (Vértex) (fios/cm²)</label>
-                <input 
-                  type="number" 
-                  value={densidadeVertex} 
+                <input
+                  type="number"
+                  value={densidadeVertex}
                   onChange={(e) => setDensidadeVertex(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-2.5 rounded outline-none font-mono font-semibold" 
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-2.5 rounded outline-none font-mono font-semibold"
                 />
                 <span className="text-[9px] text-[#C9A84C] font-mono font-bold uppercase block mt-1 tracking-wider">Alvo fisiológico mínimo &gt; 150 fios/cm²</span>
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs uppercase text-gray-400 font-mono block font-bold">Densitometria Occipital (Controle) (fios/cm²)</label>
-                <input 
-                  type="number" 
-                  value={densidadeOccipital} 
+                <input
+                  type="number"
+                  value={densidadeOccipital}
                   onChange={(e) => setDensidadeOccipital(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-2.5 rounded outline-none font-mono font-semibold" 
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-sm text-[#0A0A0A] p-2.5 rounded outline-none font-mono font-semibold"
                 />
                 <span className="text-[9px] text-gray-400 font-mono font-bold uppercase block mt-1 tracking-wider">Área de controle doador-capilar</span>
               </div>
@@ -299,23 +374,34 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs uppercase text-gray-400 font-mono block font-bold">Anotações da evolução da médica</label>
-                <textarea 
-                  value={evolucaoNota} 
+                <textarea
+                  value={evolucaoNota}
                   onChange={(e) => setEvolucaoNota(e.target.value)}
                   placeholder="Evolução global observada..."
-                  rows={2} 
-                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-sans font-medium" 
+                  rows={2}
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-sans font-medium"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs uppercase text-gray-400 font-mono block font-bold">Modificações no Protocolo de Tratamento</label>
-                <textarea 
-                  value={condutas} 
+                <textarea
+                  value={condutas}
                   onChange={(e) => setCondutas(e.target.value)}
                   placeholder="Mudanças nas loções, dosagens ou sessões..."
-                  rows={2} 
-                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-sans font-medium" 
+                  rows={2}
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-sans font-medium"
+                />
+              </div>
+
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs uppercase text-gray-400 font-mono block font-bold">Exames Solicitados nesta Visita</label>
+                <input
+                  type="text"
+                  value={examesSolicitados}
+                  onChange={(e) => setExamesSolicitados(e.target.value)}
+                  placeholder="Ex: Ferritina, TSH, Vitamina D..."
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#C9A84C] focus:bg-white text-xs text-[#0A0A0A] p-2.5 rounded outline-none font-sans font-medium"
                 />
               </div>
             </div>
@@ -325,13 +411,13 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
 
         {/* Right Column: AI Co-pilot summarizing consultation summary results */}
         <div className="space-y-5">
-          
+
           <div className="bg-[#F5F0E8]/40 border border-[#C9A84C]/25 rounded-xl p-5 flex flex-col justify-between min-h-[380px] h-full text-xs shadow-sm">
             <div className="space-y-4">
               <div className="flex items-center gap-1.5 text-xs font-bold text-[#C9A84C] uppercase tracking-widest font-mono">
                 <Bot className="w-4.5 h-4.5 text-[#C9A84C]" /> Resumidor Inteligente de Consulta
               </div>
-              
+
               <p className="text-gray-500 font-sans font-medium leading-relaxed">Gere um sumário estruturado pelo modelo clínico de IA para anexar de forma rica no histórico desse encontro:</p>
 
               {aiSummaryText ? (
@@ -350,7 +436,7 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
                 type="button"
                 onClick={handleGenerateSummaryWithIA}
                 disabled={loadingSummary}
-                className="w-full bg-white hover:bg-gray-50 border border-[#C9A84C]/40 text-[#C9A84C] text-xs font-bold font-mono uppercase tracking-wider py-2.5 rounded flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm"
+                className="w-full bg-white hover:bg-gray-50 border border-[#C9A84C]/40 text-[#C9A84C] text-xs font-bold font-mono uppercase tracking-wider py-2.5 rounded flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm disabled:opacity-60"
               >
                 <Sparkles className="w-4 h-4 text-[#C9A84C]" />
                 {loadingSummary ? "Gerando sumário..." : "Gerar Sumário com IA"}
@@ -359,9 +445,10 @@ export default function NovaConsulta({ paciente, onClose, onSave }: NovaConsulta
               <button
                 type="button"
                 onClick={handleFinishAndPublish}
-                className="w-full bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black text-xs font-bold font-mono uppercase tracking-wider py-2.5 rounded flex items-center justify-center gap-1.5 transition duration-200 cursor-pointer shadow"
+                disabled={salvando}
+                className="w-full bg-[#0A0A0A] hover:bg-[#C9A84C] disabled:opacity-60 text-white hover:text-black text-xs font-bold font-mono uppercase tracking-wider py-2.5 rounded flex items-center justify-center gap-1.5 transition duration-200 cursor-pointer shadow"
               >
-                <CheckCircle className="w-4 h-4" /> Finalizar Consulta
+                <CheckCircle className="w-4 h-4" /> {salvando ? "Gravando no prontuário..." : "Finalizar Consulta"}
               </button>
             </div>
           </div>
