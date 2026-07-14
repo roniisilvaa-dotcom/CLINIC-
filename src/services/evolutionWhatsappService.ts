@@ -145,3 +145,98 @@ export function extrairEcosHumanos(body: any): EcoMensagemHumana[] {
     }
     return ecos;
 }
+
+// ── Conexão / QR Code (autoconexão pela Dra., sem precisar de painel técnico) ──────
+
+export interface ResultadoQrCode {
+    ok: boolean;
+    base64?: string;
+    pairingCode?: string;
+    conectado?: boolean;
+    erro?: string;
+}
+
+/**
+ * Pede à Evolution API o QR Code atual para parear o WhatsApp da clínica (equivalente a
+ * abrir o WhatsApp Web). Se a instância já estiver conectada, a Evolution API normalmente
+ * não retorna QR — nesse caso devolvemos conectado:true.
+ */
+export async function obterQrCode(): Promise<ResultadoQrCode> {
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE_NAME) {
+          return { ok: false, erro: "Integração do WhatsApp ainda não configurada. Fale com o suporte técnico." };
+    }
+    try {
+          const res = await fetch(`${EVOLUTION_API_URL}/instance/connect/${EVOLUTION_INSTANCE_NAME}`, {
+                  method: "GET",
+                  headers: { apikey: EVOLUTION_API_KEY },
+          });
+          if (!res.ok) {
+                  const errBody = await res.text().catch(() => "");
+                  console.error("Erro ao buscar QR Code (Evolution API):", res.status, errBody);
+                  return { ok: false, erro: `Não foi possível gerar o QR Code agora (código ${res.status}).` };
+          }
+          const data = await res.json().catch(() => null);
+          const base64: string | undefined = data?.base64 || data?.qrcode?.base64 || undefined;
+          const pairingCode: string | undefined = data?.pairingCode || data?.code || undefined;
+
+      if (!base64 && !pairingCode) {
+                  // Resposta sem QR geralmente significa que já está conectado
+                  const estado = data?.instance?.state || data?.state;
+                  if (estado === "open") return { ok: true, conectado: true };
+                  return { ok: false, erro: "A resposta da Evolution API não trouxe um QR Code. Tente novamente em instantes." };
+      }
+          return { ok: true, base64, pairingCode, conectado: false };
+    } catch (err: any) {
+          console.error("Erro de rede ao buscar QR Code (Evolution):", err);
+          return { ok: false, erro: "Não foi possível contatar o servidor do WhatsApp. Verifique sua internet e tente novamente." };
+    }
+}
+
+export interface ResultadoStatusConexao {
+    ok: boolean;
+    conectado: boolean;
+    estado?: string;
+    erro?: string;
+}
+
+/** Consulta se a instância da Evolution API está conectada (equivalente ao "WhatsApp Web pareado"). */
+export async function obterStatusConexao(): Promise<ResultadoStatusConexao> {
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE_NAME) {
+          return { ok: false, conectado: false, erro: "Integração do WhatsApp ainda não configurada." };
+    }
+    try {
+          const res = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${EVOLUTION_INSTANCE_NAME}`, {
+                  method: "GET",
+                  headers: { apikey: EVOLUTION_API_KEY },
+          });
+          if (!res.ok) {
+                  return { ok: false, conectado: false, erro: `Servidor respondeu com erro (${res.status}).` };
+          }
+          const data = await res.json().catch(() => null);
+          const estado: string | undefined = data?.instance?.state || data?.state;
+          return { ok: true, conectado: estado === "open", estado };
+    } catch (err: any) {
+          console.error("Erro de rede ao checar status da conexão (Evolution):", err);
+          return { ok: false, conectado: false, erro: "Não foi possível checar o status da conexão agora." };
+    }
+}
+
+/** Desconecta a instância atual, liberando o número para parear em outro aparelho se necessário. */
+export async function desconectarInstancia(): Promise<{ ok: boolean; erro?: string }> {
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE_NAME) {
+          return { ok: false, erro: "Integração do WhatsApp ainda não configurada." };
+    }
+    try {
+          const res = await fetch(`${EVOLUTION_API_URL}/instance/logout/${EVOLUTION_INSTANCE_NAME}`, {
+                  method: "DELETE",
+                  headers: { apikey: EVOLUTION_API_KEY },
+          });
+          if (!res.ok) {
+                  return { ok: false, erro: `Não foi possível desconectar agora (código ${res.status}).` };
+          }
+          return { ok: true };
+    } catch (err: any) {
+          console.error("Erro de rede ao desconectar (Evolution):", err);
+          return { ok: false, erro: "Não foi possível contatar o servidor do WhatsApp." };
+    }
+}
