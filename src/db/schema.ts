@@ -108,3 +108,16 @@ export const conversasWhatsapp = pgTable('conversas_whatsapp', {
   conteudo:  text('conteudo').notNull(),
   timestamp: text('timestamp').notNull(),
 });
+
+
+// ── Prescricoes (biblioteca de templates) ──────────────────────────────
+export const prescricoesTemplates = pgTable('prescricoes_templates', {
+    id: text('id').primaryKey(),
+    titulo: text('titulo').notNull(),
+    diagnosticoRef: text('diagnostico_ref'),
+    categoria: text('categoria').notNull(),
+    medicamentos: text('medicamentos'),
+    procedimentos: text('procedimentos'),
+    suplementacao: text('suplementacao'),
+    cosmeticos: text('cosmeticos'),
+});
