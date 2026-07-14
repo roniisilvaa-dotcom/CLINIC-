@@ -92,7 +92,27 @@ export default function PacientesModulo({
   const [isEditing, setIsEditing] = useState(false);
   const [salvandoPaciente, setSalvandoPaciente] = useState(false);
   const [criandoPaciente, setCriandoPaciente] = useState(false);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
+  const handleDeletePaciente = async (paciente: Paciente) => {
+    if (!window.confirm(`Excluir permanentemente o paciente ${paciente.nome}? Todo o historico (consultas, exames, fotos, agenda) sera apagado. Esta acao nao pode ser desfeita.`)) return;
+    const token = localStorage.getItem("caro_clinic_token");
+    setExcluindoId(paciente.id);
+    try {
+      const res = await fetch(`/api/pacientes/${paciente.id}`, {
+        method: "DELETE",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error("Falha ao excluir paciente");
+      onChangePacientes(pacientes.filter(p => p.id !== paciente.id));
+      if (selectedPacienteId === paciente.id) onSelectPaciente(null);
+    } catch (err) {
+      console.error("Erro ao excluir paciente:", err);
+      alert("Nao foi possivel excluir o paciente. Verifique se sua sessao ainda esta ativa e tente novamente.");
+    } finally {
+      setExcluindoId(null);
+    }
+  };
   // Etiquetas em edição (pedido do Igor)
   const [tagsDraft, setTagsDraft] = useState<string[]>([]);
   const [novaTagInput, setNovaTagInput] = useState("");
@@ -477,15 +497,25 @@ export default function PacientesModulo({
                           </span>
                         </div>
                       </div>
+                      <div className="flex flex-col items-end gap-1.5">
                       <span className={`text-[10px] px-2.5 py-1 rounded-full font-mono uppercase font-bold border ${
-                        paciente.status === "Em Tratamento" 
-                          ? "bg-green-50 text-green-700 border-green-200/50" 
-                          : paciente.status === "Alta" 
-                          ? "bg-blue-50 text-blue-700 border-blue-200/50" 
-                          : "bg-yellow-50 text-yellow-700 border-yellow-200/50"
-                      }`}>
+                  paciente.status === "Em Tratamento"
+                  ? "bg-green-50 text-green-700 border-green-200/50"
+                  : paciente.status === "Alta"
+                  ? "bg-blue-50 text-blue-700 border-blue-200/50"
+                  : "bg-yellow-50 text-yellow-700 border-yellow-200/50"
+                }`}>
                         {paciente.status}
                       </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeletePaciente(paciente); }}
+                        disabled={excluindoId === paciente.id}
+                        className="text-gray-300 hover:text-red-500 disabled:opacity-40 p-1 rounded transition cursor-pointer"
+                        title="Excluir paciente"
+                        >
+                      <Trash className="w-3.5 h-3.5" />
+                      </button>
+                      </div>
                     </div>
 
                     <div className="border-t border-gray-100 pt-3.5 space-y-1.5">
