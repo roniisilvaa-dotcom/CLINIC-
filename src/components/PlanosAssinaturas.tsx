@@ -9,8 +9,13 @@ import {
   Sparkles,
   Calendar,
   Lock,
-  Download
+  Download,
+  MessageCircle
 } from "lucide-react";
+
+// Upgrade de plano não é self-service: o botão sempre leva pro WhatsApp da equipe
+// CA.RO pra fechar o upgrade com a Dra. diretamente, em vez de trocar o plano sozinha.
+const NUMERO_WHATSAPP_UPGRADE = "5511942302344";
 
 interface PlanosAssinaturasProps {
   activePlan?: "Standard" | "Precision" | "Enterprise";
@@ -174,13 +179,14 @@ export default function PlanosAssinaturas({
               ) : (
                 <button
                   onClick={() => {
-                    if (confirm(`Deseja alterar sua assinatura clínica para o plano ${plan.name}?`)) {
-                      onChangeActivePlan?.(plan.id as any);
-                    }
+                    const mensagem = encodeURIComponent(
+                      `Olá! Sou a Dra. Mariah, da CA.RO Clinic. Gostaria de fazer upgrade da minha assinatura para o plano ${plan.name} (${plan.price}).`
+                    );
+                    window.open(`https://wa.me/${NUMERO_WHATSAPP_UPGRADE}?text=${mensagem}`, "_blank", "noopener,noreferrer");
                   }}
-                  className="w-full bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black py-2.5 rounded-lg text-xs font-mono font-bold uppercase transition cursor-pointer shadow-sm"
+                  className="w-full bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black py-2.5 rounded-lg text-xs font-mono font-bold uppercase transition cursor-pointer shadow-sm flex items-center justify-center gap-2"
                 >
-                  Migrar para este Plano
+                  <MessageCircle className="w-3.5 h-3.5" /> Solicitar Upgrade
                 </button>
               )}
             </div>
