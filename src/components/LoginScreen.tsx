@@ -10,8 +10,6 @@ interface LoginScreenProps {
 
 type ActiveRole = "medica" | "paciente" | "dev" | null;
 
-const DEV_PIN_ENV = (import.meta as any).env?.VITE_DEV_PIN || "";
-
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [active, setActive]     = useState<ActiveRole>(null);
   const [email, setEmail]       = useState("");
@@ -71,20 +69,41 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         setLoading(false);
         return;
       }
-      onLogin("paciente", data.id);
+      onLogin("paciente", data.id, data.token);
     } catch {
       setErrPac("Não foi possível conectar ao servidor. Tente novamente.");
     }
     setLoading(false);
   };
 
-  const handleDev = (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true);
-    setTimeout(() => {
-      if (DEV_PIN_ENV && pin === DEV_PIN_ENV) onLogin("dev");
-      else { setErrDev("PIN incorreto."); setPin(""); }
-      setLoading(false);
-    }, 400);
+  // Antes o PIN de desenvolvedor era comparado no navegador contra uma variável
+  // VITE_DEV_PIN — o Vite empacota qualquer env var com esse prefixo dentro do
+  // JS que vai pro navegador, então bastava abrir o DevTools > Sources e ler o
+  // PIN direto do bundle. Agora a checagem é feita no servidor
+  // (/api/auth/dev-login), que nunca expõe o PIN, só devolve um token de sessão
+  // se ele estiver correto.
+  const handleDev = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrDev("");
+    try {
+      const r = await fetch("/api/auth/dev-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setErrDev(data.error || "PIN incorreto.");
+        setPin("");
+        setLoading(false);
+        return;
+      }
+      onLogin("dev", data.nome, data.token);
+    } catch {
+      setErrDev("Não foi possível conectar ao servidor. Tente novamente.");
+    }
+    setLoading(false);
   };
 
   const formatCpf = (v: string) => {
