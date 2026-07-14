@@ -27,6 +27,7 @@ export const pacientes = pgTable('pacientes', {
   antecedentes: jsonb('antecedentes').notNull(),
   diagnostico: jsonb('diagnostico').notNull(),
   protocolo: jsonb('protocolo').notNull(),
+    tags: jsonb('tags').default([]),
 });
 
 export const consultas = pgTable('consultas', {
