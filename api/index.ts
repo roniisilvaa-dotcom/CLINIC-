@@ -15,6 +15,7 @@ import {
   pacotesVendidos,
   users,
     prescricoesTemplates,
+  transacoesFinanceiras,
 } from "../src/db/schema.js";
 import { eq, sql } from "drizzle-orm";
 
@@ -54,6 +55,19 @@ db.execute(sql`CREATE TABLE IF NOT EXISTS prescricoes_templates (
                 ]);
     }
 }).catch((e) => console.error("Migracao prescricoes falhou:", e));
+
+// Migracao automatica: cria a tabela de transacoes financeiras (faturamento e caixa)
+db.execute(sql`CREATE TABLE IF NOT EXISTS transacoes_financeiras (
+id text PRIMARY KEY,
+paciente_id text NOT NULL,
+paciente_nome text NOT NULL,
+data text NOT NULL,
+descricao text NOT NULL,
+valor double precision NOT NULL,
+metodo text NOT NULL,
+status text NOT NULL,
+unidade text NOT NULL
+)`).catch((e) => console.error("Migracao transacoes falhou:", e));
 
 // ─── Health ──────────────────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) => {
@@ -268,6 +282,46 @@ app.get("/api/pacotes", async (req, res) => {
 app.post("/api/pacotes", async (req, res) => {
   try {
     const result = await db.insert(pacotesVendidos).values(req.body).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put("/api/pacotes/:id", async (req, res) => {
+  try {
+    const result = await db.update(pacotesVendidos).set(req.body).where(eq(pacotesVendidos.id, req.params.id)).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Faturamento (transacoes financeiras) ─────────────────────────────────────
+app.get("/api/transacoes", async (req, res) => {
+  try {
+    const { pacienteId } = req.query;
+    const result = pacienteId
+    ? await db.select().from(transacoesFinanceiras).where(eq(transacoesFinanceiras.pacienteId, String(pacienteId)))
+      : await db.select().from(transacoesFinanceiras);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/transacoes", async (req, res) => {
+  try {
+    const result = await db.insert(transacoesFinanceiras).values(req.body).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put("/api/transacoes/:id", async (req, res) => {
+  try {
+    const result = await db.update(transacoesFinanceiras).set(req.body).where(eq(transacoesFinanceiras.id, req.params.id)).returning();
     res.json(result[0]);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
