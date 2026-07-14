@@ -318,9 +318,22 @@ export async function processarEventoWebhook(
 
           if (name === "check_availability") {
                     const resultado = await checkAvailability(args.data_inicio, args.data_fim);
+                    // BUG corrigido: essa segunda chamada usava session.historico "cru", que
+                    // ainda NÃO tinha a mensagem atual do paciente nem o turno em que a IA
+                    // decidiu checar a agenda — ou seja, a IA respondia "às cegas", sem saber
+                    // o que o paciente realmente tinha acabado de pedir (data, nome, CPF etc).
+                    // Isso fazia a Eduarda "esquecer" o que a pessoa disse e parecer não
+                    // entender, mesmo com o paciente repetindo a mesma frase várias vezes.
+                    // Agora incluímos o turno atual (mensagem do paciente + o "pensamento" da
+                    // IA de checar a agenda) antes de perguntar de novo pro Claude.
+                    const historicoComTurnoAtual: MensagemConversa[] = [
+                              ...session.historico,
+                              { role: "user", content: m.texto, timestamp: new Date().toISOString() },
+                              { role: "model", content: "Deixa eu ver os horários disponíveis pra você.", timestamp: new Date().toISOString() },
+                    ];
                     const resposta2 = await processarMensagem(
                                 `[Sistema] Resultado da agenda: ${resultado}`,
-                                session.historico,
+                                historicoComTurnoAtual,
                                 contexto || undefined
                               );
                     textoResposta = resposta2.texto || resultado;
