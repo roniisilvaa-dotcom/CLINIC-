@@ -34,6 +34,9 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 // Migracao automatica e idempotente: garante a coluna "tags" em pacientes (pedido do Igor)
 db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT '[]'::jsonb`).catch((e) => console.error("Migracao tags falhou:", e));
 
+// Migracao automatica: garante a coluna "horario" em galeria (fotos com data + hora exata)
+db.execute(sql`ALTER TABLE galeria ADD COLUMN IF NOT EXISTS horario text`).catch((e) => console.error("Migracao galeria.horario falhou:", e));
+
 // Migracao automatica: cria a tabela de templates de prescricoes e semeia com a biblioteca padrao
 db.execute(sql`CREATE TABLE IF NOT EXISTS prescricoes_templates (
   id text PRIMARY KEY,
@@ -223,7 +226,7 @@ app.post("/api/exames", async (req, res) => {
               res.status(500).json({ error: e.message });
         }
     });
-  
+
 // ─── Galeria ─────────────────────────────────────────────────────────────────
 app.get("/api/galeria", async (req, res) => {
   try {
@@ -241,6 +244,15 @@ app.post("/api/galeria", async (req, res) => {
   try {
     const result = await db.insert(galeria).values(req.body).returning();
     res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/galeria/:id", requireAuth, async (req, res) => {
+  try {
+    await db.delete(galeria).where(eq(galeria.id, req.params.id));
+    res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
