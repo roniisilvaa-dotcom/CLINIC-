@@ -18,7 +18,8 @@ import {
   Percent,
   Receipt,
   Loader2,
-  Zap
+  Zap,
+  Trash
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -67,6 +68,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
   const [loading, setLoading] = useState(true);
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const [abatendoId, setAbatendoId] = useState<string | null>(null);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
   // Form State
   const [showAddForm, setShowAddForm] = useState(false);
@@ -153,6 +155,25 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
       alert("Não foi possível confirmar o pagamento no servidor. Tente novamente.");
     } finally {
       setConfirmandoId(null);
+    }
+  };
+
+  const handleExcluirTransacao = async (tx: Transacao) => {
+    if (!window.confirm(`Excluir o lançamento "${tx.descricao}" (R$ ${tx.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})? Esta ação não pode ser desfeita.`)) return;
+    const token = localStorage.getItem("caro_clinic_token");
+    setExcluindoId(tx.id);
+    try {
+      const res = await fetch(`/api/transacoes/${tx.id}`, {
+        method: "DELETE",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error("Falha ao excluir lançamento");
+      setTransacoes(prev => prev.filter(t => t.id !== tx.id));
+    } catch (err) {
+      console.error("Erro ao excluir lançamento:", err);
+      alert("Não foi possível excluir o lançamento. Verifique se sua sessão ainda está ativa e tente novamente.");
+    } finally {
+      setExcluindoId(null);
     }
   };
 
@@ -540,12 +561,13 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
                 <th className="py-3 px-5">Unidade</th>
                 <th className="py-3 px-5">Valor bruto</th>
                 <th className="py-3 px-5">Status</th>
+                <th className="py-3 px-5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-150">
               {filteredTransacoes.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-gray-450 italic font-mono bg-white">
+                  <td colSpan={8} className="py-12 text-center text-gray-450 italic font-mono bg-white">
                     Nenhum lançamento financeiro corresponde aos filtros aplicados.
                   </td>
                 </tr>
@@ -593,6 +615,16 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
                           Cancelado
                         </span>
                       )}
+                    </td>
+                    <td className="py-3.5 px-5 text-right">
+                      <button
+                        onClick={() => handleExcluirTransacao(tx)}
+                        disabled={excluindoId === tx.id}
+                        className="text-gray-400 hover:text-red-500 disabled:opacity-40 p-1 rounded transition cursor-pointer"
+                        title="Excluir lançamento"
+                      >
+                        {excluindoId === tx.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
+                      </button>
                     </td>
                   </tr>
                 ))
