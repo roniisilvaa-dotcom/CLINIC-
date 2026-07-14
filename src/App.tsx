@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 import LoginScreen from "./components/LoginScreen";
@@ -162,18 +162,22 @@ export default function App() {
     }
   }, []);
 
-  // Carrega todos os dados clínicos completos (chamado após autenticação).
+  // Carrega os dados clínicos essenciais (chamado após autenticação).
+  // OBS: a Galeria Capilar (fotos em base64) fica de fora de propósito — ela é
+  // pesada (cada paciente pode ter várias fotos grandes) e a maioria das telas
+  // (Dashboard, Agenda, Financeiro, Prescrições...) nem usa isso. As fotos são
+  // buscadas sob demanda em carregarGaleriaPara(), só quando a tela que precisa
+  // delas é realmente aberta — assim o login e a navegação ficam leves.
   const carregarDadosCompletos = useCallback(async () => {
     setLoadingDados(true);
     try {
-      const [pacientesRaw, consultas, exames, galeriaFotos, agendaRaw] = await Promise.all([
+      const [pacientesRaw, consultas, exames, agendaRaw] = await Promise.all([
         api("/api/pacientes"),
         api("/api/consultas"),
         api("/api/exames"),
-        api("/api/galeria"),
         api("/api/agenda"),
       ]);
-      const completos = montarPacientesCompletos(pacientesRaw, consultas, exames, galeriaFotos);
+      const completos = montarPacientesCompletos(pacientesRaw, consultas, exames, []);
       setPacientes(completos);
       setAlertas(gerarAlertas(completos));
       setAgendaHoje(montarAgenda(agendaRaw, completos));
@@ -182,6 +186,34 @@ export default function App() {
     }
     setLoadingDados(false);
   }, []);
+
+  // Busca as fotos da Galeria Capilar sob demanda. Sem pacienteId, busca de
+  // todo mundo (usado na Galeria Capilar global); com pacienteId, busca só
+  // daquele paciente (usado no prontuário individual e no Portal do Paciente).
+  const galeriaCompletaCarregadaRef = useRef(false);
+  const carregarGaleriaPara = useCallback(async (pacienteId?: string) => {
+    try {
+      const url = pacienteId ? `/api/galeria?pacienteId=${pacienteId}` : "/api/galeria";
+      const galeriaFotos: any[] = await api(url);
+      setPacientes(prev => prev.map((p) => {
+        if (pacienteId && p.id !== pacienteId) return p;
+        return { ...p, galeria: galeriaFotos.filter((g) => g.pacienteId === p.id) };
+      }));
+      if (!pacienteId) galeriaCompletaCarregadaRef.current = true;
+    } catch (err) {
+      console.error("Erro ao carregar galeria:", err);
+    }
+  }, []);
+
+  // Carrega a galeria completa (de todos os pacientes) só quando a médica
+  // realmente abre uma tela que precisa dela — Pacientes (prontuário individual)
+  // ou Galeria Capilar (catálogo geral). Só busca uma vez por sessão.
+  useEffect(() => {
+    if (!isAuthenticated || userRole === "paciente") return;
+    if (currentTab !== "pacientes" && currentTab !== "galeria_capilar") return;
+    if (galeriaCompletaCarregadaRef.current) return;
+    carregarGaleriaPara();
+  }, [currentTab, isAuthenticated, userRole, carregarGaleriaPara]);
 
   // Ao montar: tenta restaurar sessão salva e busca a lista básica de pacientes.
   useEffect(() => {
@@ -215,6 +247,8 @@ export default function App() {
       if (found) setLoggedPacienteId(found.id);
       setIsAuthenticated(true);
       await carregarDadosCompletos();
+      // Paciente só precisa da própria galeria (leve) — não da de todo mundo.
+      if (found) await carregarGaleriaPara(found.id);
     } else {
       setIsAuthenticated(true);
       await carregarDadosCompletos();
