@@ -15,7 +15,7 @@ import {
   pacotesVendidos,
   users,
 } from "../src/db/schema.js";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const app = express();
 // Captura o corpo raw da requisição (necessário pra validar a assinatura X-Hub-Signature-256
@@ -28,6 +28,9 @@ app.use(express.json({
 }));
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+
+// Migracao automatica e idempotente: garante a coluna "tags" em pacientes (pedido do Igor)
+db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT '[]'::jsonb`).catch((e) => console.error("Migracao tags falhou:", e));
 
 // ─── Health ──────────────────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) => {
