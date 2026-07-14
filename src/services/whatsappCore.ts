@@ -9,7 +9,7 @@
  */
 import { db } from "../db/index.js";
 import { conversasWhatsapp, agendaEventos, pacientes } from "../db/schema.js";
-import { eq } from "drizzle-orm";
+import { eq, and, gte } from "drizzle-orm";
 import {
     processarMensagem,
     formatarNotificacaoDra,
@@ -21,12 +21,42 @@ import {
 
 const PAUSA_HANDOFF_MS = 60 * 60 * 1000;
 
+// ─── Controle de custo: teto mensal de mensagens respondidas pela IA ────────────
+// Protege contra custo de API descontrolado. Ao atingir o teto, a IA para de
+// responder automaticamente e o atendimento é transferido pra Dra. Mariah (humano)
+// até o próximo mês. Ajustável via env var sem precisar mexer no código.
+const LIMITE_MENSAL_IA_WHATSAPP = Number(process.env.LIMITE_MENSAL_IA_WHATSAPP || 1500);
+
+let cacheContagemIa: { mesAno: string; contagem: number; atualizadoEm: number } | null = null;
+
+async function limiteMensalAtingido(): Promise<boolean> {
+    const agora = new Date();
+    const mesAno = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}`;
+
+    // Só reconsulta o banco a cada 5 minutos (ou quando vira o mês) — evita bater
+    // no Postgres a cada mensagem só pra saber se o teto foi atingido.
+    if (!cacheContagemIa || cacheContagemIa.mesAno !== mesAno || Date.now() - cacheContagemIa.atualizadoEm > 5 * 60 * 1000) {
+          try {
+                  const inicioMes = `${mesAno}-01`;
+                  const doMes = await db.select({ id: conversasWhatsapp.id }).from(conversasWhatsapp)
+                    .where(and(eq(conversasWhatsapp.role, "ia"), gte(conversasWhatsapp.timestamp, inicioMes)));
+                  cacheContagemIa = { mesAno, contagem: doMes.length, atualizadoEm: Date.now() };
+          } catch {
+                  // Se a consulta falhar, não bloqueia a IA (fail-open) — melhor um mês
+                  // sem o teto funcionando do que travar o atendimento da clínica.
+                  return false;
+          }
+    }
+    return cacheContagemIa.contagem >= LIMITE_MENSAL_IA_WHATSAPP;
+}
+
 export const sessions = new Map<string, {
     historico: MensagemConversa[];
     dadosColeta: Record<string, any>;
     aguardandoPagamento?: boolean;
     pausadaAte?: number;
     pausaManual?: boolean;
+    avisoLimiteEnviado?: boolean;
     updatedAt: number;
 }>();
 
@@ -83,30 +113,6 @@ async function checkAvailability(dataInicio: string, _dataFim?: string): Promise
     }
 }
 
-async function ensurePaciente(telefone: string, args: Record<string, any>) {
-    try {
-        const pacienteId = `wpp_${telefone}`;
-        await db.insert(pacientes).values({
-            id: pacienteId,
-            nome: args.nome_paciente || "Paciente WhatsApp",
-            idade: 0,
-            dataNascimento: "Nao informado",
-            cpf: args.cpf || `sem-cpf-${telefone}`,
-            telefone,
-            email: args.email || `${telefone}@whatsapp.placeholder`,
-            cidade: args.cidade || "Nao informado",
-            comoConheceu: "WhatsApp",
-            queixaPrincipal: args.procedimento || "Agendamento via WhatsApp",
-            status: "Agendado via WhatsApp",
-            ultimaAtualizacao: new Date().toISOString(),
-            antecedentes: {},
-            diagnostico: {},
-            protocolo: {},
-        }).onConflictDoNothing({ target: pacientes.id });
-    } catch (err) {
-        console.error("Erro ao criar paciente via WhatsApp:", err);
-    }
-}
 async function createAppointment(
     args: Record<string, any>,
     telefone: string,
@@ -119,8 +125,6 @@ async function createAppointment(
                   const totalMin = h * 60 + m + 90;
                   return `${String(Math.floor(totalMin / 60)).padStart(2, "0")}:${String(totalMin % 60).padStart(2, "0")}`;
           })();
-
-        await ensurePaciente(telefone, args);
 
       await db.insert(agendaEventos).values({
               id,
@@ -231,6 +235,19 @@ export async function processarEventoWebhook(
       await salvarMensagem(telefone, "user", m.texto);
 
       if (iaEstaPausada(telefone)) {
+              continue;
+      }
+
+      // Teto mensal de custo: se atingido, para de chamar a IA e transfere pro
+      // atendimento humano da Dra. Mariah, avisando o paciente uma única vez.
+      if (await limiteMensalAtingido()) {
+              if (!session.avisoLimiteEnviado) {
+                        const aviso = "No momento nossa assistente virtual atingiu o limite de atendimentos automáticos do mês. Nossa equipe vai te responder em breve! 💜";
+                        await enviarMensagem(telefone, aviso);
+                        await salvarMensagem(telefone, "ia", aviso);
+                        session.avisoLimiteEnviado = true;
+              }
+              session.pausaManual = true;
               continue;
       }
 
