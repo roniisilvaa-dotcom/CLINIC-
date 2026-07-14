@@ -14,6 +14,7 @@ import {
   filaEspera,
   pacotesVendidos,
   users,
+    prescricoesTemplates,
 } from "../src/db/schema.js";
 import { eq, sql } from "drizzle-orm";
 
@@ -31,6 +32,28 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 // Migracao automatica e idempotente: garante a coluna "tags" em pacientes (pedido do Igor)
 db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT '[]'::jsonb`).catch((e) => console.error("Migracao tags falhou:", e));
+
+// Migracao automatica: cria a tabela de templates de prescricoes e semeia com a biblioteca padrao
+db.execute(sql`CREATE TABLE IF NOT EXISTS prescricoes_templates (
+  id text PRIMARY KEY,
+    titulo text NOT NULL,
+      diagnostico_ref text,
+        categoria text NOT NULL,
+          medicamentos text,
+            procedimentos text,
+              suplementacao text,
+                cosmeticos text
+                )`).then(async () => {
+    const existentes = await db.select().from(prescricoesTemplates).limit(1);
+    if (existentes.length === 0) {
+          await db.insert(prescricoesTemplates).values([
+            { id: "temp-1", titulo: "AAG Feminina Classica (Ludwig I e II)", diagnosticoRef: "Alopecia Androgenetica Feminina (FPHL)", categoria: "Medicamentoso", medicamentos: "Minoxidil oral 0.5mg a noite.\nEspironolactona 50mg pela manha.", procedimentos: "MMP Capilar quinzenal ou mensal.\nLaser de Baixa Potencia diario (Helmet).", suplementacao: "Silicio Organico 100mg + Biotina 5mg + L-Cistina 100mg.", cosmeticos: "Xampu antiqueda fitoterapico (Ginkgo Biloba e Cafeina).\nLocao tonica capilar com Capixyl aplicada a noite." },
+            { id: "temp-2", titulo: "AGA Masculina Estagio IV (Hamilton-Norwood)", diagnosticoRef: "Alopecia Androgenetica Masculina (AGA)", categoria: "Procedimentos", medicamentos: "Dutasterida 0.5mg a noite.\nMinoxidil oral 2.5mg pela manha.", procedimentos: "Microagulhamento Capilar Robotico mensal com Drug Delivery de Dutasterida e Fatores de Crescimento.", suplementacao: "Zinco quelato 30mg + Saw Palmetto extract 320mg a noite.", cosmeticos: "Xampu de Limpeza Seborregulador com Cetoconazol 2%." },
+            { id: "temp-3", titulo: "Efluvio Agudo Pos-Dengue ou Pos-Parto", diagnosticoRef: "Efluvio Telogeno Agudo", categoria: "Suplementação", medicamentos: "Evitar bloqueadores hormonais se houver lactacao.", procedimentos: "Laser terapeutico capilar de Baixa Potencia semanal em consultorio.", suplementacao: "Ferro Quelato 60mg + Vitamina D 5.000 UI diario + Omega 3 1g pos almoco.\nMetilfolato 1mg e Biotina 5mg.", cosmeticos: "Xampu suave com Pantenol e oleos essenciais remineralizantes." },
+            { id: "temp-4", titulo: "Dermatite Seborreica Ativa com Eritema", diagnosticoRef: "Dermatite Seborreica", categoria: "Cuidados Domiciliares", medicamentos: "Corticoide capilar em emulsao suave (maximo 5 dias se coceira cronica).", procedimentos: "Peeling capilar acido com acido salicilico 2% em consultorio.", suplementacao: "Zinco Quelado 30mg + Vitamina B6 50mg + L-Metionina 100mg pos-almoco.", cosmeticos: "Xampu de Cetoconazol alternado com Xampu de Piritionato de Zinco 1.5%." }
+                ]);
+    }
+}).catch((e) => console.error("Migracao prescricoes falhou:", e));
 
 // ─── Health ──────────────────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) => {
@@ -116,9 +139,47 @@ app.post("/api/exames", async (req, res) => {
     res.json(result[0]);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
+
   }
 });
 
+// ─── Prescricoes (biblioteca de templates) ────────────────────────────────────
+    app.get("/api/prescricoes", async (_req, res) => {
+        try {
+              const result = await db.select().from(prescricoesTemplates);
+              res.json(result);
+        } catch (e: any) {
+              res.status(500).json({ error: e.message });
+        }
+    });
+
+    app.post("/api/prescricoes", async (req, res) => {
+        try {
+              const result = await db.insert(prescricoesTemplates).values(req.body).returning();
+              res.json(result[0]);
+        } catch (e: any) {
+              res.status(500).json({ error: e.message });
+        }
+    });
+
+    app.put("/api/prescricoes/:id", async (req, res) => {
+        try {
+              const result = await db.update(prescricoesTemplates).set(req.body).where(eq(prescricoesTemplates.id, req.params.id)).returning();
+              res.json(result[0]);
+        } catch (e: any) {
+              res.status(500).json({ error: e.message });
+        }
+    });
+
+    app.delete("/api/prescricoes/:id", async (req, res) => {
+        try {
+              await db.delete(prescricoesTemplates).where(eq(prescricoesTemplates.id, req.params.id));
+              res.json({ ok: true });
+        } catch (e: any) {
+              res.status(500).json({ error: e.message });
+        }
+    });
+  
 // ─── Galeria ─────────────────────────────────────────────────────────────────
 app.get("/api/galeria", async (req, res) => {
   try {
