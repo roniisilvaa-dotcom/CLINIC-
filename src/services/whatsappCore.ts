@@ -75,6 +75,56 @@ export function iaEstaPausada(telefone: string): boolean {
     return false;
 }
 
+// ─── Envio fracionado de mensagens ──────────────────────────────────────────
+// A IA às vezes gera respostas longas (parágrafos inteiros), e receber isso como
+// um único balão gigante no WhatsApp fica estranho e difícil de ler — não é como
+// uma pessoa de verdade digita. Aqui a resposta é quebrada em pedaços menores
+// (por parágrafo e, se ainda estiver grande, por frase) e enviada como vários
+// balões curtos em sequência, com uma pequena pausa entre eles pra imitar o
+// ritmo natural de digitação.
+const LIMITE_CARACTERES_POR_BALAO = 280;
+
+function dividirMensagem(texto: string): string[] {
+    const blocos = texto.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+    if (blocos.length === 0) return [texto];
+
+    const partes: string[] = [];
+    for (const bloco of blocos) {
+          if (bloco.length <= LIMITE_CARACTERES_POR_BALAO) {
+                  partes.push(bloco);
+                  continue;
+          }
+          // Bloco grande demais pra um balão só: agrupa frase por frase até o limite.
+          const frases = bloco.split(/(?<=[.!?])\s+/);
+          let atual = "";
+          for (const frase of frases) {
+                    if (atual && (atual.length + frase.length + 1) > LIMITE_CARACTERES_POR_BALAO) {
+                                partes.push(atual.trim());
+                                atual = frase;
+                    } else {
+                                atual = atual ? `${atual} ${frase}` : frase;
+                    }
+          }
+          if (atual.trim()) partes.push(atual.trim());
+    }
+    return partes.length ? partes : [texto];
+}
+
+async function enviarMensagemFracionada(
+    telefone: string,
+    texto: string,
+    enviarMensagem: (telefone: string, mensagem: string) => Promise<boolean>,
+  ): Promise<void> {
+    const partes = dividirMensagem(texto);
+    for (let i = 0; i < partes.length; i++) {
+          await enviarMensagem(telefone, partes[i]);
+          if (i < partes.length - 1) {
+                  const pausa = 900 + Math.floor(Math.random() * 600);
+                  await new Promise((resolve) => setTimeout(resolve, pausa));
+          }
+    }
+}
+
 async function checkAvailability(dataInicio: string, _dataFim?: string): Promise<string> {
     try {
           const hoje = new Date().toISOString().slice(0, 10);
@@ -218,13 +268,13 @@ export async function processarEventoWebhook(
                                 data: session.dadosColeta.data,
                                 horario: session.dadosColeta.horario,
                     });
-                    await enviarMensagem(telefone, confirmacao);
+                    await enviarMensagemFracionada(telefone, confirmacao, enviarMensagem);
                     await salvarMensagem(telefone, "ia", confirmacao);
                     session.aguardandoPagamento = false;
                     session.historico = [];
           } else {
                     const aviso = "Recebi sua imagem! Pode me contar mais sobre o que você precisa? 💜";
-                    await enviarMensagem(telefone, aviso);
+                    await enviarMensagemFracionada(telefone, aviso, enviarMensagem);
                     await salvarMensagem(telefone, "ia", aviso);
           }
               continue;
@@ -243,7 +293,7 @@ export async function processarEventoWebhook(
       if (await limiteMensalAtingido()) {
               if (!session.avisoLimiteEnviado) {
                         const aviso = "No momento nossa assistente virtual atingiu o limite de atendimentos automáticos do mês. Nossa equipe vai te responder em breve! 💜";
-                        await enviarMensagem(telefone, aviso);
+                        await enviarMensagemFracionada(telefone, aviso, enviarMensagem);
                         await salvarMensagem(telefone, "ia", aviso);
                         session.avisoLimiteEnviado = true;
               }
@@ -312,7 +362,7 @@ export async function processarEventoWebhook(
         if (session.historico.length > 20) session.historico = session.historico.slice(-20);
 
       if (textoResposta) {
-              await enviarMensagem(telefone, textoResposta);
+              await enviarMensagemFracionada(telefone, textoResposta, enviarMensagem);
               await salvarMensagem(telefone, "ia", textoResposta);
       }
   }
