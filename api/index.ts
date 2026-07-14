@@ -69,6 +69,20 @@ status text NOT NULL,
 unidade text NOT NULL
 )`).catch((e) => console.error("Migracao transacoes falhou:", e));
 
+// Middleware: exige sessao valida (Bearer token) para operacoes destrutivas
+async function requireAuth(req: any, res: any, next: any) {
+  try {
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    if (!token) return res.status(401).json({ error: "Autenticacao necessaria" });
+    const result = await db.select().from(users).where(eq(users.sessionToken, token));
+    if (!result.length) return res.status(401).json({ error: "Sessao invalida" });
+    next();
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
 // ─── Health ──────────────────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
@@ -107,6 +121,22 @@ app.put("/api/pacientes/:id", async (req, res) => {
   try {
     const result = await db.update(pacientes).set(req.body).where(eq(pacientes.id, req.params.id)).returning();
     res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/pacientes/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.delete(consultas).where(eq(consultas.pacienteId, id));
+    await db.delete(exames).where(eq(exames.pacienteId, id));
+    await db.delete(galeria).where(eq(galeria.pacienteId, id));
+    await db.delete(agendaEventos).where(eq(agendaEventos.pacienteId, id));
+    await db.delete(pacotesVendidos).where(eq(pacotesVendidos.pacienteId, id));
+    await db.delete(filaEspera).where(eq(filaEspera.pacienteId, id));
+    await db.delete(pacientes).where(eq(pacientes.id, id));
+    res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -323,6 +353,15 @@ app.put("/api/transacoes/:id", async (req, res) => {
   try {
     const result = await db.update(transacoesFinanceiras).set(req.body).where(eq(transacoesFinanceiras.id, req.params.id)).returning();
     res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/transacoes/:id", requireAuth, async (req, res) => {
+  try {
+    await db.delete(transacoesFinanceiras).where(eq(transacoesFinanceiras.id, req.params.id));
+    res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
