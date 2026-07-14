@@ -95,11 +95,13 @@ export function iaEstaPausada(telefone: string): boolean {
 // ─── Envio fracionado de mensagens ──────────────────────────────────────────
 // A IA às vezes gera respostas longas, e receber isso como um único balão gigante
 // no WhatsApp fica estranho e difícil de ler — não é como uma pessoa de verdade
-// digita. Aqui a resposta é quebrada por FRASE (cada frase vira um balão), que é
-// como alguém digitando de verdade manda mensagem — só junta frases bem curtas
-// (tipo "Perfeito!") na frase seguinte pra não virar um balão de uma palavra só.
-const LIMITE_CARACTERES_POR_BALAO = 150;
-const LIMITE_FRASE_CURTA = 30;
+// digita. Mas fracionar DEMAIS (uma frase por balão) também não parece natural —
+// uma pessoa real geralmente manda 1-2 frases por mensagem, não uma enxurrada de
+// balões picados. Aqui agrupamos frases até chegar perto do limite por balão, e
+// só quebramos quando o bloco realmente fica grande. Listas (ex: horários
+// numerados) ficam juntas num único balão, como alguém mandaria um cardápio de
+// opções de uma vez, não item por item.
+const LIMITE_CARACTERES_POR_BALAO = 220;
 
 function dividirMensagem(texto: string): string[] {
     const blocos = texto.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
@@ -107,17 +109,27 @@ function dividirMensagem(texto: string): string[] {
 
     const partes: string[] = [];
     for (const bloco of blocos) {
-          // Quebra o bloco em linhas primeiro (preserva listas de horários, por exemplo),
-          // e cada linha em frases.
           const linhas = bloco.split(/\n/).map(l => l.trim()).filter(Boolean);
+
+      // Listas (ex: horários numerados "1. Seg 14/07 às 08:00") ficam juntas num
+          // único balão — é assim que uma pessoa de verdade mandaria uma lista de
+          // opções, não linha por linha.
+          const pareceLista = linhas.length > 1 &&
+            linhas.filter(l => /^\d+[.)]/.test(l)).length >= Math.ceil(linhas.length * 0.6);
+          if (pareceLista) {
+                  partes.push(linhas.join("\n"));
+                  continue;
+          }
+
+      // Agrupa frases até chegar perto do limite, em vez de isolar cada frase —
+          // fica com a cadência de alguém digitando de verdade (1-2 frases por balão).
           for (const linha of linhas) {
                     const frases = linha.split(/(?<=[.!?])\s+/).map(f => f.trim()).filter(Boolean);
                     let atual = "";
                     for (const frase of frases) {
-                              const juntaria = atual ? `${atual} ${frase}` : frase;
-                              const podeJuntar = atual && (atual.length < LIMITE_FRASE_CURTA || frase.length < LIMITE_FRASE_CURTA) && juntaria.length <= LIMITE_CARACTERES_POR_BALAO;
-                              if (podeJuntar) {
-                                            atual = juntaria;
+                              const candidato = atual ? `${atual} ${frase}` : frase;
+                              if (candidato.length <= LIMITE_CARACTERES_POR_BALAO) {
+                                            atual = candidato;
                               } else {
                                             if (atual) partes.push(atual);
                                             atual = frase;
