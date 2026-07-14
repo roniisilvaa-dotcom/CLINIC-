@@ -9,15 +9,30 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  X,
+  Loader2,
+  Clock,
 } from "lucide-react";
 import { EventoAgenda, Paciente } from "../types";
+
+interface NovoEventoPayload {
+  pacienteId: string;
+  data: string;
+  horario: string;
+  tipo: EventoAgenda["tipo"];
+  procedimentoTag: string;
+  duracaoMinutos: number;
+  status: EventoAgenda["status"];
+  diagnosticoResumo?: string;
+}
 
 interface AgendaModuloProps {
   agendaHoje: EventoAgenda[];
   pacientes: Paciente[];
   onViewPaciente: (pacienteId: string) => void;
   onOpenNovaConsulta: (pacienteId: string) => void;
+  onCreateEvento?: (dados: NovoEventoPayload) => Promise<void> | void;
 }
 
 const MESES = [
@@ -36,7 +51,8 @@ export default function AgendaModulo({
   agendaHoje,
   pacientes,
   onViewPaciente,
-  onOpenNovaConsulta
+  onOpenNovaConsulta,
+  onCreateEvento
 }: AgendaModuloProps) {
 
   const hoje = new Date();
@@ -44,6 +60,16 @@ export default function AgendaModulo({
   const [viewMonth, setViewMonth] = useState(hoje.getMonth());
   const [viewYear, setViewYear] = useState(hoje.getFullYear());
   const [selectedDate, setSelectedDate] = useState(toISODate(hoje));
+
+  // Novo agendamento (modal do botão "+")
+  const [showNovoModal, setShowNovoModal] = useState(false);
+  const [salvandoEvento, setSalvandoEvento] = useState(false);
+  const [formPacienteId, setFormPacienteId] = useState("");
+  const [formData, setFormData] = useState(selectedDate);
+  const [formHorario, setFormHorario] = useState("09:00");
+  const [formTipo, setFormTipo] = useState<EventoAgenda["tipo"]>("Presencial - Toledo");
+  const [formProcedimento, setFormProcedimento] = useState("");
+  const [formDuracao, setFormDuracao] = useState(30);
 
   // Datas (YYYY-MM-DD) que têm pelo menos um evento agendado — usado pra desenhar
   // o pontinho no calendário.
@@ -70,6 +96,20 @@ export default function AgendaModulo({
     return cells;
   }, [viewMonth, viewYear]);
 
+  // Resumo do mês visível — deixa a agenda mais informativa de relance.
+  const resumoMes = useMemo(() => {
+    const doMes = agendaHoje.filter(ev => {
+      const [ano, mes] = ev.data.split("-").map(Number);
+      return ano === viewYear && mes === viewMonth + 1;
+    });
+    return {
+      total: doMes.length,
+      confirmadas: doMes.filter(e => e.status === "Confirmada").length,
+      pendentes: doMes.filter(e => e.status === "Pendente").length,
+      realizadas: doMes.filter(e => e.status === "Realizada").length,
+    };
+  }, [agendaHoje, viewMonth, viewYear]);
+
   const irParaMesAnterior = () => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
     else setViewMonth(m => m - 1);
@@ -82,6 +122,42 @@ export default function AgendaModulo({
     setViewMonth(hoje.getMonth());
     setViewYear(hoje.getFullYear());
     setSelectedDate(toISODate(hoje));
+  };
+
+  const abrirNovoAgendamento = () => {
+    setFormPacienteId(pacientes[0]?.id || "");
+    setFormData(selectedDate);
+    setFormHorario("09:00");
+    setFormTipo("Presencial - Toledo");
+    setFormProcedimento("");
+    setFormDuracao(30);
+    setShowNovoModal(true);
+  };
+
+  const salvarNovoAgendamento = async () => {
+    if (!formPacienteId || !formData || !formHorario) {
+      alert("Selecione o paciente, a data e o horário para criar o agendamento.");
+      return;
+    }
+    setSalvandoEvento(true);
+    try {
+      await onCreateEvento?.({
+        pacienteId: formPacienteId,
+        data: formData,
+        horario: formHorario,
+        tipo: formTipo,
+        procedimentoTag: formProcedimento || "Consulta",
+        duracaoMinutos: formDuracao,
+        status: "Pendente",
+        diagnosticoResumo: formProcedimento,
+      });
+      setShowNovoModal(false);
+    } catch (err) {
+      console.error("Erro ao criar agendamento:", err);
+      alert("Não foi possível criar o agendamento. Tente novamente.");
+    } finally {
+      setSalvandoEvento(false);
+    }
   };
 
   const filteredEvents = agendaHoje
@@ -102,6 +178,8 @@ export default function AgendaModulo({
       case "Cancelada":
         return "bg-red-50 text-red-700 border border-red-200/50";
       case "Realizada":
+        return "bg-gray-100 text-gray-600 border border-gray-200";
+      default:
         return "bg-gray-100 text-gray-600 border border-gray-200";
     }
   };
@@ -124,25 +202,54 @@ export default function AgendaModulo({
           </p>
         </div>
 
-        <div className="flex bg-white border border-gray-200 shadow-sm p-1 rounded-lg">
-          {[
-            { id: "all", label: "Geral" },
-            { id: "Toledo", label: "Toledo" },
-            { id: "Fátima do Sul", label: "Fátima do Sul" },
-            { id: "Online", label: "TeleConsulta" },
-          ].map(unit => (
-            <button
-              key={unit.id}
-              onClick={() => setActiveUnit(unit.id as any)}
-              className={`px-3 py-1.5 text-xs font-mono uppercase tracking-wider rounded transition cursor-pointer ${
-                activeUnit === unit.id
-                  ? "bg-[#C9A84C] text-black font-semibold"
-                  : "text-gray-500 hover:text-[#0A0A0A]"
-              }`}
-            >
-              {unit.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex bg-white border border-gray-200 shadow-sm p-1 rounded-lg">
+            {[
+              { id: "all", label: "Geral" },
+              { id: "Toledo", label: "Toledo" },
+              { id: "Fátima do Sul", label: "Fátima do Sul" },
+              { id: "Online", label: "TeleConsulta" },
+            ].map(unit => (
+              <button
+                key={unit.id}
+                onClick={() => setActiveUnit(unit.id as any)}
+                className={`px-3 py-1.5 text-xs font-mono uppercase tracking-wider rounded transition cursor-pointer ${
+                  activeUnit === unit.id
+                    ? "bg-[#C9A84C] text-black font-semibold"
+                    : "text-gray-500 hover:text-[#0A0A0A]"
+                }`}
+              >
+                {unit.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={abrirNovoAgendamento}
+            className="bg-[#0A0A0A] hover:bg-[#C9A84C] text-white hover:text-black text-xs font-mono font-bold uppercase tracking-wider px-3.5 py-2.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> Novo Agendamento
+          </button>
+        </div>
+      </div>
+
+      {/* Resumo do mês — deixa a agenda mais informativa/atrativa de relance */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-4">
+          <span className="text-[10px] uppercase tracking-wider text-gray-400 font-mono font-bold block">Agendamentos no Mês</span>
+          <span className="text-2xl font-serif text-[#0A0A0A] block mt-1">{resumoMes.total}</span>
+        </div>
+        <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-4">
+          <span className="text-[10px] uppercase tracking-wider text-gray-400 font-mono font-bold block">Confirmadas</span>
+          <span className="text-2xl font-serif text-green-600 block mt-1">{resumoMes.confirmadas}</span>
+        </div>
+        <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-4">
+          <span className="text-[10px] uppercase tracking-wider text-gray-400 font-mono font-bold block">Pendentes</span>
+          <span className="text-2xl font-serif text-amber-600 block mt-1">{resumoMes.pendentes}</span>
+        </div>
+        <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-4">
+          <span className="text-[10px] uppercase tracking-wider text-gray-400 font-mono font-bold block">Realizadas</span>
+          <span className="text-2xl font-serif text-gray-500 block mt-1">{resumoMes.realizadas}</span>
         </div>
       </div>
 
@@ -216,7 +323,11 @@ export default function AgendaModulo({
               <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl text-[#0A0A0A] capitalize">
                 {nomeSelecionado}
               </h3>
-              <button className="bg-[#0A0A0A] text-white p-2 rounded-full hover:bg-[#333] transition cursor-pointer">
+              <button
+                onClick={abrirNovoAgendamento}
+                title="Adicionar novo agendamento neste dia"
+                className="bg-[#0A0A0A] text-white p-2 rounded-full hover:bg-[#C9A84C] hover:text-black transition cursor-pointer"
+              >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
@@ -225,6 +336,12 @@ export default function AgendaModulo({
               <div className="text-center py-10">
                 <CalendarIcon className="w-10 h-10 text-gray-200 mx-auto mb-3" />
                 <p className="text-sm text-gray-400 font-medium">Nenhum agendamento para este dia.</p>
+                <button
+                  onClick={abrirNovoAgendamento}
+                  className="mt-4 text-[11px] uppercase font-mono font-bold tracking-wider text-[#C9A84C] hover:underline cursor-pointer"
+                >
+                  + Adicionar agendamento
+                </button>
               </div>
             ) : (
               <div className="space-y-4">
@@ -289,6 +406,132 @@ export default function AgendaModulo({
           </div>
         </div>
       </div>
+
+      {/* Modal: Novo Agendamento */}
+      <AnimatePresence>
+        {showNovoModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowNovoModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.97 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-5"
+            >
+              <div className="flex justify-between items-center border-b border-gray-100 pb-4">
+                <h3 style={{ fontFamily: "Georgia, serif" }} className="text-xl text-[#0A0A0A]">Novo Agendamento</h3>
+                <button onClick={() => setShowNovoModal(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-mono font-bold block mb-1.5">Paciente</label>
+                  <select
+                    value={formPacienteId}
+                    onChange={(e) => setFormPacienteId(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-[#C9A84C]"
+                  >
+                    <option value="">Selecione um paciente</option>
+                    {pacientes.map(p => (
+                      <option key={p.id} value={p.id}>{p.nome}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-gray-500 font-mono font-bold block mb-1.5">Data</label>
+                    <input
+                      type="date"
+                      value={formData}
+                      onChange={(e) => setFormData(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-[#C9A84C]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-gray-500 font-mono font-bold block mb-1.5">Horário</label>
+                    <input
+                      type="time"
+                      value={formHorario}
+                      onChange={(e) => setFormHorario(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-[#C9A84C]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-gray-500 font-mono font-bold block mb-1.5">Tipo</label>
+                    <select
+                      value={formTipo}
+                      onChange={(e) => setFormTipo(e.target.value as EventoAgenda["tipo"])}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-[#C9A84C]"
+                    >
+                      <option value="Presencial - Toledo">Presencial - Toledo</option>
+                      <option value="Presencial - Fátima do Sul">Presencial - Fátima do Sul</option>
+                      <option value="Online">Online</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-gray-500 font-mono font-bold block mb-1.5">Duração (min)</label>
+                    <input
+                      type="number"
+                      min={15}
+                      step={15}
+                      value={formDuracao}
+                      onChange={(e) => setFormDuracao(Number(e.target.value) || 30)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-[#C9A84C]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-mono font-bold block mb-1.5">Motivo / Procedimento</label>
+                  <input
+                    type="text"
+                    value={formProcedimento}
+                    onChange={(e) => setFormProcedimento(e.target.value)}
+                    placeholder="Ex: Consulta de retorno, avaliação inicial..."
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-[#C9A84C]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowNovoModal(false)}
+                  className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-lg text-xs font-mono font-bold uppercase hover:bg-gray-50 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={salvarNovoAgendamento}
+                  disabled={salvandoEvento}
+                  className="flex-1 bg-[#0A0A0A] hover:bg-[#C9A84C] disabled:opacity-60 text-white hover:text-black py-2.5 rounded-lg text-xs font-mono font-bold uppercase transition cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {salvandoEvento ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="w-3.5 h-3.5" /> Confirmar Agendamento
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
