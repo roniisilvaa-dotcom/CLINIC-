@@ -3,6 +3,7 @@ import whatsappEvolutionRouter from '../src/routes/whatsappEvolution.js';
 import remarketingRouter from '../src/routes/remarketing.js';
 import adminResetRouter from '../src/routes/adminReset.js';
 import express from "express";
+import crypto from "crypto";
 import { GoogleGenAI } from "@google/genai";
 import { db } from "../src/db/index.js";
 import {
@@ -18,6 +19,7 @@ import {
   transacoesFinanceiras,
 } from "../src/db/schema.js";
 import { eq, sql } from "drizzle-orm";
+import { hashSenha, verificarSenha, senhaEstaEmTextoPuro } from "../src/lib/senha.js";
 
 const app = express();
 // Captura o corpo raw da requisição (necessário pra validar a assinatura X-Hub-Signature-256
@@ -164,6 +166,7 @@ app.post("/api/consultas", async (req, res) => {
     res.json(result[0]);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
+
   }
 });
 
@@ -381,7 +384,9 @@ app.delete("/api/transacoes/:id", requireAuth, async (req, res) => {
 
 // ─── Auth (login simples) ────────────────────────────────────────────────────
 function gerarToken() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  // Antes usava Math.random() + Date.now() (previsível/não-criptográfico).
+  // Agora gera 32 bytes aleatórios de fonte criptográfica real.
+  return crypto.randomBytes(32).toString("hex");
 }
 
 app.post("/api/auth/login", async (req, res) => {
@@ -390,10 +395,35 @@ app.post("/api/auth/login", async (req, res) => {
     const result = await db.select().from(users).where(eq(users.email, email));
     if (!result.length) return res.status(401).json({ error: "E-mail nao encontrado" });
     const user = result[0];
-    if (user.senhaHash !== senha) return res.status(401).json({ error: "Senha incorreta" });
+    if (!verificarSenha(senha, user.senhaHash)) return res.status(401).json({ error: "Senha incorreta" });
+    // Migração transparente: se a senha ainda estava salva em texto puro (formato
+    // antigo), re-hasheia e salva no formato novo agora que sabemos que está correta.
+    if (senhaEstaEmTextoPuro(user.senhaHash)) {
+      await db.update(users).set({ senhaHash: hashSenha(senha) }).where(eq(users.id, user.id));
+    }
     const token = gerarToken();
     await db.update(users).set({ sessionToken: token }).where(eq(users.id, user.id));
     res.json({ token, id: user.id, nome: user.nome, role: user.role });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Login de paciente por CPF: valida no servidor e devolve só {id, nome} do
+// paciente encontrado. Antes, o app baixava a lista COMPLETA de pacientes
+// (CPF, diagnóstico, exames, tudo) pro navegador de QUALQUER visitante, mesmo
+// sem fazer login, só pra permitir essa checagem no lado do cliente — qualquer
+// pessoa que abrisse o site conseguia ver os dados de todos os pacientes pelo
+// DevTools. Agora a checagem acontece aqui no servidor, e nada sensível sai
+// dele além do id e nome da própria pessoa que está entrando.
+app.post("/api/auth/paciente-login", async (req, res) => {
+  try {
+    const cpfLimpo = String(req.body?.cpf || "").replace(/\D/g, "");
+    if (cpfLimpo.length !== 11) return res.status(400).json({ error: "CPF inválido" });
+    const todos = await db.select({ id: pacientes.id, nome: pacientes.nome, cpf: pacientes.cpf }).from(pacientes);
+    const found = todos.find((p) => (p.cpf || "").replace(/\D/g, "") === cpfLimpo);
+    if (!found) return res.status(404).json({ error: "CPF não encontrado. Verifique com a clínica." });
+    res.json({ id: found.id, nome: found.nome });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
