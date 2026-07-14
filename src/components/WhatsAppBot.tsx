@@ -355,15 +355,21 @@ export default function WhatsAppBot() {
 
                   <AnimatePresence>
                     {conversaSelecionada?.telefone === c.telefone && (
-                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-4 border-t border-neutral-100 pt-4 space-y-2 overflow-hidden">
-                        {c.mensagens.slice(-6).map((m, j) => (
-                          <div key={j} className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}>
-                            <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${m.role === "user" ? "bg-neutral-100 text-neutral-700" : "bg-[#25D366]/10 text-neutral-800"}`}>
-                              <p className="text-[10px] text-neutral-400 mb-0.5 font-medium">{m.role === "user" ? "Paciente" : "IA"}</p>
-                              {m.conteudo}
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-4 border-t border-neutral-100 pt-4 overflow-hidden">
+                        {/* Conversa completa (não só as últimas mensagens), com rolagem própria e
+                            quebra de linha correta — antes o texto ficava sem "whitespace-pre-wrap"
+                            e só as últimas 6 mensagens apareciam, dando a impressão de mensagem
+                            cortada e de conversa incompleta. */}
+                        <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1" onClick={(e) => e.stopPropagation()}>
+                          {c.mensagens.map((m, j) => (
+                            <div key={j} className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}>
+                              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap break-words ${m.role === "user" ? "bg-neutral-100 text-neutral-700" : "bg-[#25D366]/10 text-neutral-800"}`}>
+                                <p className="text-[10px] text-neutral-400 mb-0.5 font-medium">{m.role === "user" ? "Paciente" : "IA"}</p>
+                                {m.conteudo}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
