@@ -151,6 +151,31 @@ export default function App() {
 
   const activePacienteForConsulta = pacientes.find(p => p.id === selectedPacienteId) || null;
 
+  // Algumas telas (Financeiro, Prescrições, IA Assistente, Nova Consulta, o
+  // próprio módulo de Pacientes) fazem fetch("/api/...") direto, sem passar
+  // pelo helper api() daqui de cima — então não anexam o header Authorization
+  // sozinhas. Como o backend agora exige sessão válida em quase todas as rotas
+  // de dados (ver requireStaff/requireStaffOrOwnPaciente em api/index.ts), esse
+  // patch garante que TODO fetch para a própria API (mesma origem, path
+  // começando com /api/) carregue o token salvo, não importa qual componente
+  // disparou a chamada — sem precisar caçar e editar cada fetch() um por um.
+  useEffect(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.startsWith("/api/")) {
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (token) {
+          const headers = new Headers(init.headers || (typeof input === "object" && !(input instanceof URL) ? (input as Request).headers : undefined));
+          if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
+          init = { ...init, headers };
+        }
+      }
+      return originalFetch(input, init);
+    };
+    return () => { window.fetch = originalFetch; };
+  }, []);
+
   // Carrega os dados clínicos essenciais (chamado após autenticação).
   // OBS: a Galeria Capilar (fotos em base64) fica de fora de propósito — ela é
   // pesada (cada paciente pode ter várias fotos grandes) e a maioria das telas
@@ -172,6 +197,30 @@ export default function App() {
       setAgendaHoje(montarAgenda(agendaRaw, completos));
     } catch (err) {
       console.error("Erro ao carregar dados clínicos:", err);
+    }
+    setLoadingDados(false);
+  }, []);
+
+  // Versão escopada de carregarDadosCompletos, usada quando quem loga é um
+  // paciente. Antes, o portal do paciente também chamava carregarDadosCompletos()
+  // — ou seja, o navegador de QUALQUER paciente baixava os dados de TODOS os
+  // pacientes da clínica (nome, CPF, diagnóstico, consultas) e só filtrava pro
+  // próprio no cliente; qualquer um com login válido conseguia ver os dados de
+  // outros pacientes inspecionando as respostas de rede pelo DevTools. Agora o
+  // paciente só pede (e o servidor só entrega, via requireStaffOrOwnPaciente)
+  // o próprio registro, as próprias consultas e os próprios exames.
+  const carregarDadosPaciente = useCallback(async (pacienteId: string) => {
+    setLoadingDados(true);
+    try {
+      const [pacienteRaw, minhasConsultas, meusExames] = await Promise.all([
+        api(`/api/pacientes/${pacienteId}`),
+        api(`/api/consultas?pacienteId=${pacienteId}`),
+        api(`/api/exames?pacienteId=${pacienteId}`),
+      ]);
+      const completos = montarPacientesCompletos([pacienteRaw], minhasConsultas, meusExames, []);
+      setPacientes(completos);
+    } catch (err) {
+      console.error("Erro ao carregar dados do paciente:", err);
     }
     setLoadingDados(false);
   }, []);
@@ -204,30 +253,41 @@ export default function App() {
     carregarGaleriaPara();
   }, [currentTab, isAuthenticated, userRole, carregarGaleriaPara]);
 
-  // Ao montar: tenta restaurar sessão salva (só da médica, que usa token real).
-  // Antes essa checagem também baixava a lista COMPLETA de pacientes (CPF,
-  // diagnóstico, tudo) pro navegador de QUALQUER visitante do site, mesmo sem
-  // login nenhum — só pra permitir a checagem de CPF no portal do paciente ser
-  // feita no cliente. Isso saiu daqui: o login de paciente agora valida o CPF
-  // no servidor (/api/auth/paciente-login, em LoginScreen.tsx), então nenhum
-  // dado de paciente é baixado antes de alguém realmente se autenticar.
+  // Ao montar: tenta restaurar sessão salva, pra qualquer um dos três papéis —
+  // medica/dev e paciente agora têm token real (ver /api/auth/login,
+  // /api/auth/dev-login e /api/auth/paciente-login). Antes essa checagem
+  // também baixava a lista COMPLETA de pacientes (CPF, diagnóstico, tudo) pro
+  // navegador de QUALQUER visitante do site, mesmo sem login nenhum — só pra
+  // permitir a checagem de CPF no portal do paciente ser feita no cliente.
+  // Isso saiu daqui: o login de paciente agora valida o CPF no servidor
+  // (/api/auth/paciente-login, em LoginScreen.tsx), então nenhum dado de
+  // paciente é baixado antes de alguém realmente se autenticar — e mesmo
+  // depois de autenticado, um paciente só recebe os PRÓPRIOS dados
+  // (ver carregarDadosPaciente).
   useEffect(() => {
     (async () => {
       const token = localStorage.getItem(TOKEN_KEY);
       if (token) {
         try {
           const me = await api("/api/auth/me");
-          setUserRole("medica");
-          setMedicaNome(me.nome);
-          setIsAuthenticated(true);
-          await carregarDadosCompletos();
+          setUserRole(me.role);
+          if (me.role === "paciente") {
+            setLoggedPacienteId(me.id);
+            setIsAuthenticated(true);
+            await carregarDadosPaciente(me.id);
+            await carregarGaleriaPara(me.id);
+          } else {
+            setMedicaNome(me.nome);
+            setIsAuthenticated(true);
+            await carregarDadosCompletos();
+          }
         } catch {
           localStorage.removeItem(TOKEN_KEY);
         }
       }
       setCheckingSession(false);
     })();
-  }, [carregarDadosCompletos]);
+  }, [carregarDadosCompletos, carregarDadosPaciente, carregarGaleriaPara]);
 
   const handleLogin = async (role: "medica" | "paciente" | "dev", data?: string, token?: string) => {
     setUserRole(role);
@@ -239,13 +299,20 @@ export default function App() {
     } else if (role === "paciente" && data) {
       // "data" já vem como o id do paciente, resolvido no servidor pelo CPF
       // (ver /api/auth/paciente-login) — não precisa mais procurar numa lista
-      // pré-carregada no cliente.
+      // pré-carregada no cliente. "token" é a sessão desse paciente — sem ele,
+      // as chamadas seguintes (consultas/exames/galeria) seriam recusadas pelo
+      // servidor (ver requireStaffOrOwnPaciente em api/index.ts).
+      if (token) localStorage.setItem(TOKEN_KEY, token);
       setLoggedPacienteId(data);
       setIsAuthenticated(true);
-      await carregarDadosCompletos();
-      // Paciente só precisa da própria galeria (leve) — não da de todo mundo.
+      // Escopado: só os dados do próprio paciente, nunca a lista completa.
+      await carregarDadosPaciente(data);
       await carregarGaleriaPara(data);
     } else {
+      // Desenvolvedor: agora também autentica no servidor (/api/auth/dev-login,
+      // em LoginScreen.tsx) e recebe um token de sessão real, em vez do PIN
+      // ser comparado no navegador contra uma env var exposta no bundle.
+      if (token) localStorage.setItem(TOKEN_KEY, token);
       setIsAuthenticated(true);
       await carregarDadosCompletos();
     }
