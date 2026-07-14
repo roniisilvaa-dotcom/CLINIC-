@@ -151,17 +151,6 @@ export default function App() {
 
   const activePacienteForConsulta = pacientes.find(p => p.id === selectedPacienteId) || null;
 
-  // Carrega a lista básica de pacientes (necessária mesmo antes do login, para
-  // validar o CPF no portal do paciente).
-  const carregarPacientesBasico = useCallback(async () => {
-    try {
-      const raw = await api("/api/pacientes");
-      setPacientes((prev) => (prev.length ? prev : montarPacientesCompletos(raw, [], [], [])));
-    } catch {
-      // silencioso: tela de login ainda funciona, só o CPF não vai bater
-    }
-  }, []);
-
   // Carrega os dados clínicos essenciais (chamado após autenticação).
   // OBS: a Galeria Capilar (fotos em base64) fica de fora de propósito — ela é
   // pesada (cada paciente pode ter várias fotos grandes) e a maioria das telas
@@ -215,10 +204,15 @@ export default function App() {
     carregarGaleriaPara();
   }, [currentTab, isAuthenticated, userRole, carregarGaleriaPara]);
 
-  // Ao montar: tenta restaurar sessão salva e busca a lista básica de pacientes.
+  // Ao montar: tenta restaurar sessão salva (só da médica, que usa token real).
+  // Antes essa checagem também baixava a lista COMPLETA de pacientes (CPF,
+  // diagnóstico, tudo) pro navegador de QUALQUER visitante do site, mesmo sem
+  // login nenhum — só pra permitir a checagem de CPF no portal do paciente ser
+  // feita no cliente. Isso saiu daqui: o login de paciente agora valida o CPF
+  // no servidor (/api/auth/paciente-login, em LoginScreen.tsx), então nenhum
+  // dado de paciente é baixado antes de alguém realmente se autenticar.
   useEffect(() => {
     (async () => {
-      await carregarPacientesBasico();
       const token = localStorage.getItem(TOKEN_KEY);
       if (token) {
         try {
@@ -233,7 +227,7 @@ export default function App() {
       }
       setCheckingSession(false);
     })();
-  }, [carregarPacientesBasico, carregarDadosCompletos]);
+  }, [carregarDadosCompletos]);
 
   const handleLogin = async (role: "medica" | "paciente" | "dev", data?: string, token?: string) => {
     setUserRole(role);
@@ -243,12 +237,14 @@ export default function App() {
       setIsAuthenticated(true);
       await carregarDadosCompletos();
     } else if (role === "paciente" && data) {
-      const found = pacientes.find(p => p.cpf.replace(/\D/g, "") === data);
-      if (found) setLoggedPacienteId(found.id);
+      // "data" já vem como o id do paciente, resolvido no servidor pelo CPF
+      // (ver /api/auth/paciente-login) — não precisa mais procurar numa lista
+      // pré-carregada no cliente.
+      setLoggedPacienteId(data);
       setIsAuthenticated(true);
       await carregarDadosCompletos();
       // Paciente só precisa da própria galeria (leve) — não da de todo mundo.
-      if (found) await carregarGaleriaPara(found.id);
+      await carregarGaleriaPara(data);
     } else {
       setIsAuthenticated(true);
       await carregarDadosCompletos();
