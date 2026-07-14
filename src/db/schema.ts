@@ -64,6 +64,7 @@ export const galeria = pgTable('galeria', {
   id: text('id').primaryKey(),
   pacienteId: text('paciente_id').references(() => pacientes.id).notNull(),
   data: text('data').notNull(),
+  horario: text('horario'),
   posicao: text('posicao').notNull(),
   url: text('url').notNull(),
   notaIa: text('nota_ia'),
