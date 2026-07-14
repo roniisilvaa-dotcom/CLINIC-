@@ -1,13 +1,13 @@
-import React, { useState } from "react";
-import { 
-  DollarSign, 
-  TrendingUp, 
-  Calendar, 
-  PlusCircle, 
-  CheckCircle, 
-  Clock, 
-  Search, 
-  Filter, 
+import React, { useState, useEffect } from "react";
+import {
+  DollarSign,
+  TrendingUp,
+  Calendar,
+  PlusCircle,
+  CheckCircle,
+  Clock,
+  Search,
+  Filter,
   Sparkles,
   ArrowUpRight,
   TrendingDown,
@@ -16,15 +16,17 @@ import {
   CreditCard,
   Download,
   Percent,
-  Receipt
+  Receipt,
+  Loader2,
+  Zap
 } from "lucide-react";
-import { 
-  ResponsiveContainer, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
   Legend,
   AreaChart,
   Area,
@@ -49,76 +51,22 @@ interface Transacao {
   unidade: "Toledo" | "Fátima do Sul";
 }
 
+interface PacoteTratamento {
+  id: string;
+  pacienteId: string;
+  pacienteNome: string;
+  nomePacote: string;
+  quantidadeTotal: number;
+  sessoesRealizadas: number;
+  status: string;
+}
+
 export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
-  // Initial Mock Transações matching real patients to make the ledger coherent
-  const [transacoes, setTransacoes] = useState<Transacao[]>([
-    {
-      id: "tx-1",
-      pacienteId: "paciente-1",
-      pacienteNome: "Helena Silveira de Souza",
-      data: "2026-06-08",
-      descricao: "Sessão MMP Capilar + Laser LLLT",
-      valor: 450.00,
-      metodo: "Pix",
-      status: "Pago",
-      unidade: "Toledo"
-    },
-    {
-      id: "tx-2",
-      pacienteId: "paciente-2",
-      pacienteNome: "Gabriela Oliveira Ramos",
-      data: "2026-06-07",
-      descricao: "Consulta de Avaliação Sanguínea e Tricológica",
-      valor: 350.00,
-      metodo: "Cartão",
-      status: "Pago",
-      unidade: "Fátima do Sul"
-    },
-    {
-      id: "tx-3",
-      pacienteId: "paciente-3",
-      pacienteNome: "Roberto Mendes Alencar",
-      data: "2026-06-05",
-      descricao: "Injeção de Dutasterida Intralesional",
-      valor: 600.00,
-      metodo: "Pix",
-      status: "Pago",
-      unidade: "Toledo"
-    },
-    {
-      id: "tx-4",
-      pacienteId: "paciente-1",
-      pacienteNome: "Helena Silveira de Souza",
-      data: "2026-06-01",
-      descricao: "Compra de Loção Minoxidil Capixyl Especial",
-      valor: 180.00,
-      metodo: "Dinheiro",
-      status: "Pago",
-      unidade: "Toledo"
-    },
-    {
-      id: "tx-5",
-      pacienteId: "paciente-2",
-      pacienteNome: "Gabriela Oliveira Ramos",
-      data: "2026-05-28",
-      descricao: "Sessão Regeneração LLLT",
-      valor: 250.00,
-      metodo: "Boleto",
-      status: "Pendente",
-      unidade: "Fátima do Sul"
-    },
-    {
-      id: "tx-6",
-      pacienteId: "paciente-3",
-      pacienteNome: "Roberto Mendes Alencar",
-      data: "2026-05-25",
-      descricao: "MMP Capilar com Drug Delivery Dutasterida",
-      valor: 450.00,
-      metodo: "Cartão",
-      status: "Pago",
-      unidade: "Toledo"
-    },
-  ]);
+  const [transacoes, setTransacoes] = useState<Transacao[]>([]);
+  const [pacotes, setPacotes] = useState<PacoteTratamento[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+  const [abatendoId, setAbatendoId] = useState<string | null>(null);
 
   // Form State
   const [showAddForm, setShowAddForm] = useState(false);
@@ -128,6 +76,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
   const [metodo, setMetodo] = useState<Transacao["metodo"]>("Pix");
   const [status, setStatus] = useState<Transacao["status"]>("Pago");
   const [unidade, setUnidade] = useState<Transacao["unidade"]>("Toledo");
+  const [salvandoLancamento, setSalvandoLancamento] = useState(false);
   const [dataMsg, setDataMsg] = useState("");
 
   // Filters State
@@ -135,7 +84,26 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
   const [filterUnidade, setFilterUnidade] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
 
-  // Recharts Monthly Revenue simulation
+  useEffect(() => {
+    const carregarDados = async () => {
+      setLoading(true);
+      try {
+        const [resTx, resPct] = await Promise.all([
+          fetch("/api/transacoes"),
+          fetch("/api/pacotes"),
+        ]);
+        if (resTx.ok) setTransacoes(await resTx.json());
+        if (resPct.ok) setPacotes(await resPct.json());
+      } catch (err) {
+        console.error("Erro ao carregar dados financeiros:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    carregarDados();
+  }, []);
+
+  // Recharts Monthly Revenue simulation (histórico consolidado — mantido como referência visual)
   const mainBillingHistory = [
     { mes: "Jan", Toledo: 18200, Fatima: 11400, Total: 29600 },
     { mes: "Fev", Toledo: 20400, Fatima: 12100, Total: 32500 },
@@ -145,20 +113,47 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
     { mes: "Jun", Toledo: 31000, Fatima: 22800, Total: 53800 }
   ];
 
-  // Gestão de Pacotes
-  const [pacotes, setPacotes] = useState([
-    { id: "pct-1", pacienteNome: "Helena Silveira de Souza", nomePacote: "Pacote 10 Sessões Laser LLLT", quantidadeTotal: 10, sessoesRealizadas: 3, status: "Ativo" },
-    { id: "pct-2", pacienteNome: "Roberto Mendes Alencar", nomePacote: "Protocolo Indução (3 MMP + 6 Laser)", quantidadeTotal: 9, sessoesRealizadas: 8, status: "Ativo" }
-  ]);
+  const handleAbaterSessao = async (pct: PacoteTratamento) => {
+    if (pct.sessoesRealizadas >= pct.quantidadeTotal) return;
+    const novoRealizadas = pct.sessoesRealizadas + 1;
+    const novoStatus = novoRealizadas === pct.quantidadeTotal ? "Concluido" : "Ativo";
+    setAbatendoId(pct.id);
+    try {
+      const res = await fetch(`/api/pacotes/${pct.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessoesRealizadas: novoRealizadas, status: novoStatus }),
+      });
+      if (!res.ok) throw new Error("Falha ao abater sessão");
+      const atualizado = await res.json();
+      setPacotes(prev => prev.map(p => p.id === pct.id ? atualizado : p));
+    } catch (err) {
+      console.error("Erro ao abater sessão:", err);
+      alert("Não foi possível registrar a sessão no servidor. Tente novamente.");
+    } finally {
+      setAbatendoId(null);
+    }
+  };
 
-  const handleAbaterSessao = (pctId: string) => {
-    setPacotes(prev => prev.map(p => {
-      if (p.id === pctId && p.sessoesRealizadas < p.quantidadeTotal) {
-        const novoRealizadas = p.sessoesRealizadas + 1;
-        return { ...p, sessoesRealizadas: novoRealizadas, status: novoRealizadas === p.quantidadeTotal ? "Concluido" : "Ativo" };
-      }
-      return p;
-    }));
+  const handleConfirmarPagamento = async (tx: Transacao) => {
+    setConfirmandoId(tx.id);
+    try {
+      const res = await fetch(`/api/transacoes/${tx.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Pago" }),
+      });
+      if (!res.ok) throw new Error("Falha ao confirmar pagamento");
+      const atualizado = await res.json();
+      setTransacoes(prev => prev.map(t => t.id === tx.id ? atualizado : t));
+      setDataMsg(`Pagamento de ${tx.pacienteNome} confirmado com sucesso!`);
+      setTimeout(() => setDataMsg(""), 3500);
+    } catch (err) {
+      console.error("Erro ao confirmar pagamento:", err);
+      alert("Não foi possível confirmar o pagamento no servidor. Tente novamente.");
+    } finally {
+      setConfirmandoId(null);
+    }
   };
 
   // Calculations
@@ -173,14 +168,14 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
   const totalGeral = totalRecebido + totalPendente;
 
   const filteredTransacoes = transacoes.filter(tx => {
-    const matchesSearch = tx.pacienteNome.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const matchesSearch = tx.pacienteNome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           tx.descricao.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesUnidade = filterUnidade === "all" || tx.unidade === filterUnidade;
     const matchesStatus = filterStatus === "all" || tx.status === filterStatus;
     return matchesSearch && matchesUnidade && matchesStatus;
   });
 
-  const handleCreateLancemento = (e: React.FormEvent) => {
+  const handleCreateLancemento = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPacienteId || !descricao || !valor) {
       alert("Por favor, preencha todos os campos obrigatórios.");
@@ -190,7 +185,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
     const pacienteEncontrado = pacientes.find(p => p.id === selectedPacienteId);
     if (!pacienteEncontrado) return;
 
-    const novaTx: Transacao = {
+    const novaTx = {
       id: `tx-${Date.now()}`,
       pacienteId: selectedPacienteId,
       pacienteNome: pacienteEncontrado.nome,
@@ -202,23 +197,38 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
       unidade,
     };
 
-    setTransacoes([novaTx, ...transacoes]);
-    
-    // Reset Form
-    setSelectedPacienteId("");
-    setDescricao("");
-    setValor("");
-    setMetodo("Pix");
-    setStatus("Pago");
-    setUnidade("Toledo");
-    setShowAddForm(false);
-    setDataMsg("Lançamento de faturamento registrado com sucesso!");
-    setTimeout(() => setDataMsg(""), 3500);
+    setSalvandoLancamento(true);
+    try {
+      const res = await fetch("/api/transacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(novaTx),
+      });
+      if (!res.ok) throw new Error("Falha ao registrar lançamento");
+      const criado = await res.json();
+      setTransacoes(prev => [criado, ...prev]);
+
+      // Reset Form
+      setSelectedPacienteId("");
+      setDescricao("");
+      setValor("");
+      setMetodo("Pix");
+      setStatus("Pago");
+      setUnidade("Toledo");
+      setShowAddForm(false);
+      setDataMsg("Lançamento de faturamento registrado com sucesso!");
+      setTimeout(() => setDataMsg(""), 3500);
+    } catch (err) {
+      console.error("Erro ao registrar lançamento:", err);
+      alert("Não foi possível registrar o lançamento no servidor. Verifique sua conexão e tente novamente.");
+    } finally {
+      setSalvandoLancamento(false);
+    }
   };
 
   return (
     <div id="financeiro_view_container" className="space-y-8 animate-fadeIn text-[#0A0A0A]">
-      
+
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#0A0A0A]/5 pb-6">
         <div>
@@ -255,10 +265,10 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
+
             <div className="space-y-1">
               <label className="text-[10px] text-gray-450 uppercase font-mono font-bold block">Paciente *</label>
-              <select 
+              <select
                 value={selectedPacienteId}
                 onChange={(e) => setSelectedPacienteId(e.target.value)}
                 className="w-full bg-white border border-gray-250 rounded-lg py-2 px-3 text-xs outline-none focus:border-[#C9A84C]"
@@ -272,8 +282,8 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
 
             <div className="space-y-1">
               <label className="text-[10px] text-gray-450 uppercase font-mono font-bold block">Procedimento / Motivo *</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
                 placeholder="Ex. MMP Capilar, Infiltração, Consulta..."
@@ -283,8 +293,8 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
 
             <div className="space-y-1">
               <label className="text-[10px] text-gray-450 uppercase font-mono font-bold block">Valor Mapeado (R$) *</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 value={valor}
                 onChange={(e) => setValor(e.target.value)}
                 placeholder="450.00"
@@ -294,7 +304,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
 
             <div className="space-y-1">
               <label className="text-[10px] text-gray-450 uppercase font-mono font-bold block">Forma de Pagamento</label>
-              <select 
+              <select
                 value={metodo}
                 onChange={(e) => setMetodo(e.target.value as any)}
                 className="w-full bg-white border border-gray-250 rounded-lg py-2 px-3 text-xs outline-none focus:border-[#C9A84C]"
@@ -308,7 +318,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
 
             <div className="space-y-1">
               <label className="text-[10px] text-gray-450 uppercase font-mono font-bold block">Status do Pagamento</label>
-              <select 
+              <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as any)}
                 className="w-full bg-white border border-gray-250 rounded-lg py-2 px-3 text-xs outline-none focus:border-[#C9A84C]"
@@ -316,11 +326,14 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
                 <option value="Pago">Pago/Confirmado</option>
                 <option value="Pendente">Aguardando/Pendente</option>
               </select>
+              {status === "Pendente" && metodo === "Pix" && (
+                <p className="text-[9px] text-amber-600 font-mono mt-1">Ficará aguardando confirmação de sinal Pix na tabela abaixo.</p>
+              )}
             </div>
 
             <div className="space-y-1">
               <label className="text-[10px] text-gray-450 uppercase font-mono font-bold block">Unidade da Clínica</label>
-              <select 
+              <select
                 value={unidade}
                 onChange={(e) => setUnidade(e.target.value as any)}
                 className="w-full bg-white border border-gray-250 rounded-lg py-2 px-3 text-xs outline-none focus:border-[#C9A84C]"
@@ -342,17 +355,29 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-xs bg-black text-white hover:bg-[#C9A84C] hover:text-black rounded-lg cursor-pointer transition font-mono font-bold uppercase"
+              disabled={salvandoLancamento}
+              className="px-4 py-2 text-xs bg-black text-white hover:bg-[#C9A84C] hover:text-black disabled:opacity-50 rounded-lg cursor-pointer transition font-mono font-bold uppercase flex items-center gap-1.5"
             >
-              Salvar Lançamento
+              {salvandoLancamento && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {salvandoLancamento ? "Salvando..." : "Salvar Lançamento"}
             </button>
           </div>
         </form>
       )}
 
+      {/* Loading state */}
+      {loading && (
+        <div className="py-16 text-center space-y-3 border border-dashed border-gray-300 rounded-xl bg-gray-50 flex flex-col items-center">
+          <Loader2 className="w-8 h-8 text-[#C9A84C] animate-spin" />
+          <p className="text-gray-500 font-serif text-lg">Carregando dados financeiros...</p>
+        </div>
+      )}
+
+      {!loading && (
+      <>
       {/* Financial Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        
+
         {/* Total Recebido */}
         <div className="bg-white p-5 border-l-4 border-emerald-500 border-y border-r border-[#E5E5E5] shadow-sm flex flex-col justify-between h-28">
           <div className="flex justify-between items-center">
@@ -361,7 +386,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
           </div>
           <div className="flex items-end justify-between mt-1">
             <span className="text-2xl font-serif text-[#0A0A0A] font-light">R$ {totalRecebido.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <span className="text-[9px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-mono font-bold">100% PAGO</span>
+            <span className="text-[9px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-mono font-bold">PAGO</span>
           </div>
         </div>
 
@@ -385,7 +410,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
           </div>
           <div className="flex items-end justify-between mt-1">
             <span className="text-2xl font-serif text-[#0A0A0A] font-light">R$ {totalGeral.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <span className="text-[9px] bg-neutral-100 text-neutral-700 px-1.5 py-0.5 rounded font-mono font-bold uppercase">Mês Vigente</span>
+            <span className="text-[9px] bg-neutral-100 text-neutral-700 px-1.5 py-0.5 rounded font-mono font-bold uppercase">Total Registrado</span>
           </div>
         </div>
 
@@ -393,7 +418,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
 
       {/* Charts and graphs row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Recharts cash flow */}
         <div className="lg:col-span-2 bg-white border border-[#E5E5E5] rounded-xl p-5 shadow-sm space-y-4">
           <div className="flex justify-between items-center">
@@ -408,8 +433,8 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
               <BarChart data={mainBillingHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <XAxis dataKey="mes" stroke="#A3A3A3" fontSize={11} fontStyle="italic" />
                 <YAxis stroke="#A3A3A3" fontSize={11} />
-                <Tooltip 
-                  formatter={(value: any) => [`R$ ${value.toLocaleString("pt-BR")}`, "Faturamento"]} 
+                <Tooltip
+                  formatter={(value: any) => [`R$ ${value.toLocaleString("pt-BR")}`, "Faturamento"]}
                   contentStyle={{ backgroundColor: "#0A0A0A", color: "#F5F0E8", borderRadius: "8px" }}
                 />
                 <Legend iconType="circle" fontSize={10} wrapperStyle={{ fontSize: "11px", fontFamily: "sans-serif" }} />
@@ -420,52 +445,33 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
           </div>
         </div>
 
-        {/* Breakdown Panel / Ticket Médio and Distribution */}
+        {/* Breakdown Panel */}
         <div className="bg-white border border-[#E5E5E5] rounded-xl p-5 shadow-sm flex flex-col justify-between">
           <div className="space-y-4">
             <h3 style={{ fontFamily: "Georgia, serif" }} className="text-sm font-bold text-[#0A0A0A] border-b border-gray-100 pb-2 flex items-center gap-1.5">
-              <Percent className="w-4 h-4 text-[#C9A84C]" strokeWidth={2.5} /> Distribuição de Serviços
+              <Percent className="w-4 h-4 text-[#C9A84C]" strokeWidth={2.5} /> Resumo do Período
             </h3>
 
             <div className="space-y-3 text-xs font-sans font-medium">
-              
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-gray-600">
-                  <span>MMP e Microagulhamento Capilar (52%)</span>
-                  <span className="font-mono text-gray-800 font-bold">R$ 13.520</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#C9A84C] rounded-full" style={{ width: "52%" }}></div>
-                </div>
+              <div className="flex justify-between items-center text-gray-600">
+                <span>Total de lançamentos</span>
+                <span className="font-mono text-gray-800 font-bold">{transacoes.length}</span>
               </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-gray-600">
-                  <span>Consultas e Diagnósticos (30%)</span>
-                  <span className="font-mono text-gray-800 font-bold">R$ 7.800</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#0A0A0A] rounded-full" style={{ width: "30%" }}></div>
-                </div>
+              <div className="flex justify-between items-center text-gray-600">
+                <span>Pagamentos confirmados</span>
+                <span className="font-mono text-gray-800 font-bold">{transacoes.filter(t => t.status === "Pago").length}</span>
               </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-gray-600">
-                  <span>Venda de Loções e Fórmulas (18%)</span>
-                  <span className="font-mono text-gray-800 font-bold">R$ 4.680</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#DFD5BF] rounded-full" style={{ width: "18%" }}></div>
-                </div>
+              <div className="flex justify-between items-center text-gray-600">
+                <span>Aguardando confirmação Pix</span>
+                <span className="font-mono text-amber-600 font-bold">{transacoes.filter(t => t.status === "Pendente" && t.metodo === "Pix").length}</span>
               </div>
-
             </div>
           </div>
 
           <div className="bg-[#F5F0E8]/40 border border-[#C9A84C]/20 rounded-lg p-3.5 space-y-1 mt-4">
             <span className="text-[9px] text-[#C9A84C] font-mono uppercase font-bold tracking-wider block">Insights de Caixa</span>
             <p className="text-[11px] text-gray-600 leading-normal font-sans font-medium">
-              Suas receitas na unidade de Toledo cresceram <strong>14.5%</strong> em relação ao mês anterior, impulsionadas pelo aumento de retornos de pacientes sob tratamento de alopecia androgenética.
+              Utilize o botão "Confirmar Pagamento" na tabela abaixo assim que o sinal Pix cair na conta da clínica, transformando o lançamento pendente em receita confirmada.
             </p>
           </div>
         </div>
@@ -474,14 +480,14 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
 
       {/* Comprehensive Ledger Table Log */}
       <div className="bg-white border border-[#E5E5E5] rounded-xl shadow-sm overflow-hidden">
-        
+
         {/* Table Filters header toolbar */}
         <div className="p-4 bg-gray-50/50 border-b border-gray-150 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
-          
+
           <div className="relative flex-1 max-w-sm">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Buscar por paciente ou procedimento..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -490,7 +496,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            
+
             <div className="flex items-center gap-1.5 bg-white border border-gray-250 rounded-lg px-2 py-1.5">
               <Filter className="w-3.5 h-3.5 text-gray-400" />
               <select
@@ -552,8 +558,8 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
                     <td className="py-3.5 px-5 text-gray-600 font-sans font-medium">{tx.metodo}</td>
                     <td className="py-3.5 px-5 whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-mono leading-none border uppercase ${
-                        tx.unidade === "Toledo" 
-                          ? "bg-neutral-900 border-neutral-850 text-[#C9A84C]" 
+                        tx.unidade === "Toledo"
+                          ? "bg-neutral-900 border-neutral-850 text-[#C9A84C]"
                           : "bg-[#0A0A0A] border-[#C9A84C]/25 text-white"
                       }`}>
                         {tx.unidade}
@@ -568,9 +574,20 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
                           <CheckCircle className="w-2.5 h-2.5 text-emerald-600" /> Pago
                         </span>
                       ) : tx.status === "Pendente" ? (
-                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-250 py-0.5 px-2 rounded-full font-sans font-bold text-[9px] uppercase tracking-wide">
-                          <Clock className="w-2.5 h-2.5 text-amber-600 animate-pulse" /> Pendente
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-250 py-0.5 px-2 rounded-full font-sans font-bold text-[9px] uppercase tracking-wide">
+                            <Clock className="w-2.5 h-2.5 text-amber-600 animate-pulse" /> Pendente
+                          </span>
+                          <button
+                            onClick={() => handleConfirmarPagamento(tx)}
+                            disabled={confirmandoId === tx.id}
+                            className="inline-flex items-center gap-1 bg-[#0A0A0A] hover:bg-[#C9A84C] hover:text-black text-white disabled:opacity-50 px-2 py-1 rounded font-mono font-bold text-[9px] uppercase tracking-wide cursor-pointer transition"
+                            title={tx.metodo === "Pix" ? "Confirmar sinal Pix recebido" : "Confirmar pagamento"}
+                          >
+                            {confirmandoId === tx.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Zap className="w-2.5 h-2.5" />}
+                            Confirmar
+                          </button>
+                        </div>
                       ) : (
                         <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-250 py-0.5 px-2 rounded-full font-sans font-bold text-[9px] uppercase tracking-wide">
                           Cancelado
@@ -594,13 +611,18 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
           </h3>
         </div>
 
+        {pacotes.length === 0 ? (
+          <div className="py-10 text-center text-gray-450 italic font-mono border border-dashed border-gray-250 rounded-xl bg-gray-50/50">
+            Nenhum pacote de tratamento cadastrado ainda.
+          </div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {pacotes.map(pct => {
             const pctCompleto = (pct.sessoesRealizadas / pct.quantidadeTotal) * 100;
             return (
               <div key={pct.id} className={`border rounded-xl p-4 shadow-sm transition relative overflow-hidden ${pct.status === 'Concluido' ? 'border-green-200 bg-green-50/30' : 'border-[#C9A84C]/30 bg-[#F5F0E8]/10'}`}>
                 <div className="absolute top-0 left-0 h-1 bg-[#C9A84C] transition-all" style={{ width: `${pctCompleto}%` }} />
-                
+
                 <h4 className="font-semibold text-gray-900 text-sm">{pct.nomePacote}</h4>
                 <p className="text-[11px] font-mono font-bold text-gray-500 mt-0.5">{pct.pacienteNome}</p>
 
@@ -609,10 +631,12 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
                     <strong className="text-black">{pct.sessoesRealizadas}</strong> de {pct.quantidadeTotal} sessões usadas
                   </div>
                   {pct.status === "Ativo" ? (
-                    <button 
-                      onClick={() => handleAbaterSessao(pct.id)}
-                      className="text-[10px] bg-black text-white hover:bg-[#C9A84C] font-mono font-bold uppercase px-3 py-1.5 rounded transition cursor-pointer"
+                    <button
+                      onClick={() => handleAbaterSessao(pct)}
+                      disabled={abatendoId === pct.id}
+                      className="text-[10px] bg-black text-white hover:bg-[#C9A84C] disabled:opacity-50 font-mono font-bold uppercase px-3 py-1.5 rounded transition cursor-pointer flex items-center gap-1"
                     >
+                      {abatendoId === pct.id && <Loader2 className="w-3 h-3 animate-spin" />}
                       Abater Sessão
                     </button>
                   ) : (
@@ -623,7 +647,10 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
             );
           })}
         </div>
+        )}
       </div>
+      </>
+      )}
 
     </div>
   );
