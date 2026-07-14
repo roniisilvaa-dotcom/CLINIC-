@@ -86,6 +86,7 @@ export interface Paciente {
   protocolo: ProtocoloTratamento;
   galeria: FotoCapilar[];
   consultas: ConsultaHistorial[];
+    tags: string[]; // etiquetas: tricologia, dermato estetica, etc (pedido do Igor)
 }
 
 export interface PrescricaoTemplate {
