@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { 
-  Crown, 
-  Check, 
-  MapPin, 
-  CreditCard, 
-  ShieldCheck, 
-  Sparkles, 
+import {
+  Crown,
+  Check,
+  MapPin,
+  CreditCard,
+  ShieldCheck,
+  Sparkles,
   Calendar,
   Lock,
   Download
@@ -17,23 +17,24 @@ interface PlanosAssinaturasProps {
   onChangeActivePlan?: (plan: "Standard" | "Precision" | "Enterprise") => void;
 }
 
-export default function PlanosAssinaturas({ 
-  activePlan = "Precision", 
-  onChangeActivePlan 
+export default function PlanosAssinaturas({
+  activePlan = "Precision",
+  onChangeActivePlan
 }: PlanosAssinaturasProps) {
 
   const pricingPlans = [
     {
       id: "Standard",
-      name: "Standard Clinical IA",
-      price: "R$ 599/mês",
-      desc: "Prontuário tricológico completo com agenda unificada, emissão de prescrições e limite de até 5 análises de exames/dermoscopia mensais via Inteligência Artificial.",
+      name: "Standard Clínica IA",
+      price: "R$ 697/mês",
+      desc: "Prontuário tricológico completo com agenda unificada, emissão de prescrições, secretária de IA simples no WhatsApp e limite de até 5 análises de exames/dermoscopia mensais via Inteligência Artificial.",
       features: [
         "Prontuário Capilar Eletrônico Completo (Fichas e Anamnese)",
         "Agenda Médica Unificada (Todas as Unidades)",
+        "Secretária de IA no WhatsApp (Modo Simples: agendamento automático e Pix)",
         "CA.RO Clinic IA Lite (Até 5 análises inteligentes de exames ou fotos/mês)",
         "Emissão e Histórico de Receituários Customizados",
-        "Galeria de Fotos Comparativas Simples (Até 50 imagens por paciente)",
+        "Galeria de Fotos Comparativas (Até 12 imagens por paciente)",
         "Portal de Acesso Permanente Seguro para Pacientes (Web/Celular)",
         "Canal de Chat Direto com Paciente (Mensagens Criptografadas)",
         "Faturamento Integrado Simplificado (Controle básico de caixa)",
@@ -45,13 +46,17 @@ export default function PlanosAssinaturas({
     {
       id: "Precision",
       name: "Precision Premium IA",
-      price: "R$ 1.250/mês",
-      desc: "Plataforma de alta precisão com IA analítica ilimitada, bio-sinaleiras, split-screen comparador de imagens e sincronização de prontuários de unidades.",
+      price: "R$ 1.550/mês",
+      desc: "Plataforma de alta precisão com IA analítica ilimitada, secretária de IA inteligente no WhatsApp e no Instagram, financeiro avançado, controle de estoque e sincronização de prontuários entre unidades.",
       features: [
-        "Tudo do plano Standard (Ilimitado)",
+        "Tudo do plano Standard (Ilimitado, sem limite de fotos por paciente)",
+        "Secretária de IA Inteligente no WhatsApp (Contexto completo do prontuário)",
+        "IA Inteligente no Instagram Direct (Atendimento e agendamento automático)",
         "CA.RO Clinic IA - Analisador Ilimitado de Exames",
         "CA.RO Clinic IA - Analisador de Sequência de Fotos",
         "Co-Piloto Diagnóstico em Chat Permanente",
+        "Financeiro Avançado (Relatórios completos, DRE simplificado e projeções)",
+        "Controle de Estoque de Produtos e Insumos",
         "Histórico e Emissão de Receituários em Letterhead",
         "Sincronização Integrada (Toledo & Fátima do Sul)",
         "Suporte Prioritário 24/7 via WhatsApp"
@@ -61,15 +66,16 @@ export default function PlanosAssinaturas({
     },
     {
       id: "Enterprise",
-      name: "Enterprise Multi-Clinic IA",
-      price: "R$ 2.150/mês",
-      desc: "A solução definitiva sob medida para redes de clínicas, franquias ou cirurgiões capilares com alto volume e necessidades customizadas.",
+      name: "Enterprise Multi-Cliente IA",
+      price: "R$ 2.550/mês",
+      desc: "A solução definitiva sob medida para redes de clínicas, franquias ou cirurgiões capilares com alto volume, múltiplas unidades e equipes, e necessidades totalmente customizadas.",
       features: [
-        "Tudo do plano Precision Premium",
+        "Tudo do plano Precision Premium (sem limites de uso)",
+        "Gestão Multi-Cliente / Multi-Clínica em um Único Painel",
         "Módulos de Telemedicina Avançados Integrados",
         "Suporte Multi-CNPJ e Controle Tributário Rateado",
         "API Pública para Integração Externa de CRM",
-        "Backup em tempo real em Nuvem Federada",
+        "Backup em Tempo Real em Nuvem Federada",
         "Treinamento Remoto Dedicado de Equipes de Recepção",
         "Gerente de Conta Exclusivo e SLA de 2 horas"
       ],
@@ -79,14 +85,14 @@ export default function PlanosAssinaturas({
   ];
 
   const invoices = [
-    { id: "inv-1", data: "01/06/2026", valor: "R$ 1.250,00", status: "Pago", cartao: "Mastercard (**** 9081)" },
-    { id: "inv-2", data: "01/05/2026", valor: "R$ 1.250,00", status: "Pago", cartao: "Mastercard (**** 9081)" },
-    { id: "inv-3", data: "01/04/2026", valor: "R$ 1.250,00", status: "Pago", cartao: "Mastercard (**** 9081)" }
+    { id: "inv-1", data: "01/06/2026", valor: "R$ 1.550,00", status: "Pago", cartao: "Mastercard (**** 9081)" },
+    { id: "inv-2", data: "01/05/2026", valor: "R$ 1.550,00", status: "Pago", cartao: "Mastercard (**** 9081)" },
+    { id: "inv-3", data: "01/04/2026", valor: "R$ 1.550,00", status: "Pago", cartao: "Mastercard (**** 9081)" }
   ];
 
   return (
     <div id="planos_assinaturas_view" className="space-y-6 animate-fadeIn text-[#0A0A0A]">
-      
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#0A0A0A]/5 pb-6">
         <div>
@@ -96,7 +102,7 @@ export default function PlanosAssinaturas({
 
         <div className="bg-[#C9A84C]/15 border border-[#C9A84C]/35 px-3.5 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
           <Crown className="w-4.5 h-4.5 text-[#C9A84C]" />
-          <span className="text-xs text-[#C9A84C] font-mono tracking-wider uppercase font-bold">Dra. Mariah (Precision Ativo)</span>
+          <span className="text-xs text-[#C9A84C] font-mono tracking-wider uppercase font-bold">Dra. Mariah ({activePlan} Ativo)</span>
         </div>
       </div>
 
@@ -105,11 +111,11 @@ export default function PlanosAssinaturas({
         {pricingPlans.map((plan) => {
           const isActive = activePlan === plan.id;
           return (
-            <div 
+            <div
               key={plan.id}
               className={`bg-white border rounded-xl p-6 flex flex-col justify-between gap-6 transition relative overflow-hidden shadow-sm ${
-                isActive 
-                  ? "border-[#C9A84C] bg-[#F5F0E8]/20 shadow-md scale-102" 
+                isActive
+                  ? "border-[#C9A84C] bg-[#F5F0E8]/20 shadow-md scale-102"
                   : "border-gray-250 hover:border-[#C9A84C]/45"
               }`}
             >
@@ -118,7 +124,7 @@ export default function PlanosAssinaturas({
                   Plano Ativo Recorrente
                 </div>
               )}
-              
+
               {!isActive && plan.gold && (
                 <div className="absolute right-0 top-0 bg-black text-[#C9A84C] text-[9px] uppercase tracking-widest font-extrabold font-mono px-3 py-1.5 rounded-bl-lg">
                   {plan.badge}
@@ -147,7 +153,7 @@ export default function PlanosAssinaturas({
 
                 <div className="border-t border-gray-150 pt-4 space-y-2.5 text-xs">
                   <span className="text-[9px] uppercase tracking-wider font-mono text-gray-400 font-bold block">Recursos Integrados</span>
-                  
+
                   {plan.features.map((feat, i) => (
                     <div key={i} className="flex items-start gap-2">
                       <div className={`w-4.5 h-4.5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
@@ -232,7 +238,7 @@ export default function PlanosAssinaturas({
                   <td className="py-3 font-mono font-bold text-[#0A0A0A]">{inv.valor}</td>
                   <td className="py-3 text-gray-500">{inv.cartao}</td>
                   <td className="py-3">
-                    <button 
+                    <button
                       onClick={() => alert("Histórico de nota fiscal eletrônica impressa!")}
                       className="text-[#C9A84C] hover:underline font-bold font-mono text-[10px] uppercase flex items-center gap-1 cursor-pointer transition-all"
                     >

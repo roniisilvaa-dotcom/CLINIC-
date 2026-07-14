@@ -318,6 +318,10 @@ export default function PacientesModulo({
   // Galeria Capilar: envia a foto real (comprimida em JPEG via canvas) pro backend, com data + horário exatos
   const handleUploadFoto = async (file: File) => {
     if (!curPaciente) return;
+    if (activePlan === "Standard" && curPaciente.galeria.length >= 12) {
+      alert("Você atingiu o limite de 12 fotos por paciente do plano Standard Clínica IA. Faça upgrade para o Precision Premium IA para fotos ilimitadas.");
+      return;
+    }
     setUploadingFoto(true);
     try {
       const base64: string = await new Promise((resolve, reject) => {
