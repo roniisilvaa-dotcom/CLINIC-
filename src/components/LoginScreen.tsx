@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Sparkles, Stethoscope, User, Terminal, Lock, CreditCard, Mail, ArrowLeft } from "lucide-react";
+import { Stethoscope, User, Terminal, Lock, CreditCard, Mail, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Paciente } from "../types";
 
 interface LoginScreenProps {
@@ -10,72 +9,158 @@ interface LoginScreenProps {
 
 type MainRole = "medica" | "paciente";
 
-const GRAIN_URL =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
-
-const shimmerStyle: React.CSSProperties = {
-  fontFamily: "Georgia, serif",
-  backgroundImage: "linear-gradient(100deg, #C9A84C 30%, #F7E7B0 50%, #C9A84C 70%)",
-  backgroundSize: "220% auto",
-  WebkitBackgroundClip: "text",
-  backgroundClip: "text",
-  color: "transparent",
-  filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.6))",
-};
-
-// Esfera dourada com brilho especular + sombra de contato — lê como objeto físico
-// real (metal polido), não como ícone plano.
-function GlossyOrb({ size }: { size: number }) {
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <div className="absolute -inset-2 rounded-full bg-[#C9A84C]/25 blur-md" />
-      <div className="relative rounded-full" style={{
-        width: size, height: size,
-        background: "radial-gradient(circle at 33% 28%, #FCF2D2 0%, #F0D68A 16%, #D9B85C 34%, #C9A84C 52%, #9C7A2E 74%, #4E3E17 100%)",
-        boxShadow: "inset -4px -5px 9px rgba(0,0,0,0.55), inset 3px 4px 6px rgba(255,255,255,0.45), 0 8px 20px rgba(201,168,76,0.35), 0 2px 6px rgba(0,0,0,0.6)",
-      }}>
-        <div className="absolute rounded-full bg-white blur-[2.5px]"
-          style={{ width: size * 0.32, height: size * 0.18, top: size * 0.16, left: size * 0.2, opacity: 0.75, transform: "rotate(-18deg)" }} />
-        <Sparkles className="absolute inset-0 m-auto text-black/60" style={{ width: size * 0.42, height: size * 0.42 }} strokeWidth={1.75} />
-      </div>
-    </div>
-  );
+const CSS = `
+:root{
+  --bg:#070707;
+  --gold:#c99b43;
+  --gold-light:#f0d38d;
+  --gold-deep:#8d6528;
+  --text:#f5f1e7;
+  --muted:#9d9a94;
+  --shadow:0 24px 80px rgba(0,0,0,.55);
 }
+.caro-login *{box-sizing:border-box}
+.caro-login{
+  min-height:100vh;
+  font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 14% 20%, rgba(201,155,67,.08), transparent 24%),
+    radial-gradient(circle at 88% 78%, rgba(201,155,67,.05), transparent 30%),
+    #050505;
+  color:var(--text);
+  overflow-x:hidden;
+}
+.caro-page{
+  min-height:100vh;
+  display:grid;
+  grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);
+  position:relative;
+}
+.caro-visual{
+  position:relative;
+  min-height:100vh;
+  padding:56px 64px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  overflow:hidden;
+  border-right:1px solid rgba(201,155,67,.12);
+}
+.caro-visual::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.15), rgba(0,0,0,.55)),
+    radial-gradient(circle at 28% 35%, rgba(201,155,67,.14), transparent 26%);
+  z-index:-2;
+}
+.caro-brand{ display:flex; align-items:center; gap:18px; max-width:max-content; }
+.caro-brand-mark{
+  width:60px; height:60px; border:1px solid var(--gold); border-radius:50%;
+  display:grid; place-items:center; color:var(--gold-light);
+  font-family:Georgia, serif; font-size:21px; letter-spacing:-3px;
+  box-shadow:inset 0 0 24px rgba(201,155,67,.08); flex-shrink:0;
+}
+.caro-brand-copy strong{
+  display:block; font-family:Georgia, "Times New Roman", serif; font-size:24px;
+  font-weight:500; letter-spacing:.12em; color:var(--gold-light);
+}
+.caro-brand-copy span{
+  display:block; margin-top:6px; font-size:10px; letter-spacing:.32em;
+  text-transform:uppercase; color:var(--gold);
+}
+.caro-hero{ max-width:600px; margin:64px 0 26px; }
+.caro-eyebrow{ display:flex; align-items:center; gap:12px; color:var(--gold); font-size:11px; letter-spacing:.28em; text-transform:uppercase; }
+.caro-eyebrow::before{ content:""; width:34px; height:1px; background:var(--gold); }
+.caro-hero h1{
+  margin:20px 0 16px; font-family:Georgia, "Times New Roman", serif;
+  font-size:clamp(32px,3.6vw,48px); line-height:1.12; font-weight:500; letter-spacing:-.02em; max-width:640px;
+}
+.caro-hero h1 span{ color:var(--gold-light); }
+.caro-hero p{ margin:0; max-width:520px; color:var(--muted); font-size:15px; line-height:1.7; }
+.caro-med-visual{ position:relative; height:150px; max-width:640px; margin-top:30px; border-top:1px solid rgba(201,155,67,.14); overflow:hidden; }
+.caro-nodes{ position:absolute; inset:0; opacity:.5; background-image:radial-gradient(circle, rgba(201,155,67,.8) 0 1px, transparent 2px); background-size:38px 38px; mask-image:linear-gradient(to top, black, transparent 78%); }
+.caro-pulse{ position:absolute; left:0; right:0; top:44px; height:70px; }
+.caro-pulse svg{ width:100%; height:100%; overflow:visible; filter:drop-shadow(0 0 12px rgba(201,155,67,.25)); }
+.caro-pulse path{ fill:none; stroke:url(#caroGoldStroke); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; stroke-dasharray:1200; stroke-dashoffset:1200; animation:caroDraw 3.6s ease forwards infinite; }
+@keyframes caroDraw{ 0%{stroke-dashoffset:1200;opacity:.2} 15%{opacity:1} 70%{stroke-dashoffset:0;opacity:1} 100%{stroke-dashoffset:0;opacity:.25} }
+.caro-visual-footer{ display:flex; gap:16px; align-items:center; color:#7c7973; font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+.caro-shield{ width:34px; height:40px; border:1px solid rgba(201,155,67,.65); border-radius:17px 17px 11px 11px; display:grid; place-items:center; color:var(--gold); font-size:14px; flex-shrink:0; }
+.caro-login-side{ min-height:100vh; padding:40px; display:grid; place-items:center; position:relative; }
+.caro-card{
+  width:min(100%, 440px); padding:38px 36px 30px; border:1px solid rgba(201,155,67,.4); border-radius:22px;
+  background: linear-gradient(145deg, rgba(255,255,255,.03), transparent 42%), rgba(14,14,14,.9);
+  backdrop-filter:blur(16px); box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.03);
+  position:relative; overflow:hidden;
+}
+.caro-card::before{ content:""; position:absolute; width:220px; height:220px; right:-100px; top:-100px; border-radius:50%; background:radial-gradient(circle, rgba(201,155,67,.09), transparent 65%); }
+.caro-card-header{ text-align:center; margin-bottom:26px; position:relative; }
+.caro-mini-mark{ margin:0 auto 16px; width:48px; height:48px; border:1px solid rgba(201,155,67,.75); border-radius:50%; display:grid; place-items:center; color:var(--gold-light); font-family:Georgia, serif; font-size:18px; letter-spacing:-2px; box-shadow:inset 0 0 20px rgba(201,155,67,.08); }
+.caro-card-header h2{ margin:0; font-family:Georgia, serif; font-size:28px; font-weight:500; color:var(--gold-light); }
+.caro-card-header p{ margin:8px 0 0; color:var(--muted); font-size:13px; }
+.caro-divider{ width:40px; height:1px; background:var(--gold); margin:18px auto 0; box-shadow:0 0 12px rgba(201,155,67,.25); }
+.caro-role-switch{ display:flex; gap:6px; margin-bottom:22px; padding:4px; border:1px solid rgba(201,155,67,.25); border-radius:11px; background:#0d0d0d; }
+.caro-role-switch button{ flex:1; display:flex; align-items:center; justify-content:center; gap:7px; height:38px; border:0; border-radius:8px; background:transparent; color:#9d9a94; font-size:12px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; cursor:pointer; transition:.2s ease; }
+.caro-role-switch button.active{ background:linear-gradient(100deg, var(--gold-deep), var(--gold-light) 50%, #b98936); color:#0b0b0b; }
+.caro-field{ margin-bottom:18px; }
+.caro-field label{ display:block; margin-bottom:8px; color:var(--gold-light); font-size:12px; font-weight:600; letter-spacing:.02em; }
+.caro-input-wrap{ position:relative; }
+.caro-input-wrap svg{ position:absolute; left:15px; top:50%; transform:translateY(-50%); width:17px; height:17px; stroke:var(--gold); opacity:.9; pointer-events:none; }
+.caro-input-wrap input{ width:100%; height:52px; padding:0 44px; border:1px solid rgba(201,155,67,.3); border-radius:11px; background:#151515; color:var(--text); outline:none; font-size:14px; transition:.2s ease; box-shadow:inset 0 1px 0 rgba(255,255,255,.02); }
+.caro-input-wrap input::placeholder{ color:#696762; }
+.caro-input-wrap input:focus{ border-color:var(--gold); background:#171717; box-shadow:0 0 0 4px rgba(201,155,67,.08); }
+.caro-toggle-pass{ position:absolute; right:13px; top:50%; transform:translateY(-50%); border:0; background:transparent; color:var(--gold); cursor:pointer; padding:4px; display:grid; place-items:center; }
+.caro-toggle-pass svg{ position:static; transform:none; width:18px; height:18px; }
+.caro-btn{
+  width:100%; height:54px; border:1px solid rgba(255,255,255,.12); border-radius:11px;
+  background:linear-gradient(100deg, var(--gold-deep), var(--gold-light) 50%, #b98936);
+  color:#0b0b0b; font-weight:800; font-size:14px; letter-spacing:.02em; text-transform:uppercase; cursor:pointer;
+  transition:.2s ease; box-shadow:0 14px 34px rgba(201,155,67,.16); display:flex; align-items:center; justify-content:center; gap:8px; margin-top:4px;
+}
+.caro-btn:hover:not(:disabled){ transform:translateY(-2px); box-shadow:0 18px 42px rgba(201,155,67,.24); filter:brightness(1.05); }
+.caro-btn:disabled{ opacity:.5; cursor:not-allowed; }
+.caro-status{ margin-top:12px; padding:11px 13px; border-radius:9px; font-size:12.5px; line-height:1.45; color:#ffd0d0; background:rgba(150,30,30,.16); border:1px solid rgba(255,100,100,.22); }
+.caro-support{ margin-top:22px; padding-top:20px; border-top:1px solid rgba(201,155,67,.16); text-align:center; }
+.caro-support button{ background:none; border:0; color:var(--muted); font-size:12px; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:.2s ease; }
+.caro-support button:hover{ color:var(--gold-light); }
+.caro-vfooter-text{ line-height:1.5; }
+@media (max-width:1000px){
+  .caro-page{ grid-template-columns:1fr; }
+  .caro-visual{ min-height:auto; padding:32px 26px 22px; border-right:0; border-bottom:1px solid rgba(201,155,67,.12); }
+  .caro-hero{ margin:40px 0 10px; }
+  .caro-med-visual{ height:110px; }
+  .caro-visual-footer{ display:none; }
+  .caro-login-side{ min-height:auto; padding:32px 18px 44px; }
+}
+@media (max-width:560px){
+  .caro-visual{ padding:24px 18px 14px; }
+  .caro-brand-copy strong{ font-size:19px; }
+  .caro-brand-mark{ width:48px; height:48px; }
+  .caro-hero h1{ font-size:30px; }
+  .caro-card{ border-radius:18px; padding:28px 20px; }
+}
+`;
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [mainRole, setMainRole] = useState<MainRole>("medica");
   const [devMode, setDevMode]   = useState(false);
-  const [mouse, setMouse]       = useState({ x: 50, y: 42 });
-  const [tilt, setTilt]         = useState({ rx: 0, ry: 0, mx: 50, my: 38 });
 
   const [email, setEmail]       = useState("");
   const [senha, setSenha]       = useState("");
+  const [showSenha, setShowSenha] = useState(false);
   const [errMedica, setErrMedica] = useState("");
   const [cpf, setCpf]           = useState("");
   const [errPac, setErrPac]     = useState("");
   const [pin, setPin]           = useState("");
+  const [showPin, setShowPin]   = useState(false);
   const [errDev, setErrDev]     = useState("");
   const [loading, setLoading]   = useState(false);
 
-  const clearFields = () => { setEmail(""); setSenha(""); setCpf(""); setPin(""); setErrMedica(""); setErrPac(""); setErrDev(""); };
+  const clearFields = () => { setEmail(""); setSenha(""); setCpf(""); setPin(""); setErrMedica(""); setErrPac(""); setErrDev(""); setShowSenha(false); setShowPin(false); };
   const selectMainRole = (r: MainRole) => { if (r === mainRole) return; clearFields(); setMainRole(r); };
   const openDev  = () => { clearFields(); setDevMode(true); };
   const closeDev = () => { clearFields(); setDevMode(false); };
-
-  const handlePanelMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setMouse({ x: ((e.clientX - rect.left) / rect.width) * 100, y: ((e.clientY - rect.top) / rect.height) * 100 });
-  };
-
-  // Inclinação 3D da carteira de vidro seguindo o cursor — como se fosse um
-  // objeto físico com peso e reflexo, não uma div chapada.
-  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width;
-    const py = (e.clientY - rect.top) / rect.height;
-    setTilt({ rx: (0.5 - py) * 7, ry: (px - 0.5) * 7, mx: px * 100, my: py * 100 });
-  };
-  const resetTilt = () => setTilt({ rx: 0, ry: 0, mx: 50, my: 38 });
 
   const handleMedica = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,266 +253,158 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
   };
 
-  const mainRoles: { id: MainRole; icon: typeof Stethoscope; label: string }[] = [
-    { id: "medica",   icon: Stethoscope, label: "Médica" },
-    { id: "paciente", icon: User,        label: "Paciente" },
-  ];
-
-  const errBox = (msg: string) => (
-    <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-      className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2.5 rounded-lg flex items-center gap-2">
-      <span className="w-1 h-1 rounded-full bg-red-400 shrink-0" /> {msg}
-    </motion.p>
-  );
-
-  // Input com sublinhado dourado que "desenha" ao focar — pequeno detalhe de joalheria.
-  const fieldWrap = (children: React.ReactNode, accent: string) => (
-    <div className="relative group">
-      {children}
-      <span className="pointer-events-none absolute left-0 -bottom-px h-px w-full origin-center scale-x-0 transition-transform duration-300 ease-out peer-focus:scale-x-100"
-        style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }} />
-    </div>
-  );
-
-  // Botão com acabamento de vidro/metal: faixa especular no topo + brilho diagonal
-  // no hover + leve "afundada" real ao clicar.
-  const glossButton = (className: string, disabled: boolean | undefined, content: React.ReactNode) => (
-    <button type="submit" disabled={disabled}
-      className={`relative overflow-hidden isolate flex items-center justify-center gap-2 cursor-pointer mt-1 active:scale-[0.98] transition-transform ${className}`}>
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-lg bg-gradient-to-b from-white/30 to-transparent" />
-      <span className="pointer-events-none absolute inset-0 -translate-x-[120%] skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[120%]" />
-      <span className="relative z-10 flex items-center justify-center gap-2">{content}</span>
-    </button>
+  const spinner = (light?: boolean) => (
+    <span style={{
+      width: 15, height: 15, borderRadius: "50%",
+      border: `2px solid ${light ? "#0b0b0b" : "#fff"}`,
+      borderTopColor: "transparent",
+      display: "inline-block",
+      animation: "spin 0.7s linear infinite",
+    }} />
   );
 
   return (
-    <div className="min-h-screen bg-[#08080A] lg:grid lg:grid-cols-2 relative">
-      {/* Textura de grão sutil sobre toda a tela — evita o look "chapado" digital */}
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.04] mix-blend-overlay" style={{ backgroundImage: GRAIN_URL }} />
-      {/* Vinheta — escurece as bordas, dá profundidade cinematográfica */}
-      <div className="fixed inset-0 pointer-events-none z-0" style={{ background: "radial-gradient(120% 100% at 50% 45%, transparent 45%, rgba(0,0,0,0.55) 100%)" }} />
-
-      {/* ── Painel de marca (desktop) ─────────────────────────────── */}
-      <div onMouseMove={handlePanelMouseMove}
-        className="hidden lg:flex relative flex-col justify-between overflow-hidden p-14 border-r border-[#161616]">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#141414] via-[#0A0A0A] to-black" />
-        <motion.div className="absolute rounded-full bg-[#C9A84C]/12 blur-[130px]"
-          style={{ width: 520, height: 520 }}
-          animate={{ top: ["-14%", "-8%", "-14%"], left: ["-12%", "-6%", "-12%"], opacity: [0.5, 0.85, 0.5] }}
-          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }} />
-        <motion.div className="absolute rounded-full bg-[#6B9FD4]/10 blur-[140px]"
-          style={{ width: 460, height: 460 }}
-          animate={{ bottom: ["-17%", "-11%", "-17%"], right: ["-12%", "-6%", "-12%"], opacity: [0.35, 0.65, 0.35] }}
-          transition={{ duration: 16, repeat: Infinity, ease: "easeInOut", delay: 2 }} />
-        <motion.div className="absolute rounded-full bg-[#B8863A]/10 blur-[120px]"
-          style={{ width: 380, height: 380, top: "38%", left: "28%" }}
-          animate={{ opacity: [0.2, 0.45, 0.2] }} transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 1 }} />
-        <div className="absolute inset-0 opacity-[0.035] pointer-events-none"
-          style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "26px 26px" }} />
-        {/* Brilho que segue o cursor — dá vida ao painel escuro */}
-        <div className="absolute inset-0 pointer-events-none transition-[background] duration-200 ease-out"
-          style={{ background: `radial-gradient(500px circle at ${mouse.x}% ${mouse.y}%, rgba(201,168,76,0.10), transparent 62%)` }} />
-        {/* Poeira dourada flutuante */}
-        {[...Array(7)].map((_, i) => (
-          <motion.div key={i} className="absolute w-[3px] h-[3px] rounded-full bg-[#C9A84C] pointer-events-none"
-            style={{ left: `${12 + i * 12.5}%`, top: `${18 + ((i * 41) % 62)}%` }}
-            animate={{ y: [0, -18, 0], opacity: [0.1, 0.55, 0.1] }}
-            transition={{ duration: 7 + (i % 3), repeat: Infinity, ease: "easeInOut", delay: i * 0.55 }} />
-        ))}
-
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-          className="relative z-10 flex items-center gap-3.5">
-          <GlossyOrb size={46} />
-          <span style={shimmerStyle} className="text-xl font-semibold tracking-tight animate-[shimmer_4.5s_linear_infinite]">CA.RO CLINIC</span>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 18, filter: "blur(6px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-10 max-w-md">
-          <p className="text-[11px] uppercase tracking-[0.35em] text-[#C9A84C]/70 font-mono mb-4">Precision Hair Medicine</p>
-          <h1 style={{ fontFamily: "Georgia, serif" }} className="text-4xl leading-tight text-white font-medium mb-5">
-            Cuidado capilar guiado<br />por ciência e precisão.
-          </h1>
-          <p className="text-sm text-neutral-500 leading-relaxed">
-            Painel clínico da Dra. Mariah Zibetti — diagnóstico, protocolos e acompanhamento de pacientes em um só lugar.
-          </p>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.3 }}
-          className="relative z-10 flex items-center gap-3 text-[10px] text-neutral-700 font-mono uppercase tracking-widest">
-          <div className="w-8 h-px bg-gradient-to-r from-transparent via-neutral-700 to-neutral-700" />
-          CA.RO Studio
-        </motion.div>
-      </div>
-
-      {/* ── Painel de acesso ──────────────────────────────────────── */}
-      <div className="flex flex-col items-center justify-center px-6 py-12 sm:px-10 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] rounded-full bg-[#C9A84C]/[0.05] blur-[150px] pointer-events-none lg:hidden" />
-
-        <div className="w-full max-w-sm relative z-10">
-          {/* logo compacto (mobile) */}
-          <motion.div initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-            className="flex lg:hidden flex-col items-center mb-10">
-            <div className="mb-3"><GlossyOrb size={58} /></div>
-            <h1 style={shimmerStyle} className="text-2xl font-semibold tracking-tight animate-[shimmer_4.5s_linear_infinite]">CA.RO CLINIC</h1>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-600 font-mono mt-1">Precision Hair Medicine</p>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}
-            className="relative" style={{ perspective: 1200 }}>
-            {/* cartão de vidro com inclinação 3D real seguindo o cursor */}
-            <motion.div onMouseMove={handleCardMouseMove} onMouseLeave={resetTilt}
-              animate={{ rotateX: tilt.rx, rotateY: tilt.ry }} transition={{ type: "spring", stiffness: 200, damping: 22 }}
-              className="relative rounded-2xl p-6 sm:p-7"
-              style={{
-                background: "linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))",
-                backdropFilter: "blur(22px)",
-                WebkitBackdropFilter: "blur(22px)",
-                boxShadow: "0 30px 60px -20px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.1), inset 0 0 0 1px rgba(255,255,255,0.05)",
-                transformStyle: "preserve-3d",
-              }}>
-              {/* reflexo de vidro seguindo o cursor */}
-              <div className="absolute inset-0 rounded-2xl pointer-events-none"
-                style={{ background: `radial-gradient(360px circle at ${tilt.mx}% ${tilt.my}%, rgba(255,255,255,0.10), transparent 65%)` }} />
-              <span className="absolute -top-px -left-px w-4 h-4 border-t border-l border-[#C9A84C]/50 rounded-tl-2xl" />
-              <span className="absolute -top-px -right-px w-4 h-4 border-t border-r border-[#C9A84C]/50 rounded-tr-2xl" />
-              <span className="absolute -bottom-px -left-px w-4 h-4 border-b border-l border-[#C9A84C]/50 rounded-bl-2xl" />
-              <span className="absolute -bottom-px -right-px w-4 h-4 border-b border-r border-[#C9A84C]/50 rounded-br-2xl" />
-
-              <div className="relative">
-                <AnimatePresence mode="wait">
-                  {!devMode ? (
-                    <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                      <h2 className="text-xl font-semibold text-white mb-1">Bem-vinda de volta</h2>
-                      <p className="text-xs text-neutral-500 mb-7">
-                        {mainRole === "medica" ? "Entre com seu e-mail e senha para acessar o painel." : "Digite seu CPF para acompanhar seu tratamento."}
-                      </p>
-
-                      <div className="relative grid grid-cols-2 bg-black/40 border border-[#222] rounded-xl p-1 mb-7">
-                        {mainRoles.map(r => (
-                          <button key={r.id} type="button" onClick={() => selectMainRole(r.id)}
-                            className="relative py-2.5 rounded-lg cursor-pointer">
-                            {mainRole === r.id && (
-                              <motion.div layoutId="tab-pill" className="absolute inset-0 bg-[#C9A84C] rounded-lg shadow-[0_0_18px_rgba(201,168,76,0.4)]"
-                                transition={{ type: "spring", stiffness: 500, damping: 35 }} />
-                            )}
-                            <span className={`relative z-10 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${mainRole === r.id ? "text-black" : "text-neutral-400"}`}>
-                              <r.icon className="w-3.5 h-3.5" />{r.label}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-
-                      <AnimatePresence mode="wait">
-                        {mainRole === "medica" ? (
-                          <motion.form key="medica" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.18 }}
-                            onSubmit={handleMedica} className="space-y-4">
-                            <div>
-                              <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">E-mail</label>
-                              {fieldWrap(
-                                <div className="relative">
-                                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
-                                  <input type="email" value={email} onChange={e => { setEmail(e.target.value); setErrMedica(""); }} autoFocus
-                                    placeholder="dra.mariah@caroclinic.com.br"
-                                    className="peer w-full bg-black/40 border border-[#2A2A2A] focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/15 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition-all placeholder:text-neutral-700" />
-                                </div>, "#C9A84C"
-                              )}
-                            </div>
-                            <div>
-                              <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">Senha</label>
-                              {fieldWrap(
-                                <div className="relative">
-                                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
-                                  <input type="password" value={senha} onChange={e => { setSenha(e.target.value); setErrMedica(""); }}
-                                    placeholder="••••••••"
-                                    className="peer w-full bg-black/40 border border-[#2A2A2A] focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/15 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition-all" />
-                                </div>, "#C9A84C"
-                              )}
-                            </div>
-                            {errMedica && errBox(errMedica)}
-                            <div className="group">
-                              {glossButton(
-                                "w-full bg-gradient-to-b from-[#E9C86C] to-[#C9A84C] hover:from-[#F2D67E] hover:to-[#D9B85C] disabled:opacity-50 disabled:cursor-not-allowed text-black text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition-all shadow-[0_4px_20px_rgba(201,168,76,0.2)] hover:shadow-[0_8px_30px_rgba(201,168,76,0.35)]",
-                                loading,
-                                loading ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <><Lock className="w-3.5 h-3.5" />Entrar no Painel</>
-                              )}
-                            </div>
-                          </motion.form>
-                        ) : (
-                          <motion.form key="paciente" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.18 }}
-                            onSubmit={handlePaciente} className="space-y-4">
-                            <div>
-                              <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">CPF</label>
-                              {fieldWrap(
-                                <div className="relative">
-                                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
-                                  <input type="text" value={cpf} onChange={e => { setCpf(formatCpf(e.target.value)); setErrPac(""); }} autoFocus
-                                    placeholder="000.000.000-00"
-                                    className="peer w-full bg-black/40 border border-[#2A2A2A] focus:border-[#6B9FD4] focus:ring-2 focus:ring-[#6B9FD4]/15 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition-all placeholder:text-neutral-700 font-mono tracking-wider" />
-                                </div>, "#6B9FD4"
-                              )}
-                            </div>
-                            {errPac && errBox(errPac)}
-                            <div className="group">
-                              {glossButton(
-                                "w-full bg-gradient-to-b from-[#8BBEF4] to-[#6B9FD4] hover:from-[#9BC9F6] hover:to-[#7BAEE4] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition-all shadow-[0_4px_20px_rgba(107,159,212,0.2)] hover:shadow-[0_8px_30px_rgba(107,159,212,0.35)]",
-                                loading || cpf.replace(/\D/g, "").length < 11,
-                                loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><User className="w-3.5 h-3.5" />Acessar Portal</>
-                              )}
-                            </div>
-                          </motion.form>
-                        )}
-                      </AnimatePresence>
-
-                      <button type="button" onClick={openDev}
-                        className="w-full mt-6 flex items-center justify-center gap-1.5 text-[10px] text-neutral-700 hover:text-neutral-500 transition cursor-pointer uppercase tracking-widest font-mono">
-                        <Terminal className="w-3 h-3" /> Acesso técnico
-                      </button>
-                    </motion.div>
-                  ) : (
-                    <motion.div key="dev" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                      <div className="flex items-center gap-3 mb-6">
-                        <Terminal className="w-5 h-5 text-[#9B8EAF]" />
-                        <h2 className="text-sm font-semibold text-white">Acesso Desenvolvedor</h2>
-                      </div>
-                      <form onSubmit={handleDev} className="space-y-4">
-                        <div>
-                          <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">PIN de Desenvolvedor</label>
-                          {fieldWrap(
-                            <div className="relative">
-                              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
-                              <input type="password" value={pin} onChange={e => { setPin(e.target.value); setErrDev(""); }} autoFocus
-                                placeholder="••••••••"
-                                className="peer w-full bg-black/40 border border-[#2A2A2A] focus:border-[#9B8EAF] focus:ring-2 focus:ring-[#9B8EAF]/15 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition-all font-mono tracking-widest" />
-                            </div>, "#9B8EAF"
-                          )}
-                        </div>
-                        {errDev && errBox(errDev)}
-                        <button type="submit" disabled={loading || !pin}
-                          className="w-full bg-[#9B8EAF] hover:bg-[#AB9EBF] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-1 active:scale-[0.98]">
-                          {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Terminal className="w-3.5 h-3.5" />Acessar Sistema</>}
-                        </button>
-                      </form>
-                      <button onClick={closeDev} className="w-full mt-4 flex items-center justify-center gap-1.5 text-xs text-neutral-600 hover:text-neutral-400 transition cursor-pointer py-1">
-                        <ArrowLeft className="w-3.5 h-3.5" /> Voltar
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+    <div className="caro-login">
+      <style>{CSS + `@keyframes spin{ to{ transform:rotate(360deg); } }`}</style>
+      <main className="caro-page">
+        {/* ── Painel de marca ──────────────────────────────────────── */}
+        <section className="caro-visual">
+          <div>
+            <div className="caro-brand">
+              <div className="caro-brand-mark" aria-hidden="true">CR</div>
+              <div className="caro-brand-copy">
+                <strong>CA.RO CLINIC</strong>
+                <span>Precision Hair Medicine</span>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
 
-          <p className="text-center text-[10px] text-neutral-700 mt-10 font-mono">CA.RO CLINIC · Desenvolvido por CA.RO Studio</p>
-        </div>
-      </div>
+            <div className="caro-hero">
+              <div className="caro-eyebrow">Sistema clínico inteligente</div>
+              <h1>Cuidado capilar guiado por <span>ciência e precisão.</span></h1>
+              <p>Painel clínico da Dra. Mariah Zibetti — diagnóstico, protocolos e acompanhamento de pacientes em um só lugar.</p>
+            </div>
 
-      <style>{`
-        @keyframes shimmer {
-          0%   { background-position: 200% center; }
-          100% { background-position: -200% center; }
-        }
-      `}</style>
+            <div className="caro-med-visual" aria-hidden="true">
+              <div className="caro-nodes" />
+              <div className="caro-pulse">
+                <svg viewBox="0 0 1000 120" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="caroGoldStroke" x1="0" x2="1">
+                      <stop offset="0%" stopColor="#715020" />
+                      <stop offset="50%" stopColor="#f0d38d" />
+                      <stop offset="100%" stopColor="#9e722d" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M0,65 L120,65 L175,65 L198,62 L215,65 L245,65 L270,20 L295,100 L320,52 L345,65 L520,65 L575,65 L600,58 L620,65 L690,65 L720,18 L748,105 L775,48 L805,65 L1000,65" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="caro-visual-footer">
+            <div className="caro-shield">+</div>
+            <div className="caro-vfooter-text">Ambiente protegido<br />Segurança, precisão e confidencialidade</div>
+          </div>
+        </section>
+
+        {/* ── Painel de acesso ─────────────────────────────────────── */}
+        <section className="caro-login-side">
+          <div className="caro-card">
+            <header className="caro-card-header">
+              <div className="caro-mini-mark" aria-hidden="true">CR</div>
+              <h2>{devMode ? "Acesso Técnico" : "Entrar"}</h2>
+              <p>
+                {devMode ? "Ambiente restrito de administração."
+                  : mainRole === "medica" ? "Acesse sua plataforma médica" : "Acompanhe seu tratamento"}
+              </p>
+              <div className="caro-divider" />
+            </header>
+
+            {!devMode ? (
+              <>
+                <div className="caro-role-switch">
+                  <button type="button" className={mainRole === "medica" ? "active" : ""} onClick={() => selectMainRole("medica")}>
+                    <Stethoscope size={14} />Médica
+                  </button>
+                  <button type="button" className={mainRole === "paciente" ? "active" : ""} onClick={() => selectMainRole("paciente")}>
+                    <User size={14} />Paciente
+                  </button>
+                </div>
+
+                {mainRole === "medica" ? (
+                  <form onSubmit={handleMedica} noValidate>
+                    <div className="caro-field">
+                      <label htmlFor="email">E-mail</label>
+                      <div className="caro-input-wrap">
+                        <Mail />
+                        <input id="email" type="email" value={email} onChange={e => { setEmail(e.target.value); setErrMedica(""); }}
+                          autoFocus placeholder="seu@email.com" autoComplete="email" />
+                      </div>
+                    </div>
+                    <div className="caro-field">
+                      <label htmlFor="senha">Senha</label>
+                      <div className="caro-input-wrap">
+                        <Lock />
+                        <input id="senha" type={showSenha ? "text" : "password"} value={senha} onChange={e => { setSenha(e.target.value); setErrMedica(""); }}
+                          placeholder="••••••••" autoComplete="current-password" style={{ paddingRight: 44 }} />
+                        <button type="button" className="caro-toggle-pass" onClick={() => setShowSenha(s => !s)} aria-label={showSenha ? "Ocultar senha" : "Mostrar senha"}>
+                          {showSenha ? <EyeOff /> : <Eye />}
+                        </button>
+                      </div>
+                    </div>
+                    {errMedica && <div className="caro-status">{errMedica}</div>}
+                    <button className="caro-btn" type="submit" disabled={loading}>
+                      {loading ? spinner(true) : <><Lock size={15} />Acessar sistema</>}
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={handlePaciente} noValidate>
+                    <div className="caro-field">
+                      <label htmlFor="cpf">CPF</label>
+                      <div className="caro-input-wrap">
+                        <CreditCard />
+                        <input id="cpf" type="text" value={cpf} onChange={e => { setCpf(formatCpf(e.target.value)); setErrPac(""); }}
+                          autoFocus placeholder="000.000.000-00" />
+                      </div>
+                    </div>
+                    {errPac && <div className="caro-status">{errPac}</div>}
+                    <button className="caro-btn" type="submit" disabled={loading || cpf.replace(/\D/g, "").length < 11}>
+                      {loading ? spinner(true) : <><User size={15} />Acessar portal</>}
+                    </button>
+                  </form>
+                )}
+
+                <div className="caro-support">
+                  <button type="button" onClick={openDev}><Terminal size={12} />Acesso técnico</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <form onSubmit={handleDev} noValidate>
+                  <div className="caro-field">
+                    <label htmlFor="pin">PIN de Desenvolvedor</label>
+                    <div className="caro-input-wrap">
+                      <Lock />
+                      <input id="pin" type={showPin ? "text" : "password"} value={pin} onChange={e => { setPin(e.target.value); setErrDev(""); }}
+                        autoFocus placeholder="••••••••" style={{ paddingRight: 44 }} />
+                      <button type="button" className="caro-toggle-pass" onClick={() => setShowPin(s => !s)} aria-label={showPin ? "Ocultar PIN" : "Mostrar PIN"}>
+                        {showPin ? <EyeOff /> : <Eye />}
+                      </button>
+                    </div>
+                  </div>
+                  {errDev && <div className="caro-status">{errDev}</div>}
+                  <button className="caro-btn" type="submit" disabled={loading || !pin}>
+                    {loading ? spinner(true) : <><Terminal size={15} />Acessar sistema</>}
+                  </button>
+                </form>
+                <div className="caro-support">
+                  <button type="button" onClick={closeDev}><ArrowLeft size={12} />Voltar</button>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
