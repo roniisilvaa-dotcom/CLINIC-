@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Sparkles, Stethoscope, User, Terminal, Lock, CreditCard, ChevronRight } from "lucide-react";
+import { Sparkles, Stethoscope, User, Terminal, Lock, CreditCard, Mail, ArrowLeft } from "lucide-react";
 import { Paciente } from "../types";
 
 interface LoginScreenProps {
@@ -8,10 +8,12 @@ interface LoginScreenProps {
   pacientes: Paciente[];
 }
 
-type ActiveRole = "medica" | "paciente" | "dev" | null;
+type MainRole = "medica" | "paciente";
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [active, setActive]     = useState<ActiveRole>(null);
+  const [mainRole, setMainRole] = useState<MainRole>("medica");
+  const [devMode, setDevMode]   = useState(false);
+
   const [email, setEmail]       = useState("");
   const [senha, setSenha]       = useState("");
   const [errMedica, setErrMedica] = useState("");
@@ -21,7 +23,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [errDev, setErrDev]     = useState("");
   const [loading, setLoading]   = useState(false);
 
-  const reset = () => { setActive(null); setEmail(""); setSenha(""); setCpf(""); setPin(""); setErrMedica(""); setErrPac(""); setErrDev(""); };
+  const clearFields = () => { setEmail(""); setSenha(""); setCpf(""); setPin(""); setErrMedica(""); setErrPac(""); setErrDev(""); };
+  const selectMainRole = (r: MainRole) => { if (r === mainRole) return; clearFields(); setMainRole(r); };
+  const openDev  = () => { clearFields(); setDevMode(true); };
+  const closeDev = () => { clearFields(); setDevMode(false); };
 
   const handleMedica = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,127 +119,182 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
   };
 
-  const roles = [
-    { id: "medica" as ActiveRole,   icon: Stethoscope, label: "Médica",       desc: "Acesso ao painel clínico completo", color: "#C9A84C" },
-    { id: "paciente" as ActiveRole, icon: User,        label: "Paciente",     desc: "Portal de acompanhamento pessoal",  color: "#6B9FD4" },
-    { id: "dev" as ActiveRole,      icon: Terminal,    label: "Desenvolvedor",desc: "Administração e configuração",      color: "#9B8EAF" },
+  const mainRoles: { id: MainRole; icon: typeof Stethoscope; label: string }[] = [
+    { id: "medica",   icon: Stethoscope, label: "Médica" },
+    { id: "paciente", icon: User,        label: "Paciente" },
   ];
 
-  return (
-    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center relative overflow-hidden p-4">
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full bg-[#C9A84C]/4 blur-[140px] pointer-events-none" />
+  const errBox = (msg: string) => (
+    <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+      className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2.5 rounded-lg flex items-center gap-2">
+      <span className="w-1 h-1 rounded-full bg-red-400 shrink-0" /> {msg}
+    </motion.p>
+  );
 
-      <div className="w-full max-w-md">
-        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-          className="flex flex-col items-center mb-10">
-          <div className="w-16 h-16 rounded-full border-2 border-[#C9A84C]/60 bg-black flex items-center justify-center shadow-[0_0_40px_rgba(201,168,76,0.15)] mb-4">
-            <Sparkles className="w-7 h-7 text-[#C9A84C]" />
+  return (
+    <div className="min-h-screen bg-[#0A0A0A] lg:grid lg:grid-cols-2">
+      {/* ── Painel de marca (desktop) ─────────────────────────────── */}
+      <div className="hidden lg:flex relative flex-col justify-between overflow-hidden p-14 border-r border-[#161616]">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#141414] via-[#0A0A0A] to-black" />
+        <motion.div className="absolute top-[-12%] left-[-10%] w-[520px] h-[520px] rounded-full bg-[#C9A84C]/10 blur-[130px]"
+          animate={{ opacity: [0.5, 0.9, 0.5] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} />
+        <motion.div className="absolute bottom-[-15%] right-[-10%] w-[460px] h-[460px] rounded-full bg-[#6B9FD4]/10 blur-[140px]"
+          animate={{ opacity: [0.4, 0.7, 0.4] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }} />
+        <div className="absolute inset-0 opacity-[0.035] pointer-events-none"
+          style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "26px 26px" }} />
+
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+          className="relative z-10 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full border-2 border-[#C9A84C]/60 bg-black flex items-center justify-center shadow-[0_0_30px_rgba(201,168,76,0.2)]">
+            <Sparkles className="w-5 h-5 text-[#C9A84C]" />
           </div>
-          <h1 style={{ fontFamily: "Georgia, serif" }} className="text-3xl text-[#C9A84C] font-semibold tracking-tight">CA.RO CLINIC</h1>
-          <p className="text-[10px] uppercase tracking-[0.35em] text-neutral-600 font-mono mt-1">Dra. Mariah Zibetti · Precision Hair Medicine</p>
+          <span style={{ fontFamily: "Georgia, serif" }} className="text-xl text-[#C9A84C] font-semibold tracking-tight">CA.RO CLINIC</span>
         </motion.div>
 
-        <AnimatePresence mode="wait">
-          {!active ? (
-            <motion.div key="roles" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-3">
-              <p className="text-center text-[10px] text-neutral-600 font-mono mb-5 uppercase tracking-widest">Selecione seu perfil</p>
-              {roles.map((r, i) => {
-                const Icon = r.icon;
-                return (
-                  <motion.button key={r.id!} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }}
-                    onClick={() => setActive(r.id)}
-                    className="w-full flex items-center gap-4 bg-[#111111] hover:bg-[#161616] border border-[#222] hover:border-[#333] rounded-xl px-5 py-4 text-left transition-all duration-200 group cursor-pointer">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 border" style={{ background: `${r.color}15`, borderColor: `${r.color}35` }}>
-                      <Icon className="w-5 h-5" style={{ color: r.color }} />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-white">{r.label}</p>
-                      <p className="text-xs text-neutral-500 mt-0.5">{r.desc}</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-neutral-600 group-hover:text-neutral-400 transition" />
-                  </motion.button>
-                );
-              })}
-            </motion.div>
-          ) : (
-            <motion.div key="form" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.22 }}
-              className="bg-[#111111] border border-[#222] rounded-2xl p-7 shadow-2xl">
-              <div className="flex items-center gap-3 mb-6">
-                {active === "medica"   && <Stethoscope className="w-5 h-5 text-[#C9A84C]" />}
-                {active === "paciente" && <User className="w-5 h-5 text-[#6B9FD4]" />}
-                {active === "dev"      && <Terminal className="w-5 h-5 text-[#9B8EAF]" />}
-                <h2 className="text-sm font-semibold text-white">
-                  {active === "medica" && "Acesso Médica"}
-                  {active === "paciente" && "Portal do Paciente"}
-                  {active === "dev" && "Acesso Desenvolvedor"}
-                </h2>
-              </div>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
+          className="relative z-10 max-w-md">
+          <p className="text-[11px] uppercase tracking-[0.35em] text-[#C9A84C]/70 font-mono mb-4">Precision Hair Medicine</p>
+          <h1 style={{ fontFamily: "Georgia, serif" }} className="text-4xl leading-tight text-white font-medium mb-5">
+            Cuidado capilar guiado<br />por ciência e precisão.
+          </h1>
+          <p className="text-sm text-neutral-500 leading-relaxed">
+            Painel clínico da Dra. Mariah Zibetti — diagnóstico, protocolos e acompanhamento de pacientes em um só lugar.
+          </p>
+        </motion.div>
 
-              {active === "medica" && (
-                <form onSubmit={handleMedica} className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">E-mail</label>
-                    <input type="email" value={email} onChange={e => { setEmail(e.target.value); setErrMedica(""); }} autoFocus
-                      placeholder="dra.mariah@caroclinic.com.br"
-                      className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#C9A84C]/50 text-white text-sm py-3 px-4 rounded-lg outline-none transition placeholder:text-neutral-700" />
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.3 }}
+          className="relative z-10 flex items-center gap-3 text-[10px] text-neutral-700 font-mono uppercase tracking-widest">
+          <div className="w-8 h-px bg-neutral-800" />
+          CA.RO Studio
+        </motion.div>
+      </div>
+
+      {/* ── Painel de acesso ──────────────────────────────────────── */}
+      <div className="flex flex-col items-center justify-center px-6 py-12 sm:px-10 relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] rounded-full bg-[#C9A84C]/[0.04] blur-[150px] pointer-events-none lg:hidden" />
+
+        <div className="w-full max-w-sm relative z-10">
+          {/* logo compacto (mobile) */}
+          <motion.div initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+            className="flex lg:hidden flex-col items-center mb-10">
+            <div className="w-14 h-14 rounded-full border-2 border-[#C9A84C]/60 bg-black flex items-center justify-center shadow-[0_0_30px_rgba(201,168,76,0.15)] mb-3">
+              <Sparkles className="w-6 h-6 text-[#C9A84C]" />
+            </div>
+            <h1 style={{ fontFamily: "Georgia, serif" }} className="text-2xl text-[#C9A84C] font-semibold tracking-tight">CA.RO CLINIC</h1>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-600 font-mono mt-1">Precision Hair Medicine</p>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
+            <AnimatePresence mode="wait">
+              {!devMode ? (
+                <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                  <h2 className="text-xl font-semibold text-white mb-1">Bem-vinda de volta</h2>
+                  <p className="text-xs text-neutral-500 mb-7">
+                    {mainRole === "medica" ? "Entre com seu e-mail e senha para acessar o painel." : "Digite seu CPF para acompanhar seu tratamento."}
+                  </p>
+
+                  <div className="relative grid grid-cols-2 bg-[#111111] border border-[#222] rounded-xl p-1 mb-7">
+                    {mainRoles.map(r => (
+                      <button key={r.id} type="button" onClick={() => selectMainRole(r.id)}
+                        className="relative py-2.5 rounded-lg cursor-pointer">
+                        {mainRole === r.id && (
+                          <motion.div layoutId="tab-pill" className="absolute inset-0 bg-[#C9A84C] rounded-lg"
+                            transition={{ type: "spring", stiffness: 500, damping: 35 }} />
+                        )}
+                        <span className={`relative z-10 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${mainRole === r.id ? "text-black" : "text-neutral-400"}`}>
+                          <r.icon className="w-3.5 h-3.5" />{r.label}
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">Senha</label>
-                    <input type="password" value={senha} onChange={e => { setSenha(e.target.value); setErrMedica(""); }}
-                      placeholder="••••••••"
-                      className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#C9A84C]/50 text-white text-sm py-3 px-4 rounded-lg outline-none transition" />
-                  </div>
-                  {errMedica && <p className="text-xs text-red-400 font-mono bg-red-500/10 px-3 py-2 rounded-lg">⛔ {errMedica}</p>}
-                  <button type="submit" disabled={loading} className="w-full bg-[#C9A84C] hover:bg-[#D9B85C] disabled:opacity-50 text-black text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-1">
-                    {loading ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <><Lock className="w-3.5 h-3.5" />Entrar no Painel</>}
+
+                  <AnimatePresence mode="wait">
+                    {mainRole === "medica" ? (
+                      <motion.form key="medica" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.18 }}
+                        onSubmit={handleMedica} className="space-y-4">
+                        <div>
+                          <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">E-mail</label>
+                          <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                            <input type="email" value={email} onChange={e => { setEmail(e.target.value); setErrMedica(""); }} autoFocus
+                              placeholder="dra.mariah@caroclinic.com.br"
+                              className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/15 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition-all placeholder:text-neutral-700" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">Senha</label>
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                            <input type="password" value={senha} onChange={e => { setSenha(e.target.value); setErrMedica(""); }}
+                              placeholder="••••••••"
+                              className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/15 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition-all" />
+                          </div>
+                        </div>
+                        {errMedica && errBox(errMedica)}
+                        <button type="submit" disabled={loading}
+                          className="w-full bg-gradient-to-r from-[#C9A84C] to-[#D9B85C] hover:from-[#D9B85C] hover:to-[#E9C86C] disabled:opacity-50 disabled:cursor-not-allowed text-black text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition-all shadow-[0_4px_20px_rgba(201,168,76,0.15)] hover:shadow-[0_6px_28px_rgba(201,168,76,0.25)] flex items-center justify-center gap-2 cursor-pointer mt-1">
+                          {loading ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <><Lock className="w-3.5 h-3.5" />Entrar no Painel</>}
+                        </button>
+                      </motion.form>
+                    ) : (
+                      <motion.form key="paciente" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.18 }}
+                        onSubmit={handlePaciente} className="space-y-4">
+                        <div>
+                          <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">CPF</label>
+                          <div className="relative">
+                            <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                            <input type="text" value={cpf} onChange={e => { setCpf(formatCpf(e.target.value)); setErrPac(""); }} autoFocus
+                              placeholder="000.000.000-00"
+                              className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#6B9FD4] focus:ring-2 focus:ring-[#6B9FD4]/15 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition-all placeholder:text-neutral-700 font-mono tracking-wider" />
+                          </div>
+                        </div>
+                        {errPac && errBox(errPac)}
+                        <button type="submit" disabled={loading || cpf.replace(/\D/g,"").length < 11}
+                          className="w-full bg-gradient-to-r from-[#6B9FD4] to-[#7BAEE4] hover:from-[#7BAEE4] hover:to-[#8BBEF4] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition-all shadow-[0_4px_20px_rgba(107,159,212,0.15)] hover:shadow-[0_6px_28px_rgba(107,159,212,0.25)] flex items-center justify-center gap-2 cursor-pointer mt-1">
+                          {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><User className="w-3.5 h-3.5" />Acessar Portal</>}
+                        </button>
+                      </motion.form>
+                    )}
+                  </AnimatePresence>
+
+                  <button type="button" onClick={openDev}
+                    className="w-full mt-6 flex items-center justify-center gap-1.5 text-[10px] text-neutral-700 hover:text-neutral-500 transition cursor-pointer uppercase tracking-widest font-mono">
+                    <Terminal className="w-3 h-3" /> Acesso técnico
                   </button>
-                </form>
-              )}
-
-              {active === "paciente" && (
-                <form onSubmit={handlePaciente} className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">CPF</label>
-                    <div className="relative">
-                      <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
-                      <input type="text" value={cpf} onChange={e => { setCpf(formatCpf(e.target.value)); setErrPac(""); }} autoFocus
-                        placeholder="000.000.000-00"
-                        className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#6B9FD4]/50 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition placeholder:text-neutral-700 font-mono tracking-wider" />
-                    </div>
+                </motion.div>
+              ) : (
+                <motion.div key="dev" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}
+                  className="bg-[#111111] border border-[#222] rounded-2xl p-7 shadow-2xl">
+                  <div className="flex items-center gap-3 mb-6">
+                    <Terminal className="w-5 h-5 text-[#9B8EAF]" />
+                    <h2 className="text-sm font-semibold text-white">Acesso Desenvolvedor</h2>
                   </div>
-                  {errPac && <p className="text-xs text-red-400 font-mono bg-red-500/10 px-3 py-2 rounded-lg">⛔ {errPac}</p>}
-                  <button type="submit" disabled={loading || cpf.replace(/\D/g,"").length < 11} className="w-full bg-[#6B9FD4] hover:bg-[#7BAEE4] disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-1">
-                    {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><User className="w-3.5 h-3.5" />Acessar Portal</>}
-                  </button>
-                </form>
-              )}
-
-              {active === "dev" && (
-                <form onSubmit={handleDev} className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">PIN de Desenvolvedor</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
-                      <input type="password" value={pin} onChange={e => { setPin(e.target.value); setErrDev(""); }} autoFocus
-                        placeholder="••••••••"
-                        className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#9B8EAF]/60 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition font-mono tracking-widest" />
+                  <form onSubmit={handleDev} className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wider text-neutral-500 font-semibold mb-1.5">PIN de Desenvolvedor</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                        <input type="password" value={pin} onChange={e => { setPin(e.target.value); setErrDev(""); }} autoFocus
+                          placeholder="••••••••"
+                          className="w-full bg-[#0A0A0A] border border-[#2A2A2A] focus:border-[#9B8EAF] focus:ring-2 focus:ring-[#9B8EAF]/15 text-white text-sm py-3 pl-10 pr-4 rounded-lg outline-none transition-all font-mono tracking-widest" />
+                      </div>
                     </div>
-                  </div>
-                  {errDev && <p className="text-xs text-red-400 font-mono bg-red-500/10 px-3 py-2 rounded-lg">⛔ {errDev}</p>}
-                  <button type="submit" disabled={loading || !pin} className="w-full bg-[#9B8EAF] hover:bg-[#AB9EBF] disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-1">
-                    {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Terminal className="w-3.5 h-3.5" />Acessar Sistema</>}
+                    {errDev && errBox(errDev)}
+                    <button type="submit" disabled={loading || !pin}
+                      className="w-full bg-[#9B8EAF] hover:bg-[#AB9EBF] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold uppercase tracking-widest py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-1">
+                      {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Terminal className="w-3.5 h-3.5" />Acessar Sistema</>}
+                    </button>
+                  </form>
+                  <button onClick={closeDev} className="w-full mt-4 flex items-center justify-center gap-1.5 text-xs text-neutral-600 hover:text-neutral-400 transition cursor-pointer py-1">
+                    <ArrowLeft className="w-3.5 h-3.5" /> Voltar
                   </button>
-                </form>
+                </motion.div>
               )}
+            </AnimatePresence>
+          </motion.div>
 
-              <button onClick={reset} className="w-full mt-4 text-xs text-neutral-600 hover:text-neutral-400 transition cursor-pointer py-1">
-                ← Voltar
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <p className="text-center text-[10px] text-neutral-700 mt-8 font-mono">CA.RO CLINIC · Desenvolvido por CA.RO Studio</p>
+          <p className="text-center text-[10px] text-neutral-700 mt-10 font-mono">CA.RO CLINIC · Desenvolvido por CA.RO Studio</p>
+        </div>
       </div>
     </div>
   );
