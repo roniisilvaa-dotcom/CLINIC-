@@ -13,7 +13,7 @@ import GaleriaGlobal from "./components/GaleriaGlobal";
 import PlanosAssinaturas from "./components/PlanosAssinaturas";
 import PortalPaciente from "./components/PortalPaciente";
 import FinanceiroModulo from "./components/FinanceiroMódulo";
-import Relatorios from "./components/Relatórios";
+import Relatorios from "./components/Relatorios";
 import PainelDesenvolvedor from "./components/PainelDesenvolvedor";
 import WhatsAppBot from "./components/WhatsAppBot";
 
