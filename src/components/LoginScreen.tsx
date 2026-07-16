@@ -142,11 +142,14 @@ const CSS = `
 }
 `;
 
+const REMEMBER_EMAIL_KEY = "caro_clinic_lembrar_email";
+
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [mainRole, setMainRole] = useState<MainRole>("medica");
   const [devMode, setDevMode]   = useState(false);
 
-  const [email, setEmail]       = useState("");
+  const [email, setEmail]       = useState(() => localStorage.getItem(REMEMBER_EMAIL_KEY) || "");
+      const [lembrarEmail, setLembrarEmail] = useState(() => Boolean(localStorage.getItem(REMEMBER_EMAIL_KEY)));
   const [senha, setSenha]       = useState("");
   const [showSenha, setShowSenha] = useState(false);
   const [errMedica, setErrMedica] = useState("");
@@ -178,7 +181,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         setLoading(false);
         return;
       }
-      onLogin("medica", data.nome, data.token);
+      if (lembrarEmail) localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+              else localStorage.removeItem(REMEMBER_EMAIL_KEY);
+              onLogin("medica", data.nome, data.token);
     } catch {
       setErrMedica("Não foi possível conectar ao servidor. Tente novamente.");
     }
@@ -337,20 +342,27 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                       <label htmlFor="email">E-mail</label>
                       <div className="caro-input-wrap">
                         <Mail />
-                        <input id="email" type="email" value={email} onChange={e => { setEmail(e.target.value); setErrMedica(""); }}
-                          autoFocus placeholder="seu@email.com" autoComplete="email" />
+                        <input id="email" name="username" type="email" value={email} onChange={e => { setEmail(e.target.value); setErrMedica(""); }}
+                          autoFocus placeholder="seu@email.com" autoComplete="username" />
                       </div>
                     </div>
                     <div className="caro-field">
                       <label htmlFor="senha">Senha</label>
                       <div className="caro-input-wrap">
                         <Lock />
-                        <input id="senha" type={showSenha ? "text" : "password"} value={senha} onChange={e => { setSenha(e.target.value); setErrMedica(""); }}
+                        <input id="senha" name="current-password" type={showSenha ? "text" : "password"} value={senha} onChange={e => { setSenha(e.target.value); setErrMedica(""); }}
                           placeholder="••••••••" autoComplete="current-password" style={{ paddingRight: 44 }} />
                         <button type="button" className="caro-toggle-pass" onClick={() => setShowSenha(s => !s)} aria-label={showSenha ? "Ocultar senha" : "Mostrar senha"}>
                           {showSenha ? <EyeOff /> : <Eye />}
                         </button>
                       </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, marginTop: -6 }}>
+                        <input type="checkbox" id="lembrarEmail" checked={lembrarEmail} onChange={e => setLembrarEmail(e.target.checked)}
+                              style={{ width: 15, height: 15, accentColor: "#c99b43", cursor: "pointer", flexShrink: 0 }} />
+                        <label htmlFor="lembrarEmail" style={{ color: "var(--muted)", fontSize: 12, cursor: "pointer", userSelect: "none" }}>
+                              Lembrar meu e-mail neste computador
+                        </label>
                     </div>
                     {errMedica && <div className="caro-status">{errMedica}</div>}
                     <button className="caro-btn" type="submit" disabled={loading}>
