@@ -13,6 +13,7 @@ import GaleriaGlobal from "./components/GaleriaGlobal";
 import PlanosAssinaturas from "./components/PlanosAssinaturas";
 import PortalPaciente from "./components/PortalPaciente";
 import FinanceiroModulo from "./components/FinanceiroMódulo";
+import Relatorios from "./components/Relatórios";
 import PainelDesenvolvedor from "./components/PainelDesenvolvedor";
 import WhatsAppBot from "./components/WhatsAppBot";
 
@@ -22,7 +23,7 @@ type UserRole = "medica" | "paciente" | "dev";
 
 type TabOption =
   | "dashboard" | "pacientes" | "nova_consulta" | "agenda"
-  | "prescricoes" | "financeiro" | "galeria_capilar"
+  | "prescricoes" | "financeiro" | "relatorios" | "galeria_capilar"
   | "ia_assistente" | "planos" | "dev_panel"
   | "whatsapp_bot";
 
@@ -78,7 +79,7 @@ function montarPacientesCompletos(
     exames: exames.filter((e) => e.pacienteId === p.id),
     galeria: galeriaFotos.filter((g) => g.pacienteId === p.id),
     consultas: consultas.filter((c) => c.pacienteId === p.id),
-      tags: Array.isArray(p.tags) ? p.tags : [],
+    tags: Array.isArray(p.tags) ? p.tags : [],
   }));
 }
 
@@ -131,21 +132,21 @@ function montarAgenda(agendaRaw: any[], pacientes: Paciente[]): EventoAgenda[] {
 export default function App() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole]               = useState<UserRole>("medica");
-  const [medicaNome, setMedicaNome]           = useState("Dra. Mariah Zibetti");
+  const [userRole, setUserRole] = useState<UserRole>("medica");
+  const [medicaNome, setMedicaNome] = useState("Dra. Mariah Zibetti");
   const [loggedPacienteId, setLoggedPacienteId] = useState<string | null>(null);
 
   const [patientChats, setPatientChats] = useState<Record<string, Message[]>>({});
 
-  const [currentTab, setCurrentTab]   = useState<TabOption>("dashboard");
-  const [collapsed, setCollapsed]     = useState(false);
+  const [currentTab, setCurrentTab] = useState<TabOption>("dashboard");
+  const [collapsed, setCollapsed] = useState(false);
   // Plano real e atual da Dra. Mariah: Standard Clínica IA.
-  const [activePlan, setActivePlan]   = useState<"Standard" | "Precision" | "Enterprise">("Standard");
+  const [activePlan, setActivePlan] = useState<"Standard" | "Precision" | "Enterprise">("Standard");
   const [aiRunsCounter, setAiRunsCounter] = useState(0);
 
-  const [pacientes, setPacientes]     = useState<Paciente[]>([]);
-  const [alertas, setAlertas]         = useState<AlertaClinico[]>([]);
-  const [agendaHoje, setAgendaHoje]   = useState<EventoAgenda[]>([]);
+  const [pacientes, setPacientes] = useState<Paciente[]>([]);
+  const [alertas, setAlertas] = useState<AlertaClinico[]>([]);
+  const [agendaHoje, setAgendaHoje] = useState<EventoAgenda[]>([]);
   const [loadingDados, setLoadingDados] = useState(false);
   const [selectedPacienteId, setSelectedPacienteId] = useState<string | null>(null);
 
@@ -525,8 +526,9 @@ export default function App() {
               <IaAssistente pacientes={pacientes} activePlan={activePlan}
                 aiRunsCounter={aiRunsCounter} onIncrementAiRuns={() => setAiRunsCounter(p => p + 1)} />
             )}
-            {currentTab === "prescricoes"    && <PrescricoesModulo />}
-            {currentTab === "financeiro"     && <FinanceiroModulo pacientes={pacientes} />}
+            {currentTab === "prescricoes" && <PrescricoesModulo />}
+            {currentTab === "financeiro" && <FinanceiroModulo pacientes={pacientes} />}
+            {currentTab === "relatorios" && <Relatorios pacientes={pacientes} />}
             {currentTab === "galeria_capilar" && (
               <GaleriaGlobal pacientes={pacientes}
                 onViewPaciente={(id) => { setSelectedPacienteId(id); setCurrentTab("pacientes"); }} />
