@@ -15,7 +15,7 @@ import {
   filaEspera,
   pacotesVendidos,
   users,
-    prescricoesTemplates,
+  prescricoesTemplates,
   transacoesFinanceiras,
 } from "../src/db/schema.js";
 import { eq, sql } from "drizzle-orm";
@@ -25,7 +25,7 @@ const app = express();
 // Captura o corpo raw da requisição (necessário pra validar a assinatura X-Hub-Signature-256
 // que a Meta envia em todo POST /api/whatsapp/webhook — ver src/services/metaWhatsappService.ts)
 app.use(express.json({
-    limit: "25mb",
+  limit: "25mb",
   verify: (req: any, _res, buf) => {
     req.rawBody = buf;
   },
@@ -47,44 +47,44 @@ db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS session_token text
 // Migracao automatica: cria a tabela de templates de prescricoes e semeia com a biblioteca padrao
 db.execute(sql`CREATE TABLE IF NOT EXISTS prescricoes_templates (
   id text PRIMARY KEY,
-    titulo text NOT NULL,
-      diagnostico_ref text,
-        categoria text NOT NULL,
-          medicamentos text,
-            procedimentos text,
-              suplementacao text,
-                cosmeticos text
-                )`).then(async () => {
-    const existentes = await db.select().from(prescricoesTemplates).limit(1);
-    if (existentes.length === 0) {
-          await db.insert(prescricoesTemplates).values([
-            { id: "temp-1", titulo: "AAG Feminina Classica (Ludwig I e II)", diagnosticoRef: "Alopecia Androgenetica Feminina (FPHL)", categoria: "Medicamentoso", medicamentos: "Minoxidil oral 0.5mg a noite.\nEspironolactona 50mg pela manha.", procedimentos: "MMP Capilar quinzenal ou mensal.\nLaser de Baixa Potencia diario (Helmet).", suplementacao: "Silicio Organico 100mg + Biotina 5mg + L-Cistina 100mg.", cosmeticos: "Xampu antiqueda fitoterapico (Ginkgo Biloba e Cafeina).\nLocao tonica capilar com Capixyl aplicada a noite." },
-            { id: "temp-2", titulo: "AGA Masculina Estagio IV (Hamilton-Norwood)", diagnosticoRef: "Alopecia Androgenetica Masculina (AGA)", categoria: "Procedimentos", medicamentos: "Dutasterida 0.5mg a noite.\nMinoxidil oral 2.5mg pela manha.", procedimentos: "Microagulhamento Capilar Robotico mensal com Drug Delivery de Dutasterida e Fatores de Crescimento.", suplementacao: "Zinco quelato 30mg + Saw Palmetto extract 320mg a noite.", cosmeticos: "Xampu de Limpeza Seborregulador com Cetoconazol 2%." },
-            { id: "temp-3", titulo: "Efluvio Agudo Pos-Dengue ou Pos-Parto", diagnosticoRef: "Efluvio Telogeno Agudo", categoria: "Suplementação", medicamentos: "Evitar bloqueadores hormonais se houver lactacao.", procedimentos: "Laser terapeutico capilar de Baixa Potencia semanal em consultorio.", suplementacao: "Ferro Quelato 60mg + Vitamina D 5.000 UI diario + Omega 3 1g pos almoco.\nMetilfolato 1mg e Biotina 5mg.", cosmeticos: "Xampu suave com Pantenol e oleos essenciais remineralizantes." },
-            { id: "temp-4", titulo: "Dermatite Seborreica Ativa com Eritema", diagnosticoRef: "Dermatite Seborreica", categoria: "Cuidados Domiciliares", medicamentos: "Corticoide capilar em emulsao suave (maximo 5 dias se coceira cronica).", procedimentos: "Peeling capilar acido com acido salicilico 2% em consultorio.", suplementacao: "Zinco Quelado 30mg + Vitamina B6 50mg + L-Metionina 100mg pos-almoco.", cosmeticos: "Xampu de Cetoconazol alternado com Xampu de Piritionato de Zinco 1.5%." }
-                ]);
-    }
+  titulo text NOT NULL,
+  diagnostico_ref text,
+  categoria text NOT NULL,
+  medicamentos text,
+  procedimentos text,
+  suplementacao text,
+  cosmeticos text
+)`).then(async () => {
+  const existentes = await db.select().from(prescricoesTemplates).limit(1);
+  if (existentes.length === 0) {
+    await db.insert(prescricoesTemplates).values([
+      { id: "temp-1", titulo: "AAG Feminina Classica (Ludwig I e II)", diagnosticoRef: "Alopecia Androgenetica Feminina (FPHL)", categoria: "Medicamentoso", medicamentos: "Minoxidil oral 0.5mg a noite.\nEspironolactona 50mg pela manha.", procedimentos: "MMP Capilar quinzenal ou mensal.\nLaser de Baixa Potencia diario (Helmet).", suplementacao: "Silicio Organico 100mg + Biotina 5mg + L-Cistina 100mg.", cosmeticos: "Xampu antiqueda fitoterapico (Ginkgo Biloba e Cafeina).\nLocao tonica capilar com Capixyl aplicada a noite." },
+      { id: "temp-2", titulo: "AGA Masculina Estagio IV (Hamilton-Norwood)", diagnosticoRef: "Alopecia Androgenetica Masculina (AGA)", categoria: "Procedimentos", medicamentos: "Dutasterida 0.5mg a noite.\nMinoxidil oral 2.5mg pela manha.", procedimentos: "Microagulhamento Capilar Robotico mensal com Drug Delivery de Dutasterida e Fatores de Crescimento.", suplementacao: "Zinco quelato 30mg + Saw Palmetto extract 320mg a noite.", cosmeticos: "Xampu de Limpeza Seborregulador com Cetoconazol 2%." },
+      { id: "temp-3", titulo: "Efluvio Agudo Pos-Dengue ou Pos-Parto", diagnosticoRef: "Efluvio Telogeno Agudo", categoria: "Suplementação", medicamentos: "Evitar bloqueadores hormonais se houver lactacao.", procedimentos: "Laser terapeutico capilar de Baixa Potencia semanal em consultorio.", suplementacao: "Ferro Quelato 60mg + Vitamina D 5.000 UI diario + Omega 3 1g pos almoco.\nMetilfolato 1mg e Biotina 5mg.", cosmeticos: "Xampu suave com Pantenol e oleos essenciais remineralizantes." },
+      { id: "temp-4", titulo: "Dermatite Seborreica Ativa com Eritema", diagnosticoRef: "Dermatite Seborreica", categoria: "Cuidados Domiciliares", medicamentos: "Corticoide capilar em emulsao suave (maximo 5 dias se coceira cronica).", procedimentos: "Peeling capilar acido com acido salicilico 2% em consultorio.", suplementacao: "Zinco Quelado 30mg + Vitamina B6 50mg + L-Metionina 100mg pos-almoco.", cosmeticos: "Xampu de Cetoconazol alternado com Xampu de Piritionato de Zinco 1.5%." }
+    ]);
+  }
 }).catch((e) => console.error("Migracao prescricoes falhou:", e));
 
 // Migracao automatica: cria a tabela de transacoes financeiras (faturamento e caixa)
 db.execute(sql`CREATE TABLE IF NOT EXISTS transacoes_financeiras (
-id text PRIMARY KEY,
-paciente_id text NOT NULL,
-paciente_nome text NOT NULL,
-data text NOT NULL,
-descricao text NOT NULL,
-valor double precision NOT NULL,
-metodo text NOT NULL,
-status text NOT NULL,
-unidade text NOT NULL
+  id text PRIMARY KEY,
+  paciente_id text NOT NULL,
+  paciente_nome text NOT NULL,
+  data text NOT NULL,
+  descricao text NOT NULL,
+  valor double precision NOT NULL,
+  metodo text NOT NULL,
+  status text NOT NULL,
+  unidade text NOT NULL
 )`).catch((e) => console.error("Migracao transacoes falhou:", e));
 
 // ─── Autenticacao / autorizacao ───────────────────────────────────────────────
 //
 // Existem dois tipos de sessao, guardadas em tabelas diferentes mas com o
 // mesmo mecanismo (token aleatorio de 32 bytes no header "Authorization: Bearer <token>"):
-//   - "staff" (medica ou dev): token fica em users.sessionToken (/api/auth/login, /api/auth/dev-login)
-//   - "paciente": token fica em pacientes.sessionToken (/api/auth/paciente-login)
+// - "staff" (medica ou dev): token fica em users.sessionToken (/api/auth/login, /api/auth/dev-login)
+// - "paciente": token fica em pacientes.sessionToken (/api/auth/paciente-login)
 //
 // resolveAuth() descobre quem é o dono do token (se houver e for valido).
 async function resolveAuth(req: any): Promise<{ kind: "staff"; id: string; role: string; nome: string } | { kind: "paciente"; id: string; nome: string } | null> {
@@ -250,41 +250,41 @@ app.post("/api/exames", requireStaff, async (req, res) => {
 });
 
 // ─── Prescricoes (biblioteca de templates) ────────────────────────────────────
-    app.get("/api/prescricoes", requireStaff, async (_req, res) => {
-        try {
-              const result = await db.select().from(prescricoesTemplates);
-              res.json(result);
-        } catch (e: any) {
-              res.status(500).json({ error: e.message });
-        }
-    });
+app.get("/api/prescricoes", requireStaff, async (_req, res) => {
+  try {
+    const result = await db.select().from(prescricoesTemplates);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
-    app.post("/api/prescricoes", requireStaff, async (req, res) => {
-        try {
-              const result = await db.insert(prescricoesTemplates).values(req.body).returning();
-              res.json(result[0]);
-        } catch (e: any) {
-              res.status(500).json({ error: e.message });
-        }
-    });
+app.post("/api/prescricoes", requireStaff, async (req, res) => {
+  try {
+    const result = await db.insert(prescricoesTemplates).values(req.body).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
-    app.put("/api/prescricoes/:id", requireStaff, async (req, res) => {
-        try {
-              const result = await db.update(prescricoesTemplates).set(req.body).where(eq(prescricoesTemplates.id, req.params.id)).returning();
-              res.json(result[0]);
-        } catch (e: any) {
-              res.status(500).json({ error: e.message });
-        }
-    });
+app.put("/api/prescricoes/:id", requireStaff, async (req, res) => {
+  try {
+    const result = await db.update(prescricoesTemplates).set(req.body).where(eq(prescricoesTemplates.id, req.params.id)).returning();
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
-    app.delete("/api/prescricoes/:id", requireStaff, async (req, res) => {
-        try {
-              await db.delete(prescricoesTemplates).where(eq(prescricoesTemplates.id, req.params.id));
-              res.json({ ok: true });
-        } catch (e: any) {
-              res.status(500).json({ error: e.message });
-        }
-    });
+app.delete("/api/prescricoes/:id", requireStaff, async (req, res) => {
+  try {
+    await db.delete(prescricoesTemplates).where(eq(prescricoesTemplates.id, req.params.id));
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ─── Galeria ─────────────────────────────────────────────────────────────────
 app.get("/api/galeria", requireStaffOrOwnPaciente((req) => req.query.pacienteId ? String(req.query.pacienteId) : undefined), async (req, res) => {
@@ -403,7 +403,7 @@ app.get("/api/transacoes", requireStaff, async (req, res) => {
   try {
     const { pacienteId } = req.query;
     const result = pacienteId
-    ? await db.select().from(transacoesFinanceiras).where(eq(transacoesFinanceiras.pacienteId, String(pacienteId)))
+      ? await db.select().from(transacoesFinanceiras).where(eq(transacoesFinanceiras.pacienteId, String(pacienteId)))
       : await db.select().from(transacoesFinanceiras);
     res.json(result);
   } catch (e: any) {
@@ -617,6 +617,47 @@ Escreva em português médico formal.`;
 
     const response = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
     res.json({ result: response.text });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── IA: Sumário de Nova Consulta (tricológica, usado pelo formulário NovaConsulta) ──
+app.post("/api/summarize", requireStaff, async (req, res) => {
+  try {
+    const {
+      pacienteNome,
+      diagnostico,
+      queixaRecente,
+      miniaturizacao,
+      inflamacao,
+      hairPullTest,
+      densitometria,
+      conclusao,
+    } = req.body;
+
+    const prompt = `Você é o CA.RO Clinic IA, copiloto clínico da Dra. Mariah Zibetti (CRM PR 57.133), especialista em Tricologia Médica e Capilar de Alto Padrão.
+Gere um sumário clínico objetivo e em português médico formal para o prontuário do paciente, a partir dos dados de avaliação tricológica abaixo.
+
+Dados da Consulta:
+- Paciente: ${pacienteNome || "não informado"}
+- Diagnóstico: ${diagnostico || "não informado"}
+- Queixa recente: ${queixaRecente || "não informada"}
+- Miniaturização capilar: ${miniaturizacao || "não avaliada"}
+- Sinais inflamatórios — Eritema: ${inflamacao?.eritema || "não avaliado"}, Descamação: ${inflamacao?.desquamacao || "não avaliada"}, Prurido: ${inflamacao?.prurido || "não avaliado"}, Tampões córneos: ${inflamacao?.tampoesCorneos || "não avaliados"}
+- Hair Pull Test: ${hairPullTest || "não realizado"}
+- Densitometria — Vertex: ${densitometria?.vertex || "não informada"}, Occipital: ${densitometria?.occipital || "não informada"}
+- Conclusão da médica: ${conclusao || "não informada"}
+
+Gere o sumário com as seções:
+1. SINTOMATOLOGIA ATUAL
+2. AVALIAÇÃO TRICOSCÓPICA E DENSITOMÉTRICA
+3. CONDUTA E CONCLUSÃO CLÍNICA
+
+Seja conciso, objetivo e use terminologia médica apropriada.`;
+
+    const response = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
+    res.json({ summary: response.text });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
