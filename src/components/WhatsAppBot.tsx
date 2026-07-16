@@ -5,7 +5,7 @@ import {
   Settings, Phone, DollarSign, Calendar, ChevronRight,
   CheckCheck, Wifi, WifiOff, RefreshCw,
   Smartphone, Shield, BellRing, Send,
-  Pause, Play
+  Pause, Play, Trash2
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -55,6 +55,7 @@ export default function WhatsAppBot() {
   const [config, setConfig] = useState<ConfigNotificacao>({ whatsappDra: "", iaAtiva: true });
   const [salvando, setSalvando] = useState(false);
   const [salvoOk, setSalvoOk] = useState(false);
+  const [excluindoConversa, setExcluindoConversa] = useState<string | null>(null);
 
   // ── Conexão do WhatsApp (autoconexão pela Dra. via QR Code) ──
   const [conectado, setConectado] = useState<boolean | null>(null);
@@ -173,6 +174,21 @@ export default function WhatsAppBot() {
       });
       setConversas(prev => prev.map(c => c.telefone === telefone ? { ...c, iaPausada: pausarAgora } : c));
     } catch { /* offline */ }
+  };
+
+  const handleDeleteConversa = async (telefone: string) => {
+    if (!window.confirm("Excluir esta conversa? Todo o historico de mensagens sera apagado permanentemente.")) return;
+    setExcluindoConversa(telefone);
+    try {
+      const res = await fetch(`/api/whatsapp/conversas/${encodeURIComponent(telefone)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Falha ao excluir");
+      setConversas(prev => prev.filter(c => c.telefone !== telefone));
+      if (conversaSelecionada?.telefone === telefone) setConversaSelecionada(null);
+    } catch {
+      alert("Nao foi possivel excluir a conversa. Tente novamente.");
+    } finally {
+      setExcluindoConversa(null);
+    }
   };
 
   const salvarConfig = async () => {
@@ -349,6 +365,14 @@ export default function WhatsAppBot() {
                         className={`p-1.5 rounded-lg border transition-colors ${c.iaPausada ? "border-emerald-200 text-emerald-600 hover:bg-emerald-50" : "border-neutral-200 text-neutral-500 hover:bg-neutral-100"}`}
                       >
                         {c.iaPausada ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteConversa(c.telefone); }}
+                        disabled={excluindoConversa === c.telefone}
+                        title="Excluir conversa"
+                        className="p-1.5 rounded-lg border border-neutral-200 text-neutral-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-40"
+                        >
+                      <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
