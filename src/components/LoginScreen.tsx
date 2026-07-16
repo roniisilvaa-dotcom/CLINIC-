@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Stethoscope, User, Terminal, Lock, CreditCard, Mail, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Stethoscope, User, Terminal, Lock, CreditCard, Mail, ArrowLeft, Eye, EyeOff, Download, X } from "lucide-react";
 import { Paciente } from "../types";
 
 interface LoginScreenProps {
@@ -11,71 +11,71 @@ type MainRole = "medica" | "paciente";
 
 const CSS = `
 :root{
-  --bg:#070707;
-  --gold:#c99b43;
-  --gold-light:#f0d38d;
-  --gold-deep:#8d6528;
-  --text:#f5f1e7;
-  --muted:#9d9a94;
-  --shadow:0 24px 80px rgba(0,0,0,.55);
+--bg:#070707;
+--gold:#c99b43;
+--gold-light:#f0d38d;
+--gold-deep:#8d6528;
+--text:#f5f1e7;
+--muted:#9d9a94;
+--shadow:0 24px 80px rgba(0,0,0,.55);
 }
 .caro-login *{box-sizing:border-box}
 .caro-login{
-  min-height:100vh;
-  font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background:
-    radial-gradient(circle at 14% 20%, rgba(201,155,67,.08), transparent 24%),
-    radial-gradient(circle at 88% 78%, rgba(201,155,67,.05), transparent 30%),
-    #050505;
-  color:var(--text);
-  overflow-x:hidden;
+min-height:100vh;
+font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+background:
+radial-gradient(circle at 14% 20%, rgba(201,155,67,.08), transparent 24%),
+radial-gradient(circle at 88% 78%, rgba(201,155,67,.05), transparent 30%),
+#050505;
+color:var(--text);
+overflow-x:hidden;
 }
 .caro-page{
-  min-height:100vh;
-  display:grid;
-  grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);
-  position:relative;
+min-height:100vh;
+display:grid;
+grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);
+position:relative;
 }
 .caro-visual{
-  position:relative;
-  min-height:100vh;
-  padding:56px 64px;
-  display:flex;
-  flex-direction:column;
-  justify-content:space-between;
-  overflow:hidden;
-  border-right:1px solid rgba(201,155,67,.12);
+position:relative;
+min-height:100vh;
+padding:56px 64px;
+display:flex;
+flex-direction:column;
+justify-content:space-between;
+overflow:hidden;
+border-right:1px solid rgba(201,155,67,.12);
 }
 .caro-visual::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  background:
-    linear-gradient(90deg, rgba(0,0,0,.15), rgba(0,0,0,.55)),
-    radial-gradient(circle at 28% 35%, rgba(201,155,67,.14), transparent 26%);
-  z-index:-2;
+content:"";
+position:absolute;
+inset:0;
+background:
+linear-gradient(90deg, rgba(0,0,0,.15), rgba(0,0,0,.55)),
+radial-gradient(circle at 28% 35%, rgba(201,155,67,.14), transparent 26%);
+z-index:-2;
 }
 .caro-brand{ display:flex; align-items:center; gap:18px; max-width:max-content; }
 .caro-brand-mark{
-  width:60px; height:60px; border:1px solid var(--gold); border-radius:50%;
-  display:grid; place-items:center; color:var(--gold-light);
-  font-family:Georgia, serif; font-size:21px; letter-spacing:-3px;
-  box-shadow:inset 0 0 24px rgba(201,155,67,.08); flex-shrink:0;
+width:60px; height:60px; border:1px solid var(--gold); border-radius:50%;
+display:grid; place-items:center; color:var(--gold-light);
+font-family:Georgia, serif; font-size:21px; letter-spacing:-3px;
+box-shadow:inset 0 0 24px rgba(201,155,67,.08); flex-shrink:0;
 }
 .caro-brand-copy strong{
-  display:block; font-family:Georgia, "Times New Roman", serif; font-size:24px;
-  font-weight:500; letter-spacing:.12em; color:var(--gold-light);
+display:block; font-family:Georgia, "Times New Roman", serif; font-size:24px;
+font-weight:500; letter-spacing:.12em; color:var(--gold-light);
 }
 .caro-brand-copy span{
-  display:block; margin-top:6px; font-size:10px; letter-spacing:.32em;
-  text-transform:uppercase; color:var(--gold);
+display:block; margin-top:6px; font-size:10px; letter-spacing:.32em;
+text-transform:uppercase; color:var(--gold);
 }
 .caro-hero{ max-width:600px; margin:64px 0 26px; }
 .caro-eyebrow{ display:flex; align-items:center; gap:12px; color:var(--gold); font-size:11px; letter-spacing:.28em; text-transform:uppercase; }
 .caro-eyebrow::before{ content:""; width:34px; height:1px; background:var(--gold); }
 .caro-hero h1{
-  margin:20px 0 16px; font-family:Georgia, "Times New Roman", serif;
-  font-size:clamp(32px,3.6vw,48px); line-height:1.12; font-weight:500; letter-spacing:-.02em; max-width:640px;
+margin:20px 0 16px; font-family:Georgia, "Times New Roman", serif;
+font-size:clamp(32px,3.6vw,48px); line-height:1.12; font-weight:500; letter-spacing:-.02em; max-width:640px;
 }
 .caro-hero h1 span{ color:var(--gold-light); }
 .caro-hero p{ margin:0; max-width:520px; color:var(--muted); font-size:15px; line-height:1.7; }
@@ -89,10 +89,10 @@ const CSS = `
 .caro-shield{ width:34px; height:40px; border:1px solid rgba(201,155,67,.65); border-radius:17px 17px 11px 11px; display:grid; place-items:center; color:var(--gold); font-size:14px; flex-shrink:0; }
 .caro-login-side{ min-height:100vh; padding:40px; display:grid; place-items:center; position:relative; }
 .caro-card{
-  width:min(100%, 440px); padding:38px 36px 30px; border:1px solid rgba(201,155,67,.4); border-radius:22px;
-  background: linear-gradient(145deg, rgba(255,255,255,.03), transparent 42%), rgba(14,14,14,.9);
-  backdrop-filter:blur(16px); box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.03);
-  position:relative; overflow:hidden;
+width:min(100%, 440px); padding:38px 36px 30px; border:1px solid rgba(201,155,67,.4); border-radius:22px;
+background: linear-gradient(145deg, rgba(255,255,255,.03), transparent 42%), rgba(14,14,14,.9);
+backdrop-filter:blur(16px); box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.03);
+position:relative; overflow:hidden;
 }
 .caro-card::before{ content:""; position:absolute; width:220px; height:220px; right:-100px; top:-100px; border-radius:50%; background:radial-gradient(circle, rgba(201,155,67,.09), transparent 65%); }
 .caro-card-header{ text-align:center; margin-bottom:26px; position:relative; }
@@ -113,10 +113,10 @@ const CSS = `
 .caro-toggle-pass{ position:absolute; right:13px; top:50%; transform:translateY(-50%); border:0; background:transparent; color:var(--gold); cursor:pointer; padding:4px; display:grid; place-items:center; }
 .caro-toggle-pass svg{ position:static; transform:none; width:18px; height:18px; }
 .caro-btn{
-  width:100%; height:54px; border:1px solid rgba(255,255,255,.12); border-radius:11px;
-  background:linear-gradient(100deg, var(--gold-deep), var(--gold-light) 50%, #b98936);
-  color:#0b0b0b; font-weight:800; font-size:14px; letter-spacing:.02em; text-transform:uppercase; cursor:pointer;
-  transition:.2s ease; box-shadow:0 14px 34px rgba(201,155,67,.16); display:flex; align-items:center; justify-content:center; gap:8px; margin-top:4px;
+width:100%; height:54px; border:1px solid rgba(255,255,255,.12); border-radius:11px;
+background:linear-gradient(100deg, var(--gold-deep), var(--gold-light) 50%, #b98936);
+color:#0b0b0b; font-weight:800; font-size:14px; letter-spacing:.02em; text-transform:uppercase; cursor:pointer;
+transition:.2s ease; box-shadow:0 14px 34px rgba(201,155,67,.16); display:flex; align-items:center; justify-content:center; gap:8px; margin-top:4px;
 }
 .caro-btn:hover:not(:disabled){ transform:translateY(-2px); box-shadow:0 18px 42px rgba(201,155,67,.24); filter:brightness(1.05); }
 .caro-btn:disabled{ opacity:.5; cursor:not-allowed; }
@@ -125,44 +125,123 @@ const CSS = `
 .caro-support button{ background:none; border:0; color:var(--muted); font-size:12px; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:.2s ease; }
 .caro-support button:hover{ color:var(--gold-light); }
 .caro-vfooter-text{ line-height:1.5; }
+.caro-install-banner{
+position:fixed; bottom:24px; right:24px; z-index:999; width:320px;
+padding:18px 18px 16px; border:1px solid rgba(201,155,67,.4); border-radius:16px;
+background:linear-gradient(145deg, rgba(255,255,255,.03), transparent 42%), rgba(10,10,10,.97);
+backdrop-filter:blur(16px); box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.03);
+animation:caroSlideUp .4s ease;
+}
+@keyframes caroSlideUp{ from{ transform:translateY(20px); opacity:0; } to{ transform:translateY(0); opacity:1; } }
+.caro-install-banner-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.caro-install-banner h3{ margin:0; font-size:14px; font-weight:700; color:var(--gold-light); }
+.caro-install-banner p{ margin:6px 0 14px; font-size:12px; line-height:1.5; color:var(--muted); }
+.caro-install-banner-close{ border:0; background:transparent; color:var(--muted); cursor:pointer; padding:2px; flex-shrink:0; }
+.caro-install-banner-close:hover{ color:var(--gold-light); }
+.caro-install-banner-actions{ display:flex; gap:8px; }
+.caro-install-btn{ flex:1; height:38px; border:1px solid rgba(255,255,255,.12); border-radius:9px; background:linear-gradient(100deg, var(--gold-deep), var(--gold-light) 50%, #b98936); color:#0b0b0b; font-weight:800; font-size:12px; letter-spacing:.02em; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
+.caro-install-btn-ghost{ flex:1; height:38px; border:1px solid rgba(201,155,67,.3); border-radius:9px; background:transparent; color:var(--muted); font-size:12px; cursor:pointer; }
 @media (max-width:1000px){
-  .caro-page{ grid-template-columns:1fr; }
-  .caro-visual{ min-height:auto; padding:32px 26px 22px; border-right:0; border-bottom:1px solid rgba(201,155,67,.12); }
-  .caro-hero{ margin:40px 0 10px; }
-  .caro-med-visual{ height:110px; }
-  .caro-visual-footer{ display:none; }
-  .caro-login-side{ min-height:auto; padding:32px 18px 44px; }
+.caro-page{ grid-template-columns:1fr; }
+.caro-visual{ min-height:auto; padding:32px 26px 22px; border-right:0; border-bottom:1px solid rgba(201,155,67,.12); }
+.caro-hero{ margin:40px 0 10px; }
+.caro-med-visual{ height:110px; }
+.caro-visual-footer{ display:none; }
+.caro-login-side{ min-height:auto; padding:32px 18px 44px; }
 }
 @media (max-width:560px){
-  .caro-visual{ padding:24px 18px 14px; }
-  .caro-brand-copy strong{ font-size:19px; }
-  .caro-brand-mark{ width:48px; height:48px; }
-  .caro-hero h1{ font-size:30px; }
-  .caro-card{ border-radius:18px; padding:28px 20px; }
+.caro-visual{ padding:24px 18px 14px; }
+.caro-brand-copy strong{ font-size:19px; }
+.caro-brand-mark{ width:48px; height:48px; }
+.caro-hero h1{ font-size:30px; }
+.caro-card{ border-radius:18px; padding:28px 20px; }
+.caro-install-banner{ left:16px; right:16px; width:auto; bottom:16px; }
 }
 `;
 
 const REMEMBER_EMAIL_KEY = "caro_clinic_lembrar_email";
+const INSTALL_DISMISS_KEY = "caro_pwa_install_dismissed_until";
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [mainRole, setMainRole] = useState<MainRole>("medica");
-  const [devMode, setDevMode]   = useState(false);
+  const [devMode, setDevMode] = useState(false);
 
-  const [email, setEmail]       = useState(() => localStorage.getItem(REMEMBER_EMAIL_KEY) || "");
-      const [lembrarEmail, setLembrarEmail] = useState(() => Boolean(localStorage.getItem(REMEMBER_EMAIL_KEY)));
-  const [senha, setSenha]       = useState("");
+  const [email, setEmail] = useState(() => localStorage.getItem(REMEMBER_EMAIL_KEY) || "");
+  const [lembrarEmail, setLembrarEmail] = useState(() => Boolean(localStorage.getItem(REMEMBER_EMAIL_KEY)));
+  const [senha, setSenha] = useState("");
   const [showSenha, setShowSenha] = useState(false);
   const [errMedica, setErrMedica] = useState("");
-  const [cpf, setCpf]           = useState("");
-  const [errPac, setErrPac]     = useState("");
-  const [pin, setPin]           = useState("");
-  const [showPin, setShowPin]   = useState(false);
-  const [errDev, setErrDev]     = useState("");
-  const [loading, setLoading]   = useState(false);
+  const [cpf, setCpf] = useState("");
+  const [errPac, setErrPac] = useState("");
+  const [pin, setPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
+  const [errDev, setErrDev] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isSafariHint, setIsSafariHint] = useState(false);
+
+  useEffect(() => {
+    const dismissedUntil = Number(localStorage.getItem(INSTALL_DISMISS_KEY) || 0);
+    if (Date.now() < dismissedUntil) return;
+
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true;
+    if (isStandalone) return;
+
+    const ua = window.navigator.userAgent;
+    const safari = /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(ua) && /Macintosh|iPhone|iPad/.test(ua);
+
+    const handler = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+
+    let safariTimer: ReturnType<typeof setTimeout> | undefined;
+    if (safari) {
+      safariTimer = setTimeout(() => {
+        setIsSafariHint(true);
+        setShowInstallBanner(true);
+      }, 1500);
+    }
+
+    const onInstalled = () => {
+      setShowInstallBanner(false);
+      setInstallPrompt(null);
+    };
+    window.addEventListener("appinstalled", onInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("appinstalled", onInstalled);
+      if (safariTimer) clearTimeout(safariTimer);
+    };
+  }, []);
+
+  const dismissInstallBanner = (days = 7) => {
+    setShowInstallBanner(false);
+    localStorage.setItem(INSTALL_DISMISS_KEY, String(Date.now() + days * 24 * 60 * 60 * 1000));
+  };
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    try {
+      await installPrompt.userChoice;
+    } catch {
+      // usuário fechou o prompt nativo
+    }
+    setInstallPrompt(null);
+    setShowInstallBanner(false);
+  };
 
   const clearFields = () => { setEmail(""); setSenha(""); setCpf(""); setPin(""); setErrMedica(""); setErrPac(""); setErrDev(""); setShowSenha(false); setShowPin(false); };
   const selectMainRole = (r: MainRole) => { if (r === mainRole) return; clearFields(); setMainRole(r); };
-  const openDev  = () => { clearFields(); setDevMode(true); };
+  const openDev = () => { clearFields(); setDevMode(true); };
   const closeDev = () => { clearFields(); setDevMode(false); };
 
   const handleMedica = async (e: React.FormEvent) => {
@@ -182,8 +261,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         return;
       }
       if (lembrarEmail) localStorage.setItem(REMEMBER_EMAIL_KEY, email);
-              else localStorage.removeItem(REMEMBER_EMAIL_KEY);
-              onLogin("medica", data.nome, data.token);
+      else localStorage.removeItem(REMEMBER_EMAIL_KEY);
+      onLogin("medica", data.nome, data.token);
     } catch {
       setErrMedica("Não foi possível conectar ao servidor. Tente novamente.");
     }
@@ -271,6 +350,39 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   return (
     <div className="caro-login">
       <style>{CSS + `@keyframes spin{ to{ transform:rotate(360deg); } }`}</style>
+
+      {showInstallBanner && (
+        <div className="caro-install-banner" role="dialog" aria-label="Instalar aplicativo">
+          <div className="caro-install-banner-head">
+            <h3>Instalar CA.RO Clinic</h3>
+            <button type="button" className="caro-install-banner-close" onClick={() => dismissInstallBanner(7)} aria-label="Fechar">
+              <X size={16} />
+            </button>
+          </div>
+          <p>
+            {isSafariHint && !installPrompt
+              ? "Adicione o sistema à sua Dock: no menu Arquivo do Safari, escolha \"Adicionar ao Dock\"."
+              : "Instale o app no seu computador para abrir mais rápido, direto da área de trabalho."}
+          </p>
+          <div className="caro-install-banner-actions">
+            {installPrompt ? (
+              <>
+                <button type="button" className="caro-install-btn" onClick={handleInstallClick}>
+                  <Download size={14} />Instalar
+                </button>
+                <button type="button" className="caro-install-btn-ghost" onClick={() => dismissInstallBanner(7)}>
+                  Agora não
+                </button>
+              </>
+            ) : (
+              <button type="button" className="caro-install-btn-ghost" onClick={() => dismissInstallBanner(7)} style={{ flex: 1 }}>
+                Entendi
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <main className="caro-page">
         {/* ── Painel de marca ──────────────────────────────────────── */}
         <section className="caro-visual">
@@ -358,11 +470,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, marginTop: -6 }}>
-                        <input type="checkbox" id="lembrarEmail" checked={lembrarEmail} onChange={e => setLembrarEmail(e.target.checked)}
-                              style={{ width: 15, height: 15, accentColor: "#c99b43", cursor: "pointer", flexShrink: 0 }} />
-                        <label htmlFor="lembrarEmail" style={{ color: "var(--muted)", fontSize: 12, cursor: "pointer", userSelect: "none" }}>
-                              Lembrar meu e-mail neste computador
-                        </label>
+                      <input type="checkbox" id="lembrarEmail" checked={lembrarEmail} onChange={e => setLembrarEmail(e.target.checked)}
+                        style={{ width: 15, height: 15, accentColor: "#c99b43", cursor: "pointer", flexShrink: 0 }} />
+                      <label htmlFor="lembrarEmail" style={{ color: "var(--muted)", fontSize: 12, cursor: "pointer", userSelect: "none" }}>
+                        Lembrar meu e-mail neste computador
+                      </label>
                     </div>
                     {errMedica && <div className="caro-status">{errMedica}</div>}
                     <button className="caro-btn" type="submit" disabled={loading}>
