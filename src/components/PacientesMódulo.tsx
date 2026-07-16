@@ -134,6 +134,7 @@ export default function PacientesModulo({
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [posicaoUpload, setPosicaoUpload] = useState<FotoCapilar["posicao"]>("Dermoscopia");
   const [deletingFotoId, setDeletingFotoId] = useState<string | null>(null);
+  const [deletingPaciente, setDeletingPaciente] = useState(false);
 
   // IA Loading states
   const [loadingExamsIa, setLoadingExamsIa] = useState(false);
@@ -403,6 +404,28 @@ export default function PacientesModulo({
       alert("Não foi possível excluir a foto. Verifique sua conexão e tente novamente.");
     } finally {
       setDeletingFotoId(null);
+    }
+  };
+
+// Exclusão real do paciente (e de todo o histórico vinculado) — protegida por sessão (requireStaff no backend)
+  const handleDeletePaciente = async () => {
+    if (!curPaciente) return;
+    if (!window.confirm(`Excluir definitivamente o paciente ${curPaciente.nome}? Isso apaga todo o histórico (consultas, exames, fotos, financeiro, agenda). Essa ação não pode ser desfeita.`)) return;
+    setDeletingPaciente(true);
+    try {
+      const token = localStorage.getItem("caro_clinic_token");
+      const res = await fetch(`/api/pacientes/${curPaciente.id}`, {
+        method: "DELETE",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error("Falha ao excluir no servidor");
+      onChangePacientes(pacientes.filter(p => p.id !== curPaciente.id));
+      onSelectPaciente(null);
+    } catch (err) {
+      console.error("Erro ao excluir paciente:", err);
+      alert("Não foi possível excluir o paciente. Verifique sua conexão e tente novamente.");
+    } finally {
+      setDeletingPaciente(false);
     }
   };
 
@@ -747,6 +770,15 @@ export default function PacientesModulo({
                   >
                     <FileSignature className="w-4 h-4" />
                     {isEditing ? "Cancelar" : "Editar"}
+                  </button>
+
+                  <button
+                    onClick={handleDeletePaciente}
+                    disabled={deletingPaciente}
+                    className="border border-red-200 hover:border-red-500 hover:bg-red-500 text-red-600 hover:text-white text-xs font-mono uppercase tracking-wider px-3.5 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                  <Trash className="w-4 h-4" />
+                    {deletingPaciente ? "Excluindo..." : "Excluir Paciente"}
                   </button>
                 </div>
               </div>
