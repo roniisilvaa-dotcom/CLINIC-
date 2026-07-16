@@ -4,7 +4,6 @@ import remarketingRouter from '../src/routes/remarketing.js';
 import adminResetRouter from '../src/routes/adminReset.js';
 import express from "express";
 import crypto from "crypto";
-import { GoogleGenAI } from "@google/genai";
 import { db } from "../src/db/index.js";
 import {
   pacientes,
@@ -31,7 +30,56 @@ app.use(express.json({
   },
 }));
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+// ─── IA gratuita (Groq — Llama 3.3 70B) ───────────────────────────────────────
+// Trocamos o Gemini pelo Groq: a chave do Gemini estava com cota zero no tier
+// gratuito (erro 429 RESOURCE_EXHAUSTED em produção). Groq oferece um tier
+// gratuito generoso pra inferência de LLM (sem cartão de crédito), então usamos
+// aqui só pros recursos internos (IA Assistente, resumo de consulta, análise de
+// exames/fotos) — sem custo. A IA do WhatsApp (iaSecretaria.ts) continua na
+// Claude API, que já é paga separadamente pra esse fim.
+async function groqGenerate(prompt: string): Promise<string> {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Groq API error ${res.status}: ${errText}`);
+  }
+  const data: any = await res.json();
+  return data.choices?.[0]?.message?.content || "";
+}
+
+async function groqChat(messages: { role: string; content: string }[], systemInstruction?: string): Promise<string> {
+  const groqMessages = [
+    { role: "system", content: systemInstruction || "Você é o TRICO AI, copiloto clínico da Dra. Mariah Zibetti. Responda em português médico elegante." },
+    ...messages.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })),
+  ];
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: groqMessages,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Groq API error ${res.status}: ${errText}`);
+  }
+  const data: any = await res.json();
+  return data.choices?.[0]?.message?.content || "";
+}
 
 // Migracao automatica e idempotente: garante a coluna "tags" em pacientes (pedido do Igor)
 db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT '[]'::jsonb`).catch((e) => console.error("Migracao tags falhou:", e));
@@ -577,8 +625,8 @@ Gere um LAUDO CLÍNICO DE SUPORTE em Markdown com:
 
 Assine como: "CA.RO Clinic IA | Inteligência Clínica de Precisão Capilar".`;
 
-    const response = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
-    res.json({ result: response.text });
+    const text = await groqGenerate(prompt);
+    res.json({ result: text });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -596,8 +644,8 @@ Gere um Relatório de Evolução Capilar com:
 2. Avaliação dermatoscópica
 3. Sumário clínico: Excelente / Moderada / Necessita repactuação`;
 
-    const response = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
-    res.json({ result: response.text });
+    const text = await groqGenerate(prompt);
+    res.json({ result: text });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -615,8 +663,8 @@ app.post("/api/summarize-consultation", requireStaff, async (req, res) => {
 Seções: SINTOMATOLOGIA ATUAL / PROPEDÊUTICA E ANÁLISE COMPLEMENTAR / CONDUTA E ALTERAÇÕES TERAPÊUTICAS
 Escreva em português médico formal.`;
 
-    const response = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
-    res.json({ result: response.text });
+    const text = await groqGenerate(prompt);
+    res.json({ result: text });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -656,8 +704,8 @@ Gere o sumário com as seções:
 
 Seja conciso, objetivo e use terminologia médica apropriada.`;
 
-    const response = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
-    res.json({ summary: response.text });
+    const text = await groqGenerate(prompt);
+    res.json({ summary: text });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -667,16 +715,8 @@ Seja conciso, objetivo e use terminologia médica apropriada.`;
 app.post("/api/chat", requireStaff, async (req, res) => {
   try {
     const { messages, systemInstruction } = req.body;
-    const formattedContents = messages.map((m: any) => ({
-      role: m.role === "assistant" ? "model" : m.role,
-      parts: [{ text: m.content }],
-    }));
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: formattedContents,
-      config: { systemInstruction: systemInstruction || "Você é o TRICO AI, copiloto clínico da Dra. Mariah Zibetti. Responda em português médico elegante." },
-    });
-    res.json({ text: response.text });
+    const text = await groqChat(messages, systemInstruction);
+    res.json({ text });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
