@@ -1,9 +1,9 @@
 import React from "react";
 import {
-  Sparkles, LayoutDashboard, Users, FilePlus, Calendar,
+  LayoutDashboard, Users, FilePlus, Calendar,
   FileText, Image as ImageIcon, Bot, CreditCard,
   ChevronLeft, ChevronRight, LogOut, Receipt, Terminal,
-  MessageCircle,
+  MessageCircle, FileBarChart,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -18,16 +18,17 @@ interface SidebarProps {
 
 export default function Sidebar({ currentTab, setCurrentTab, collapsed, setCollapsed, onLogout, userRole, medicaNome }: SidebarProps) {
   const menuItems = [
-    { id: "dashboard",        label: "Visão Geral",         icon: LayoutDashboard },
-    { id: "pacientes",        label: "Pacientes",            icon: Users },
-    { id: "nova_consulta",    label: "Nova Consulta",        icon: FilePlus },
-    { id: "agenda",           label: "Agenda",               icon: Calendar },
-    { id: "prescricoes",      label: "Prescrições",          icon: FileText },
-    { id: "financeiro",       label: "Faturamento e Caixa",  icon: Receipt },
-    { id: "galeria_capilar",  label: "Galeria Capilar",      icon: ImageIcon },
-    { id: "ia_assistente",    label: "IA Assistente",        icon: Bot },
-    { id: "whatsapp_bot",     label: "IA Secretária WhatsApp", icon: MessageCircle },
-    { id: "planos",           label: "Planos e Assinaturas", icon: CreditCard },
+    { id: "dashboard", label: "Visão Geral", icon: LayoutDashboard },
+    { id: "pacientes", label: "Pacientes", icon: Users },
+    { id: "nova_consulta", label: "Nova Consulta", icon: FilePlus },
+    { id: "agenda", label: "Agenda", icon: Calendar },
+    { id: "prescricoes", label: "Prescrições", icon: FileText },
+    { id: "financeiro", label: "Faturamento e Caixa", icon: Receipt },
+    { id: "relatorios", label: "Relatórios", icon: FileBarChart },
+    { id: "galeria_capilar", label: "Galeria Capilar", icon: ImageIcon },
+    { id: "ia_assistente", label: "IA Assistente", icon: Bot },
+    { id: "whatsapp_bot", label: "IA Secretária WhatsApp", icon: MessageCircle },
+    { id: "planos", label: "Planos e Assinaturas", icon: CreditCard },
   ];
 
   const NavBtn = ({ id, label, icon: Icon, accent = false }: { id: string; label: string; icon: React.ElementType; accent?: boolean; [k: string]: any }) => {
@@ -55,7 +56,7 @@ export default function Sidebar({ currentTab, setCurrentTab, collapsed, setColla
       <div className="p-8 pb-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="w-9 h-9 rounded-full border border-[#C9A84C]/80 bg-black flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(201,168,76,0.15)]">
-            <Sparkles className="w-4 h-4 text-[#C9A84C]" />
+            <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: "-1.5px" }} className="text-[13px] text-[#C9A84C]">CR</span>
           </div>
           {!collapsed && (
             <div className="flex flex-col select-none">
