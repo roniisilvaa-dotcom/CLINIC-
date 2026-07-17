@@ -1,0 +1,13 @@
+name: Lembretes de Consulta WhatsApp Cron
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar endpoint de lembretes
+        run: |
+          curl -sf -X POST "https://clinic-caro.vercel.app/api/whatsapp/lembretes-cron" \
+            -H "Authorization: Bearer ${{ secrets.LEMBRETES_CRON_TOKEN }}"
