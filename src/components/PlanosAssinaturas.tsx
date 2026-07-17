@@ -4,12 +4,10 @@ import {
   Crown,
   Check,
   MapPin,
-  CreditCard,
   ShieldCheck,
   Sparkles,
   Calendar,
   Lock,
-  Download,
   MessageCircle
 } from "lucide-react";
 
@@ -87,12 +85,6 @@ export default function PlanosAssinaturas({
       gold: false,
       badge: "Completo"
     }
-  ];
-
-  const invoices = [
-    { id: "inv-1", data: "01/06/2026", valor: "R$ 1.550,00", status: "Pago", cartao: "Mastercard (**** 9081)" },
-    { id: "inv-2", data: "01/05/2026", valor: "R$ 1.550,00", status: "Pago", cartao: "Mastercard (**** 9081)" },
-    { id: "inv-3", data: "01/04/2026", valor: "R$ 1.550,00", status: "Pago", cartao: "Mastercard (**** 9081)" }
   ];
 
   return (
@@ -216,45 +208,6 @@ export default function PlanosAssinaturas({
             </div>
             <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-mono px-2.5 py-1 rounded font-bold uppercase tracking-wider">Vinculado</span>
           </div>
-        </div>
-      </div>
-
-      {/* Recurrent Invoices logs */}
-      <div className="bg-white border border-gray-250 shadow-sm rounded-xl p-5 space-y-4">
-        <h3 style={{ fontFamily: "Georgia, serif" }} className="text-base text-[#0A0A0A] font-semibold flex items-center gap-1.5 pb-2 border-b border-gray-100">
-          <CreditCard className="w-4.5 h-4.5 text-[#C9A84C]" /> Histórico de Faturamento Recorrente
-        </h3>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap">
-            <thead>
-              <tr className="text-gray-400 font-mono border-b border-gray-100 pb-2 text-[10px] uppercase tracking-wider font-bold">
-                <th className="pb-3 font-bold">Código Cobrança</th>
-                <th className="pb-3 font-bold">Data de Emissão</th>
-                <th className="pb-3 font-bold">Valor Pago</th>
-                <th className="pb-3 font-bold">Cartão de Crédito</th>
-                <th className="pb-3 font-bold">Nota de Transação</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {invoices.map(inv => (
-                <tr key={inv.id} className="text-gray-600 font-sans font-medium hover:bg-gray-50/50 transition-colors">
-                  <td className="py-3 font-mono font-bold text-gray-400">{inv.id}</td>
-                  <td className="py-3">{inv.data}</td>
-                  <td className="py-3 font-mono font-bold text-[#0A0A0A]">{inv.valor}</td>
-                  <td className="py-3 text-gray-500">{inv.cartao}</td>
-                  <td className="py-3">
-                    <button
-                      onClick={() => alert("Histórico de nota fiscal eletrônica impressa!")}
-                      className="text-[#C9A84C] hover:underline font-bold font-mono text-[10px] uppercase flex items-center gap-1 cursor-pointer transition-all"
-                    >
-                      <Download className="w-3.5 h-3.5 text-[#C9A84C]" /> Obter PDF
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
 
