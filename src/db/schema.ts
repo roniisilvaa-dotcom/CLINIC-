@@ -27,7 +27,7 @@ export const pacientes = pgTable('pacientes', {
   antecedentes: jsonb('antecedentes').notNull(),
   diagnostico: jsonb('diagnostico').notNull(),
   protocolo: jsonb('protocolo').notNull(),
-    tags: jsonb('tags').default([]),
+  tags: jsonb('tags').default([]),
   // Token de sessão do próprio paciente (login por CPF em /api/auth/paciente-login).
   // Permite que ele veja só os próprios dados nas rotas protegidas — ver
   // requireStaffOrOwnPaciente em api/index.ts.
@@ -84,6 +84,9 @@ export const agendaEventos = pgTable('agenda_eventos', {
   duracaoMinutos: integer('duracao_minutos').notNull().default(30),
   status: text('status').notNull(),
   diagnosticoResumo: text('diagnostico_resumo'),
+  // Etapas de lembrete de consulta já enviadas via WhatsApp (ex: ["5d","2d","1d","3h"]).
+  // Evita reenviar o mesmo lembrete várias vezes — ver src/routes/lembretes.ts.
+  lembretesEnviados: jsonb('lembretes_enviados').default([]),
 });
 
 export const filaEspera = pgTable('fila_espera', {
@@ -107,35 +110,34 @@ export const pacotesVendidos = pgTable('pacotes_vendidos', {
 
 // ── WhatsApp Bot ─────────────────────────────────────────────────────
 export const conversasWhatsapp = pgTable('conversas_whatsapp', {
-  id:        text('id').primaryKey(),
-  telefone:  text('telefone').notNull(),
-  role:      text('role').notNull(), // 'user' | 'ia'
-  conteudo:  text('conteudo').notNull(),
+  id: text('id').primaryKey(),
+  telefone: text('telefone').notNull(),
+  role: text('role').notNull(), // 'user' | 'ia'
+  conteudo: text('conteudo').notNull(),
   timestamp: text('timestamp').notNull(),
 });
 
-
 // ── Prescricoes (biblioteca de templates) ──────────────────────────────
 export const prescricoesTemplates = pgTable('prescricoes_templates', {
-    id: text('id').primaryKey(),
-    titulo: text('titulo').notNull(),
-    diagnosticoRef: text('diagnostico_ref'),
-    categoria: text('categoria').notNull(),
-    medicamentos: text('medicamentos'),
-    procedimentos: text('procedimentos'),
-    suplementacao: text('suplementacao'),
-    cosmeticos: text('cosmeticos'),
+  id: text('id').primaryKey(),
+  titulo: text('titulo').notNull(),
+  diagnosticoRef: text('diagnostico_ref'),
+  categoria: text('categoria').notNull(),
+  medicamentos: text('medicamentos'),
+  procedimentos: text('procedimentos'),
+  suplementacao: text('suplementacao'),
+  cosmeticos: text('cosmeticos'),
 });
 
 // ── Faturamento (transacoes financeiras) ────────────────────────────
 export const transacoesFinanceiras = pgTable('transacoes_financeiras', {
-    id: text('id').primaryKey(),
-    pacienteId: text('paciente_id').notNull(),
-    pacienteNome: text('paciente_nome').notNull(),
-    data: text('data').notNull(),
-    descricao: text('descricao').notNull(),
-    valor: doublePrecision('valor').notNull(),
-    metodo: text('metodo').notNull(),
-    status: text('status').notNull(),
-    unidade: text('unidade').notNull(),
+  id: text('id').primaryKey(),
+  pacienteId: text('paciente_id').notNull(),
+  pacienteNome: text('paciente_nome').notNull(),
+  data: text('data').notNull(),
+  descricao: text('descricao').notNull(),
+  valor: doublePrecision('valor').notNull(),
+  metodo: text('metodo').notNull(),
+  status: text('status').notNull(),
+  unidade: text('unidade').notNull(),
 });
