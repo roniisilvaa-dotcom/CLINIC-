@@ -1,6 +1,7 @@
 import whatsappRouter from '../src/routes/whatsapp.js';
 import whatsappEvolutionRouter from '../src/routes/whatsappEvolution.js';
 import remarketingRouter from '../src/routes/remarketing.js';
+import lembretesRouter from '../src/routes/lembretes.js';
 import adminResetRouter from '../src/routes/adminReset.js';
 import express from "express";
 import crypto from "crypto";
@@ -21,6 +22,7 @@ import { eq, sql } from "drizzle-orm";
 import { hashSenha, verificarSenha, senhaEstaEmTextoPuro } from "../src/lib/senha.js";
 
 const app = express();
+
 // Captura o corpo raw da requisição (necessário pra validar a assinatura X-Hub-Signature-256
 // que a Meta envia em todo POST /api/whatsapp/webhook — ver src/services/metaWhatsappService.ts)
 app.use(express.json({
@@ -92,6 +94,11 @@ db.execute(sql`ALTER TABLE galeria ADD COLUMN IF NOT EXISTS horario text`).catch
 // a medica ja tinha, em vez do paciente ficar sem token nenhum (ver requireStaffOrOwnPaciente).
 db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS session_token text`).catch((e) => console.error("Migracao pacientes.session_token falhou:", e));
 
+// Migracao automatica: garante a coluna "lembretes_enviados" em agenda_eventos — controla
+// quais etapas de lembrete de consulta (5d, 2d, 1d, 3h) ja foram enviadas via WhatsApp,
+// pra nao mandar o mesmo lembrete duas vezes (ver src/routes/lembretes.ts).
+db.execute(sql`ALTER TABLE agenda_eventos ADD COLUMN IF NOT EXISTS lembretes_enviados jsonb DEFAULT '[]'::jsonb`).catch((e) => console.error("Migracao agenda_eventos.lembretes_enviados falhou:", e));
+
 // Migracao automatica: cria a tabela de templates de prescricoes e semeia com a biblioteca padrao
 db.execute(sql`CREATE TABLE IF NOT EXISTS prescricoes_templates (
   id text PRIMARY KEY,
@@ -139,13 +146,16 @@ async function resolveAuth(req: any): Promise<{ kind: "staff"; id: string; role:
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   if (!token) return null;
+
   const staff = await db.select().from(users).where(eq(users.sessionToken, token));
   if (staff.length) {
     const u = staff[0];
     return { kind: "staff", id: u.id, role: u.role, nome: u.nome };
   }
+
   const pac = await db.select({ id: pacientes.id, nome: pacientes.nome }).from(pacientes).where(eq(pacientes.sessionToken, token));
   if (pac.length) return { kind: "paciente", id: pac[0].id, nome: pac[0].nome };
+
   return null;
 }
 
@@ -270,7 +280,6 @@ app.post("/api/consultas", requireStaff, async (req, res) => {
     res.json(result[0]);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
-
   }
 });
 
@@ -293,7 +302,6 @@ app.post("/api/exames", requireStaff, async (req, res) => {
     res.json(result[0]);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
-
   }
 });
 
@@ -500,11 +508,13 @@ app.post("/api/auth/login", async (req, res) => {
     if (!result.length) return res.status(401).json({ error: "E-mail nao encontrado" });
     const user = result[0];
     if (!verificarSenha(senha, user.senhaHash)) return res.status(401).json({ error: "Senha incorreta" });
+
     // Migração transparente: se a senha ainda estava salva em texto puro (formato
     // antigo), re-hasheia e salva no formato novo agora que sabemos que está correta.
     if (senhaEstaEmTextoPuro(user.senhaHash)) {
       await db.update(users).set({ senhaHash: hashSenha(senha) }).where(eq(users.id, user.id));
     }
+
     const token = gerarToken();
     await db.update(users).set({ sessionToken: token }).where(eq(users.id, user.id));
     res.json({ token, id: user.id, nome: user.nome, role: user.role });
@@ -547,6 +557,7 @@ app.post("/api/auth/dev-login", async (req, res) => {
     const pin = String(req.body?.pin || "");
     const devPin = process.env.DEV_PIN || process.env.VITE_DEV_PIN || "";
     if (!devPin || pin !== devPin) return res.status(401).json({ error: "PIN incorreto." });
+
     // Reaproveita a tabela "users" (que já tem sessionToken e o mecanismo de
     // requireStaff pronto) pra guardar a sessão do console de desenvolvedor —
     // ninguém loga com senha nessa conta, ela só existe pra segurar o token.
@@ -602,6 +613,7 @@ app.post("/api/analyze-exams", requireStaff, async (req, res) => {
   try {
     const { pacienteNome, idade, queixa, exames: examesData } = req.body;
     const prompt = `Você é o software CA.RO Clinic IA, assistente diagnóstico de precisão da Dra. Mariah Zibetti (CRM PR 57.133), especialista em Tricologia Médica e Capilar de Alto Padrão.
+
 Instrução: Analise minuciosamente os resultados dos exames laboratoriais fornecidos. Faça uma avaliação à luz dos padrões estritos da tricologia.
 
 Parâmetros Críticos de Referência em Tricologia Médica:
@@ -624,7 +636,6 @@ Gere um LAUDO CLÍNICO DE SUPORTE em Markdown com:
 4. Sugestão Nutracêutica / Terapêutica Personalizada
 
 Assine como: "CA.RO Clinic IA | Inteligência Clínica de Precisão Capilar".`;
-
     const text = await groqGenerate(prompt);
     res.json({ result: text });
   } catch (e: any) {
@@ -637,13 +648,13 @@ app.post("/api/analyze-photos", requireStaff, async (req, res) => {
   try {
     const { pacienteNome, fotosInfo } = req.body;
     const prompt = `Você é o CA.RO Clinic IA, assistente de análise de evolução capilar para a Dra. Mariah Zibetti.
+
 Analise a sequência cronológica de fotos: ${JSON.stringify(fotosInfo)}
 
 Gere um Relatório de Evolução Capilar com:
 1. Estimativa de redensificação capilar
 2. Avaliação dermatoscópica
 3. Sumário clínico: Excelente / Moderada / Necessita repactuação`;
-
     const text = await groqGenerate(prompt);
     res.json({ result: text });
   } catch (e: any) {
@@ -661,8 +672,8 @@ app.post("/api/summarize-consultation", requireStaff, async (req, res) => {
 - Alterações de protocolo: ${alteracoesProtocolo}
 
 Seções: SINTOMATOLOGIA ATUAL / PROPEDÊUTICA E ANÁLISE COMPLEMENTAR / CONDUTA E ALTERAÇÕES TERAPÊUTICAS
-Escreva em português médico formal.`;
 
+Escreva em português médico formal.`;
     const text = await groqGenerate(prompt);
     res.json({ result: text });
   } catch (e: any) {
@@ -683,8 +694,8 @@ app.post("/api/summarize", requireStaff, async (req, res) => {
       densitometria,
       conclusao,
     } = req.body;
-
     const prompt = `Você é o CA.RO Clinic IA, copiloto clínico da Dra. Mariah Zibetti (CRM PR 57.133), especialista em Tricologia Médica e Capilar de Alto Padrão.
+
 Gere um sumário clínico objetivo e em português médico formal para o prontuário do paciente, a partir dos dados de avaliação tricológica abaixo.
 
 Dados da Consulta:
@@ -703,7 +714,6 @@ Gere o sumário com as seções:
 3. CONDUTA E CONCLUSÃO CLÍNICA
 
 Seja conciso, objetivo e use terminologia médica apropriada.`;
-
     const text = await groqGenerate(prompt);
     res.json({ summary: text });
   } catch (e: any) {
@@ -725,6 +735,7 @@ app.post("/api/chat", requireStaff, async (req, res) => {
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/whatsapp', whatsappEvolutionRouter);
 app.use('/api/whatsapp', remarketingRouter);
+app.use('/api/whatsapp', lembretesRouter);
 app.use('/api/admin', adminResetRouter);
 
 export default app;
