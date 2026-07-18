@@ -5,7 +5,7 @@ import {
   Settings, Phone, DollarSign, Calendar, ChevronRight,
   CheckCheck, Wifi, WifiOff, RefreshCw,
   Smartphone, Shield, BellRing, Send,
-  Pause, Play, Trash2
+  Pause, Play, Trash2, CalendarPlus, X, AlertTriangle
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -34,15 +34,20 @@ interface QrData {
   pairingCode?: string;
 }
 
+interface DiaToledo {
+  id: string;
+  data: string;
+}
+
 const STATUS_COLORS = {
-  ativo:                "bg-blue-100 text-blue-700",
+  ativo: "bg-blue-100 text-blue-700",
   aguardando_pagamento: "bg-amber-100 text-amber-700",
-  agendado:             "bg-green-100 text-green-700",
+  agendado: "bg-green-100 text-green-700",
 };
 const STATUS_LABELS = {
-  ativo:                "Conversando",
+  ativo: "Conversando",
   aguardando_pagamento: "Aguard. Pag.",
-  agendado:             "Agendado ✓",
+  agendado: "Agendado ✓",
 };
 
 // ─── Componente Principal ────────────────────────────────────────────
@@ -63,6 +68,17 @@ export default function WhatsAppBot() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrErro, setQrErro] = useState<string | null>(null);
   const [desconectando, setDesconectando] = useState(false);
+
+  // ── Dias de Atendimento em Toledo (calendário manual usado pela IA) ──
+  // A Dra. cadastra manualmente as datas específicas em que vai atender
+  // presencialmente em Toledo (geralmente um bloco por mês). A IA do WhatsApp
+  // só oferece horário de consulta nesses dias — ver checkAvailability() em
+  // src/services/whatsappCore.ts.
+  const [diasToledo, setDiasToledo] = useState<DiaToledo[]>([]);
+  const [carregandoDias, setCarregandoDias] = useState(false);
+  const [novaDataToledo, setNovaDataToledo] = useState("");
+  const [salvandoDia, setSalvandoDia] = useState(false);
+  const [removendoDia, setRemovendoDia] = useState<string | null>(null);
 
   const carregarStats = useCallback(async () => {
     try {
@@ -115,6 +131,18 @@ export default function WhatsAppBot() {
     setQrLoading(false);
   }, []);
 
+  const carregarDiasToledo = useCallback(async () => {
+    setCarregandoDias(true);
+    try {
+      const r = await fetch("/api/agenda/dias-toledo");
+      if (r.ok) {
+        const data = await r.json();
+        setDiasToledo([...data].sort((a: DiaToledo, b: DiaToledo) => a.data.localeCompare(b.data)));
+      }
+    } catch { /* offline */ }
+    setCarregandoDias(false);
+  }, []);
+
   useEffect(() => {
     carregarStats();
     const int = setInterval(carregarStats, 30000);
@@ -125,10 +153,14 @@ export default function WhatsAppBot() {
     if (aba === "conversas") carregarConversas();
   }, [aba, carregarConversas]);
 
-  // Ao abrir a aba "Configurar": checa se já está conectado.
+  // Ao abrir a aba "Configurar": checa se já está conectado e carrega os dias
+  // de atendimento cadastrados em Toledo.
   useEffect(() => {
-    if (aba === "configurar") checarStatusConexao();
-  }, [aba, checarStatusConexao]);
+    if (aba === "configurar") {
+      checarStatusConexao();
+      carregarDiasToledo();
+    }
+  }, [aba, checarStatusConexao, carregarDiasToledo]);
 
   // Se não estiver conectado, busca o QR Code automaticamente.
   useEffect(() => {
@@ -205,10 +237,36 @@ export default function WhatsAppBot() {
     setSalvando(false);
   };
 
+  const adicionarDiaToledo = async () => {
+    if (!novaDataToledo) return;
+    setSalvandoDia(true);
+    try {
+      const r = await fetch("/api/agenda/dias-toledo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: novaDataToledo }),
+      });
+      if (r.ok) {
+        setNovaDataToledo("");
+        await carregarDiasToledo();
+      }
+    } catch { /* offline */ }
+    setSalvandoDia(false);
+  };
+
+  const removerDiaToledo = async (data: string) => {
+    setRemovendoDia(data);
+    try {
+      await fetch(`/api/agenda/dias-toledo/${data}`, { method: "DELETE" });
+      setDiasToledo(prev => prev.filter(d => d.data !== data));
+    } catch { /* offline */ }
+    setRemovendoDia(null);
+  };
+
   const abas = [
     { id: "visao_geral", label: "Visão Geral", icon: Bot },
-    { id: "conversas",   label: "Conversas",   icon: MessageCircle },
-    { id: "configurar",  label: "Configurar",  icon: Settings },
+    { id: "conversas", label: "Conversas", icon: MessageCircle },
+    { id: "configurar", label: "Configurar", icon: Settings },
   ] as const;
 
   return (
@@ -260,10 +318,10 @@ export default function WhatsAppBot() {
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Conversas hoje",   value: stats.conversasHoje, icon: MessageCircle, cor: "text-blue-600",  bg: "bg-blue-50" },
-                { label: "Agendados via bot", value: stats.agendadosBot,  icon: Calendar,      cor: "text-green-600", bg: "bg-green-50" },
-                { label: "Total mensagens",   value: stats.mensagensTotal, icon: Send,          cor: "text-purple-600",bg: "bg-purple-50" },
-                { label: "Status",            value: stats.botOnline ? "Online" : "Offline", icon: Wifi, cor: stats.botOnline ? "text-green-600" : "text-red-500", bg: stats.botOnline ? "bg-green-50" : "bg-red-50" },
+                { label: "Conversas hoje", value: stats.conversasHoje, icon: MessageCircle, cor: "text-blue-600", bg: "bg-blue-50" },
+                { label: "Agendados via bot", value: stats.agendadosBot, icon: Calendar, cor: "text-green-600", bg: "bg-green-50" },
+                { label: "Total mensagens", value: stats.mensagensTotal, icon: Send, cor: "text-purple-600",bg: "bg-purple-50" },
+                { label: "Status", value: stats.botOnline ? "Online" : "Offline", icon: Wifi, cor: stats.botOnline ? "text-green-600" : "text-red-500", bg: stats.botOnline ? "bg-green-50" : "bg-red-50" },
               ].map(s => (
                 <div key={s.label} className="bg-white border border-neutral-200 rounded-xl p-4">
                   <div className={`w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center mb-3`}>
@@ -284,12 +342,12 @@ export default function WhatsAppBot() {
               <div className="flex flex-wrap gap-3">
                 {[
                   { n: "1", label: "Paciente manda mensagem no WhatsApp da clínica", icon: Smartphone },
-                  { n: "2", label: "IA responde humanizada e coleta dados",           icon: Bot },
-                  { n: "3", label: "Sistema verifica agenda da Dra. Mariah",          icon: Calendar },
-                  { n: "4", label: "Paciente escolhe horário e confirma",             icon: CheckCircle2 },
-                  { n: "5", label: "IA gera link Pix de R$ 100 (sinal)",             icon: DollarSign },
-                  { n: "6", label: "Pagamento confirmado automaticamente",            icon: Shield },
-                  { n: "7", label: "Dra. Mariah recebe notificação completa",        icon: BellRing },
+                  { n: "2", label: "IA responde humanizada e coleta dados", icon: Bot },
+                  { n: "3", label: "Sistema verifica agenda da Dra. Mariah", icon: Calendar },
+                  { n: "4", label: "Paciente escolhe horário e confirma", icon: CheckCircle2 },
+                  { n: "5", label: "IA gera link Pix de R$ 100 (sinal)", icon: DollarSign },
+                  { n: "6", label: "Pagamento confirmado automaticamente", icon: Shield },
+                  { n: "7", label: "Dra. Mariah recebe notificação completa", icon: BellRing },
                 ].map((step, i, arr) => (
                   <React.Fragment key={step.n}>
                     <div className="flex flex-col items-center gap-2 min-w-[120px]">
@@ -371,8 +429,8 @@ export default function WhatsAppBot() {
                         disabled={excluindoConversa === c.telefone}
                         title="Excluir conversa"
                         className="p-1.5 rounded-lg border border-neutral-200 text-neutral-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-40"
-                        >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -472,6 +530,74 @@ export default function WhatsAppBot() {
                     <RefreshCw className={`w-4 h-4 ${qrLoading ? "animate-spin" : ""}`} /> Gerar novo código
                   </button>
                 </div>
+              )}
+            </div>
+
+            {/* Dias de Atendimento em Toledo — calendário manual usado pela IA */}
+            <div className="bg-white border border-neutral-200 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 rounded-lg bg-[#C9A96E]/10 flex items-center justify-center">
+                  <CalendarPlus className="w-4.5 h-4.5 text-[#C9A96E]" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-neutral-800">Dias de Atendimento em Toledo</h3>
+                  <p className="text-xs text-neutral-500">A IA só oferece horário de consulta nos dias marcados aqui</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="date"
+                  value={novaDataToledo}
+                  onChange={e => setNovaDataToledo(e.target.value)}
+                  className="flex-1 px-3 py-2.5 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A96E] bg-neutral-50"
+                />
+                <button
+                  onClick={adicionarDiaToledo}
+                  disabled={!novaDataToledo || salvandoDia}
+                  className="px-4 py-2.5 bg-[#0A0A0A] text-white rounded-lg text-sm font-medium hover:bg-neutral-800 transition-colors disabled:opacity-40 flex items-center gap-2"
+                >
+                  {salvandoDia ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CalendarPlus className="w-4 h-4" />}
+                  Adicionar
+                </button>
+              </div>
+
+              {carregandoDias && (
+                <div className="flex items-center justify-center gap-2 py-6 text-neutral-400 text-sm">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Carregando...
+                </div>
+              )}
+
+              {!carregandoDias && diasToledo.length === 0 && (
+                <div className="text-center py-6 border border-dashed border-neutral-200 rounded-lg">
+                  <AlertTriangle className="w-6 h-6 text-amber-400 mx-auto mb-2" />
+                  <p className="text-sm text-neutral-500">Nenhum dia cadastrado — a IA não vai conseguir oferecer horário até você adicionar datas.</p>
+                </div>
+              )}
+
+              {!carregandoDias && diasToledo.length > 0 && (
+                <>
+                  {diasToledo.length <= 3 && (
+                    <div className="mb-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      Restam poucos dias cadastrados — considere adicionar mais.
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {diasToledo.map(d => (
+                      <span key={d.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-700 text-xs font-medium">
+                        {new Date(d.data + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", weekday: "short" })}
+                        <button
+                          onClick={() => removerDiaToledo(d.data)}
+                          disabled={removendoDia === d.data}
+                          className="text-neutral-400 hover:text-red-600 transition-colors disabled:opacity-40"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
