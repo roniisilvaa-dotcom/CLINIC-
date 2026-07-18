@@ -8,7 +8,7 @@
  * os dois transportes.
  */
 import { db } from "../db/index.js";
-import { conversasWhatsapp, agendaEventos, pacientes, whatsappSilenciados, diasAtendimento } from "../db/schema.js";
+import { conversasWhatsapp, agendaEventos, pacientes, whatsappSilenciados, diasAtendimento, transacoesFinanceiras } from "../db/schema.js";
 import { eq, and, gte, asc } from "drizzle-orm";
 import {
   processarMensagem,
@@ -392,6 +392,27 @@ async function createAppointment(
       status: "Confirmada",
       diagnosticoResumo: args.observacao || `Agendado via WhatsApp. CPF: ${args.cpf}. Sinal de R$ ${VALOR_SINAL},00 pago via Pix.`,
     });
+
+    // Registra o sinal recebido no Faturamento/Caixa — antes disso o agendamento
+    // via WhatsApp criava o evento na agenda mas nunca gerava um lançamento
+    // financeiro, então o sinal pago via Pix nunca aparecia pra Dra. no módulo
+    // financeiro. Espera terminar (função serverless pode ser encerrada assim
+    // que a resposta for enviada), mas nunca deixa isso derrubar o agendamento.
+    try {
+      await db.insert(transacoesFinanceiras).values({
+        id: `tx-${id}`,
+        pacienteId,
+        pacienteNome: args.nome_paciente,
+        data: args.data,
+        descricao: `Sinal — ${args.procedimento} (agendado via WhatsApp)`,
+        valor: VALOR_SINAL,
+        metodo: "Pix",
+        status: "Pago",
+        unidade: "Toledo",
+      });
+    } catch (e) {
+      console.error("Erro ao registrar sinal no financeiro:", e);
+    }
 
     const numDra = process.env.WHATSAPP_DRA || "";
     if (numDra) {
