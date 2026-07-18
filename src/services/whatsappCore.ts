@@ -8,7 +8,7 @@
  * os dois transportes.
  */
 import { db } from "../db/index.js";
-import { conversasWhatsapp, agendaEventos, pacientes, whatsappSilenciados, diasAtendimentoToledo } from "../db/schema.js";
+import { conversasWhatsapp, agendaEventos, pacientes, whatsappSilenciados, diasAtendimento } from "../db/schema.js";
 import { eq, and, gte, asc } from "drizzle-orm";
 import {
   processarMensagem,
@@ -247,16 +247,19 @@ async function checkAvailability(
     const BUFFER_MINUTOS_HOJE = 60; // não oferece horário de hoje a menos de 1h de antecedência
 
     // Dias em que a Dra. realmente vai estar atendendo em Toledo — cadastro manual
-    // dela/da equipe (ver dias_atendimento_toledo e a aba Configurar do painel). A
-    // IA nunca oferece uma data fora dessa lista, mesmo caindo numa segunda a
-    // sexta "normal" — ela não segue mais uma regra fixa de dia da semana.
-    const diasCadastrados = await db.select({ data: diasAtendimentoToledo.data })
-      .from(diasAtendimentoToledo)
-      .where(gte(diasAtendimentoToledo.data, hoje))
-      .orderBy(asc(diasAtendimentoToledo.data));
+    // dela/da equipe, marcado num calendário clicável na aba Configurar do painel
+    // (ver dias_atendimento). A IA nunca oferece uma data fora dessa lista, mesmo
+    // caindo numa segunda a sexta "normal" — ela não segue mais uma regra fixa de
+    // dia da semana. Filtra só local="Toledo": Fátima do Sul continua sendo
+    // repassado pra Dra./equipe decidir na mão (transferir_atendimento_fatima_do_sul
+    // em iaSecretaria.ts), não é agendado automaticamente por aqui.
+    const diasCadastrados = await db.select({ data: diasAtendimento.data, horarios: diasAtendimento.horarios })
+      .from(diasAtendimento)
+      .where(and(eq(diasAtendimento.local, "Toledo"), gte(diasAtendimento.data, hoje)))
+      .orderBy(asc(diasAtendimento.data));
 
-    let diasFuturos = diasCadastrados.map(d => d.data);
-    if (_dataFim) diasFuturos = diasFuturos.filter(d => d <= _dataFim);
+    let diasFuturos = diasCadastrados;
+    if (_dataFim) diasFuturos = diasFuturos.filter(d => d.data <= _dataFim);
 
     // Aviso pra Dra. quando a agenda cadastrada está acabando — no máximo 1 por
     // dia, pra não virar spam.
@@ -282,14 +285,18 @@ async function checkAvailability(
     const disponiveis: string[] = [];
     const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-    for (const dataStr of diasFuturos) {
+    for (const dia of diasFuturos) {
+      const dataStr = dia.data;
       if (dataStr < inicio) continue;
 
       const diaSemana = new Date(dataStr + "T12:00:00").getDay();
-      // Sexta-feira (5): novas consultas só até as 15:00.
-      const horariosDoDia = diaSemana === 5
+      // Se a Dra. customizou o horário desse dia específico no painel (ex: só de
+      // manhã), respeita exatamente o que ela escolheu. Senão, usa o padrão da
+      // clínica — com sexta-feira (5) limitada a novas consultas só até as 15:00.
+      const horariosCustom = Array.isArray(dia.horarios) && dia.horarios.length > 0 ? dia.horarios as string[] : null;
+      const horariosDoDia = horariosCustom || (diaSemana === 5
         ? HORARIOS_BASE.filter(h => h <= ULTIMO_HORARIO_SEXTA)
-        : HORARIOS_BASE;
+        : HORARIOS_BASE);
 
       for (const h of horariosDoDia) {
         if (dataStr === hoje) {
