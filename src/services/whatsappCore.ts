@@ -8,8 +8,8 @@
  * os dois transportes.
  */
 import { db } from "../db/index.js";
-import { conversasWhatsapp, agendaEventos, pacientes } from "../db/schema.js";
-import { eq, and, gte } from "drizzle-orm";
+import { conversasWhatsapp, agendaEventos, pacientes, whatsappSilenciados, diasAtendimentoToledo } from "../db/schema.js";
+import { eq, and, gte, asc } from "drizzle-orm";
 import {
   processarMensagem,
   formatarNotificacaoDra,
@@ -92,6 +92,63 @@ export function iaEstaPausada(telefone: string): boolean {
   return false;
 }
 
+// ─── Pausa manual persistente (controle da Dra./equipe por contato) ────────────
+// Diferente da pausa automática de handoff (temporária, ver PAUSA_HANDOFF_MS), essa
+// é uma decisão explícita da Dra./equipe pelo painel ("IA Secretária WhatsApp" →
+// Conversas) — ex: paciente insistindo com assunto fora do escopo do bot. Fica
+// salva no banco (whatsapp_silenciados), não só na sessão em memória, pra não
+// correr o risco de a IA "voltar a responder sozinha" se o servidor reiniciar ou
+// a mensagem seguinte cair numa instância serverless diferente.
+export async function pausarIaPermanente(telefone: string, motivo?: string): Promise<void> {
+  const session = getSession(telefone);
+  session.pausaManual = true;
+  try {
+    await db.insert(whatsappSilenciados).values({
+      telefone,
+      motivo: motivo || null,
+      criadoEm: new Date().toISOString(),
+    }).onConflictDoNothing();
+  } catch (err) {
+    console.error("Erro ao persistir pausa da IA:", err);
+  }
+}
+
+export async function retomarIaPermanente(telefone: string): Promise<void> {
+  const session = getSession(telefone);
+  session.pausaManual = false;
+  session.pausadaAte = undefined;
+  try {
+    await db.delete(whatsappSilenciados).where(eq(whatsappSilenciados.telefone, telefone));
+  } catch (err) {
+    console.error("Erro ao remover pausa persistida da IA:", err);
+  }
+}
+
+export async function listarTelefonesSilenciados(): Promise<Set<string>> {
+  try {
+    const linhas = await db.select({ telefone: whatsappSilenciados.telefone }).from(whatsappSilenciados);
+    return new Set(linhas.map(l => l.telefone));
+  } catch {
+    return new Set();
+  }
+}
+
+// Chamada a cada mensagem recebida, antes de checar iaEstaPausada — garante que a
+// sessão em memória desta instância reflita o que está persistido no banco (a
+// fonte da verdade pra pausa manual), mesmo que a pausa tenha sido ativada por
+// outra instância/execução serverless.
+async function sincronizarPausaComBanco(telefone: string): Promise<void> {
+  try {
+    const linha = await db.select({ telefone: whatsappSilenciados.telefone }).from(whatsappSilenciados)
+      .where(eq(whatsappSilenciados.telefone, telefone)).limit(1);
+    getSession(telefone).pausaManual = linha.length > 0;
+  } catch {
+    // Falha na consulta: mantém o estado atual da sessão (fail-open), mesmo
+    // padrão usado no teto mensal de custo — não trava o atendimento por uma
+    // falha passageira no banco.
+  }
+}
+
 // ─── Envio fracionado de mensagens ──────────────────────────────────────────
 // A IA às vezes gera respostas longas, e receber isso como um único balão gigante
 // no WhatsApp fica estranho e difícil de ler — não é como uma pessoa de verdade
@@ -172,49 +229,82 @@ function agoraBrasil(): Date {
 const HORARIOS_BASE = ["10:00", "11:00", "13:30", "15:00", "16:30", "17:30"];
 const ULTIMO_HORARIO_SEXTA = "15:00";
 
-async function checkAvailability(dataInicio: string, _dataFim?: string): Promise<string> {
+// Quando restarem poucos dias futuros cadastrados na agenda de Toledo, avisamos a
+// Dra. uma vez por dia (no máximo) pra ela cadastrar mais datas — sem isso a IA
+// simplesmente fica sem nada pra oferecer, sem ninguém perceber a tempo.
+const AVISO_DIAS_TOLEDO_LIMITE = 3;
+let ultimoAvisoDiasToledoEm: string | null = null;
+
+async function checkAvailability(
+  dataInicio: string,
+  _dataFim?: string,
+  enviarMensagem?: (telefone: string, mensagem: string) => Promise<boolean>,
+): Promise<string> {
   try {
     const agora = agoraBrasil();
     const hoje = agora.toISOString().slice(0, 10);
     const minutosAgora = agora.getUTCHours() * 60 + agora.getUTCMinutes();
     const BUFFER_MINUTOS_HOJE = 60; // não oferece horário de hoje a menos de 1h de antecedência
 
-    const inicio = dataInicio || hoje;
-    const fim = _dataFim || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    // Dias em que a Dra. realmente vai estar atendendo em Toledo — cadastro manual
+    // dela/da equipe (ver dias_atendimento_toledo e a aba Configurar do painel). A
+    // IA nunca oferece uma data fora dessa lista, mesmo caindo numa segunda a
+    // sexta "normal" — ela não segue mais uma regra fixa de dia da semana.
+    const diasCadastrados = await db.select({ data: diasAtendimentoToledo.data })
+      .from(diasAtendimentoToledo)
+      .where(gte(diasAtendimentoToledo.data, hoje))
+      .orderBy(asc(diasAtendimentoToledo.data));
+
+    let diasFuturos = diasCadastrados.map(d => d.data);
+    if (_dataFim) diasFuturos = diasFuturos.filter(d => d <= _dataFim);
+
+    // Aviso pra Dra. quando a agenda cadastrada está acabando — no máximo 1 por
+    // dia, pra não virar spam.
+    const numDra = process.env.WHATSAPP_DRA || "";
+    if (enviarMensagem && numDra && diasFuturos.length <= AVISO_DIAS_TOLEDO_LIMITE && ultimoAvisoDiasToledoEm !== hoje) {
+      ultimoAvisoDiasToledoEm = hoje;
+      const aviso = diasFuturos.length === 0
+        ? "⚠️ A agenda de atendimento em Toledo está sem nenhuma data cadastrada. A IA não vai conseguir oferecer horário pros pacientes até você cadastrar novos dias no sistema (IA Secretária WhatsApp → Configurar)."
+        : `⚠️ Restam apenas ${diasFuturos.length} dia(s) cadastrado(s) na agenda de Toledo. Cadastre mais datas no sistema (IA Secretária WhatsApp → Configurar) pra IA continuar agendando novas consultas.`;
+      enviarMensagem(numDra, aviso).catch(() => {});
+    }
+
+    if (diasFuturos.length === 0) {
+      return "No momento não há dias de atendimento em Toledo cadastrados na agenda. A equipe vai confirmar a próxima data disponível com você em breve.";
+    }
 
     const eventos = await db.select().from(agendaEventos)
       .where(eq(agendaEventos.status, "Confirmada"));
 
     const ocupados = new Set(eventos.map(e => `${e.data}_${e.horario}`));
 
+    const inicio = dataInicio || hoje;
     const disponiveis: string[] = [];
-    const d = new Date(inicio + "T12:00:00");
-    const dFim = new Date(fim + "T12:00:00");
+    const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-    while (d <= dFim && disponiveis.length < 6) {
-      const diaSemana = d.getDay();
-      if (diaSemana !== 0 && diaSemana !== 6) {
-        const dataStr = d.toISOString().slice(0, 10);
-        // Sexta-feira (5): novas consultas só até as 15:00.
-        const horariosDoDia = diaSemana === 5
-          ? HORARIOS_BASE.filter(h => h <= ULTIMO_HORARIO_SEXTA)
-          : HORARIOS_BASE;
-        for (const h of horariosDoDia) {
-          if (dataStr === hoje) {
-            const [hh, mm] = h.split(":").map(Number);
-            if (hh * 60 + mm <= minutosAgora + BUFFER_MINUTOS_HOJE) continue;
-          }
-          if (!ocupados.has(`${dataStr}_${h}`)) {
-            const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-            disponiveis.push(`${diasSemana[diaSemana]} ${dataStr} às ${h}`);
-            if (disponiveis.length >= 4) break;
-          }
+    for (const dataStr of diasFuturos) {
+      if (dataStr < inicio) continue;
+
+      const diaSemana = new Date(dataStr + "T12:00:00").getDay();
+      // Sexta-feira (5): novas consultas só até as 15:00.
+      const horariosDoDia = diaSemana === 5
+        ? HORARIOS_BASE.filter(h => h <= ULTIMO_HORARIO_SEXTA)
+        : HORARIOS_BASE;
+
+      for (const h of horariosDoDia) {
+        if (dataStr === hoje) {
+          const [hh, mm] = h.split(":").map(Number);
+          if (hh * 60 + mm <= minutosAgora + BUFFER_MINUTOS_HOJE) continue;
+        }
+        if (!ocupados.has(`${dataStr}_${h}`)) {
+          disponiveis.push(`${diasSemana[diaSemana]} ${dataStr} às ${h}`);
+          if (disponiveis.length >= 4) break;
         }
       }
-      d.setDate(d.getDate() + 1);
+      if (disponiveis.length >= 4) break;
     }
 
-    if (disponiveis.length === 0) return "Nenhum horário disponível neste período. Tente outra semana.";
+    if (disponiveis.length === 0) return "Nenhum horário disponível nos dias cadastrados de Toledo neste período. Tente outra data ou fale com a equipe.";
     return `Horários disponíveis:\n${disponiveis.map((h, i) => `${i + 1}. ${h}`).join("\n")}`;
   } catch {
     return "Não consegui verificar a agenda agora. Tentarei em breve.";
@@ -365,6 +455,10 @@ export async function processarEventoWebhook(
     const session = getSession(telefone);
     session.updatedAt = Date.now();
 
+    // Garante que a pausa manual persistida (painel → banco) valha mesmo se essa
+    // mensagem caiu numa instância serverless que ainda não sabia disso.
+    await sincronizarPausaComBanco(telefone);
+
     if (m.tipo === "image") {
       await salvarMensagem(telefone, "user", "[imagem recebida]");
 
@@ -403,11 +497,11 @@ export async function processarEventoWebhook(
           const confirmacao = resultadoCriacao.startsWith("Erro")
             ? "Recebi seu comprovante, mas tive um problema técnico ao confirmar no sistema. A equipe já foi avisada e vai confirmar seu horário manualmente em breve."
             : formatarConfirmacaoAgendamento({
-              nome: session.dadosColeta.nome_paciente,
-              procedimento: session.dadosColeta.procedimento,
-              data: session.dadosColeta.data,
-              horario: session.dadosColeta.horario,
-            });
+                nome: session.dadosColeta.nome_paciente,
+                procedimento: session.dadosColeta.procedimento,
+                data: session.dadosColeta.data,
+                horario: session.dadosColeta.horario,
+              });
           await enviarMensagemFracionada(telefone, confirmacao, enviarMensagem);
           await salvarMensagem(telefone, "ia", confirmacao);
           session.aguardandoPagamento = false;
@@ -463,7 +557,7 @@ export async function processarEventoWebhook(
       const { name, args } = resposta.functionCall;
 
       if (name === "check_availability") {
-        const resultado = await checkAvailability(args.data_inicio, args.data_fim);
+        const resultado = await checkAvailability(args.data_inicio, args.data_fim, enviarMensagem);
         // BUG corrigido: essa segunda chamada usava session.historico "cru", que
         // ainda NÃO tinha a mensagem atual do paciente nem o turno em que a IA
         // decidiu checar a agenda — ou seja, a IA respondia "às cegas", sem saber
@@ -502,11 +596,11 @@ export async function processarEventoWebhook(
           textoResposta = resultadoCriacao.startsWith("Erro")
             ? "Recebi seu comprovante, mas tive um problema técnico ao confirmar no sistema. A equipe já foi avisada e vai confirmar seu horário manualmente em breve."
             : formatarConfirmacaoAgendamento({
-              nome: args.nome_paciente,
-              procedimento: args.procedimento,
-              data: args.data,
-              horario: args.horario,
-            });
+                nome: args.nome_paciente,
+                procedimento: args.procedimento,
+                data: args.data,
+                horario: args.horario,
+              });
           session.aguardandoPagamento = false;
           session.historico = [];
         }
