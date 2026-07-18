@@ -17,6 +17,7 @@ import {
   users,
   prescricoesTemplates,
   transacoesFinanceiras,
+  diasAtendimentoToledo,
 } from "../src/db/schema.js";
 import { eq, sql } from "drizzle-orm";
 import { hashSenha, verificarSenha, senhaEstaEmTextoPuro } from "../src/lib/senha.js";
@@ -133,6 +134,24 @@ db.execute(sql`CREATE TABLE IF NOT EXISTS transacoes_financeiras (
   status text NOT NULL,
   unidade text NOT NULL
 )`).catch((e) => console.error("Migracao transacoes falhou:", e));
+
+// Migracao automatica: cria a tabela de contatos com a IA pausada manualmente pela
+// Dra./equipe (persistente no banco, nao so em memoria) — ver /api/whatsapp/pausar
+// e /api/whatsapp/retomar em src/routes/whatsapp.ts.
+db.execute(sql`CREATE TABLE IF NOT EXISTS whatsapp_silenciados (
+  telefone text PRIMARY KEY,
+  motivo text,
+  criado_em text NOT NULL
+)`).catch((e) => console.error("Migracao whatsapp_silenciados falhou:", e));
+
+// Migracao automatica: cria a tabela de dias de atendimento presencial em Toledo
+// (cadastro manual da Dra./equipe) — a IA do WhatsApp so oferece horario de
+// consulta nesses dias, ver checkAvailability() em src/services/whatsappCore.ts.
+db.execute(sql`CREATE TABLE IF NOT EXISTS dias_atendimento_toledo (
+  id text PRIMARY KEY,
+  data text NOT NULL UNIQUE,
+  criado_em text NOT NULL
+)`).catch((e) => console.error("Migracao dias_atendimento_toledo falhou:", e));
 
 // ─── Autenticacao / autorizacao ───────────────────────────────────────────────
 //
@@ -399,6 +418,44 @@ app.put("/api/agenda/:id", requireStaff, async (req, res) => {
   try {
     const result = await db.update(agendaEventos).set(req.body).where(eq(agendaEventos.id, req.params.id)).returning();
     res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Dias de Atendimento em Toledo (calendário manual usado pela IA) ─────────
+// A Dra. cadastra manualmente as datas específicas em que estará atendendo
+// presencialmente em Toledo (geralmente um bloco por mês). A IA do WhatsApp só
+// oferece horário de consulta nesses dias — ver checkAvailability() em
+// src/services/whatsappCore.ts.
+app.get("/api/agenda/dias-toledo", requireStaff, async (_req, res) => {
+  try {
+    const result = await db.select().from(diasAtendimentoToledo).orderBy(diasAtendimentoToledo.data);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/agenda/dias-toledo", requireStaff, async (req, res) => {
+  try {
+    const data = String(req.body?.data || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return res.status(400).json({ error: "Data inválida (use AAAA-MM-DD)" });
+    const result = await db.insert(diasAtendimentoToledo).values({
+      id: `dia-${data}`,
+      data,
+      criadoEm: new Date().toISOString(),
+    }).onConflictDoNothing().returning();
+    res.json(result[0] || { id: `dia-${data}`, data });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/agenda/dias-toledo/:data", requireStaff, async (req, res) => {
+  try {
+    await db.delete(diasAtendimentoToledo).where(eq(diasAtendimentoToledo.data, req.params.data));
+    res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
