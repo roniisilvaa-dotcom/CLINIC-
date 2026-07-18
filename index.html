@@ -138,12 +138,31 @@ obs.observe(document.getElementById('root'), { childList: true });
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/sw.js').catch(function (err) {
+        navigator.serviceWorker.register('/sw.js').then(function (reg) {
+          // O navegador já checa por versão nova do service worker a cada
+          // navegação, mas o app instalado (PWA) pode ficar aberto dias sem
+          // navegar pra lugar nenhum. Esse intervalo garante que a checagem
+          // aconteça mesmo assim, pra pegar deploys novos rapidamente.
+          setInterval(function () {
+            reg.update().catch(function () {});
+          }, 60000);
+        }).catch(function (err) {
           console.warn('Falha ao registrar service worker:', err);
+        });
+
+        // sw.js já chama self.skipWaiting() + self.clients.claim() em cada
+        // deploy, então a versão nova assume o controle da página sozinha.
+        // Quando isso acontece, recarregamos a página automaticamente pra
+        // garantir que o HTML/JS/CSS mais novo seja carregado — sem a Dra.
+        // precisar limpar cache ou fazer qualquer coisa manualmente.
+        var jaRecarregou = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (jaRecarregou) return;
+          jaRecarregou = true;
+          window.location.reload();
         });
       });
     }
-      </script>
   </script>
 </body>
 </html>
