@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   MessageCircle, Bot, Zap, CheckCircle2, Clock, Users,
   Settings, Phone, DollarSign, Calendar, ChevronRight,
   CheckCheck, Wifi, WifiOff, RefreshCw,
   Smartphone, Shield, BellRing, Send,
-  Pause, Play, Trash2, CalendarPlus, X, AlertTriangle
+  Pause, Play, Trash2, X, AlertTriangle,
+  ChevronLeft, Pencil, Check
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -34,9 +35,11 @@ interface QrData {
   pairingCode?: string;
 }
 
-interface DiaToledo {
+interface DiaAtendimento {
   id: string;
+  local: string;
   data: string;
+  horarios: string[] | null;
 }
 
 const STATUS_COLORS = {
@@ -50,9 +53,25 @@ const STATUS_LABELS = {
   agendado: "Agendado ✓",
 };
 
+const LOCAIS = ["Toledo", "Fátima do Sul"] as const;
+const HORARIOS_PADRAO = ["10:00", "11:00", "13:30", "15:00", "16:30", "17:30"];
+const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const DIAS_SEMANA_LABEL = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+function toISODate(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatarDataCurta(iso: string) {
+  return new Date(iso + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", weekday: "short" });
+}
+
 // ─── Componente Principal ────────────────────────────────────────────
 export default function WhatsAppBot() {
-  const [aba, setAba] = useState<"visao_geral" | "conversas" | "configurar">("visao_geral");
+  const [aba, setAba] = useState<"visao_geral" | "conversas" | "dias_atendimento" | "configurar">("visao_geral");
   const [stats, setStats] = useState<Stats>({ conversasHoje: 0, agendadosBot: 0, mensagensTotal: 0, botOnline: false });
   const [conversas, setConversas] = useState<Conversa[]>([]);
   const [conversaSelecionada, setConversaSelecionada] = useState<Conversa | null>(null);
@@ -69,16 +88,21 @@ export default function WhatsAppBot() {
   const [qrErro, setQrErro] = useState<string | null>(null);
   const [desconectando, setDesconectando] = useState(false);
 
-  // ── Dias de Atendimento em Toledo (calendário manual usado pela IA) ──
-  // A Dra. cadastra manualmente as datas específicas em que vai atender
-  // presencialmente em Toledo (geralmente um bloco por mês). A IA do WhatsApp
-  // só oferece horário de consulta nesses dias — ver checkAvailability() em
-  // src/services/whatsappCore.ts.
-  const [diasToledo, setDiasToledo] = useState<DiaToledo[]>([]);
+  // ── Dias de Atendimento (calendário clicável — Toledo e Fátima do Sul) ──
+  // A Dra. clica direto nos dias do mês pra marcar em quais ela vai atender
+  // (em vez de cadastrar data por data num campo). A IA do WhatsApp só usa os
+  // dias marcados como Toledo pra agendar sozinha — ver checkAvailability() em
+  // src/services/whatsappCore.ts. Fátima do Sul fica registrado aqui só pra
+  // controle da Dra./equipe.
+  const [localCalendario, setLocalCalendario] = useState<typeof LOCAIS[number]>("Toledo");
+  const [diasAtendimento, setDiasAtendimento] = useState<DiaAtendimento[]>([]);
   const [carregandoDias, setCarregandoDias] = useState(false);
-  const [novaDataToledo, setNovaDataToledo] = useState("");
-  const [salvandoDia, setSalvandoDia] = useState(false);
-  const [removendoDia, setRemovendoDia] = useState<string | null>(null);
+  const [mesCalendario, setMesCalendario] = useState(new Date().getMonth());
+  const [anoCalendario, setAnoCalendario] = useState(new Date().getFullYear());
+  const [diaClicando, setDiaClicando] = useState<string | null>(null);
+  const [diaEditandoId, setDiaEditandoId] = useState<string | null>(null);
+  const [horariosEditando, setHorariosEditando] = useState<string[]>([]);
+  const [salvandoHorarios, setSalvandoHorarios] = useState(false);
 
   const carregarStats = useCallback(async () => {
     try {
@@ -131,14 +155,13 @@ export default function WhatsAppBot() {
     setQrLoading(false);
   }, []);
 
-  const carregarDiasToledo = useCallback(async () => {
+  // Busca sempre os dias das DUAS localidades de uma vez (o painel filtra por
+  // aba localmente) — assim trocar de aba não exige um novo fetch.
+  const carregarDiasAtendimento = useCallback(async () => {
     setCarregandoDias(true);
     try {
-      const r = await fetch("/api/agenda/dias-toledo");
-      if (r.ok) {
-        const data = await r.json();
-        setDiasToledo([...data].sort((a: DiaToledo, b: DiaToledo) => a.data.localeCompare(b.data)));
-      }
+      const r = await fetch("/api/agenda/dias-atendimento");
+      if (r.ok) setDiasAtendimento(await r.json());
     } catch { /* offline */ }
     setCarregandoDias(false);
   }, []);
@@ -153,14 +176,15 @@ export default function WhatsAppBot() {
     if (aba === "conversas") carregarConversas();
   }, [aba, carregarConversas]);
 
-  // Ao abrir a aba "Configurar": checa se já está conectado e carrega os dias
-  // de atendimento cadastrados em Toledo.
+  // Ao abrir a aba "Configurar": checa se já está conectado ao WhatsApp.
   useEffect(() => {
-    if (aba === "configurar") {
-      checarStatusConexao();
-      carregarDiasToledo();
-    }
-  }, [aba, checarStatusConexao, carregarDiasToledo]);
+    if (aba === "configurar") checarStatusConexao();
+  }, [aba, checarStatusConexao]);
+
+  // Ao abrir a aba "Dias de Atendimento": carrega o calendário.
+  useEffect(() => {
+    if (aba === "dias_atendimento") carregarDiasAtendimento();
+  }, [aba, carregarDiasAtendimento]);
 
   // Se não estiver conectado, busca o QR Code automaticamente.
   useEffect(() => {
@@ -237,35 +261,123 @@ export default function WhatsAppBot() {
     setSalvando(false);
   };
 
-  const adicionarDiaToledo = async () => {
-    if (!novaDataToledo) return;
-    setSalvandoDia(true);
-    try {
-      const r = await fetch("/api/agenda/dias-toledo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: novaDataToledo }),
-      });
-      if (r.ok) {
-        setNovaDataToledo("");
-        await carregarDiasToledo();
-      }
-    } catch { /* offline */ }
-    setSalvandoDia(false);
+  // ── Calendário de dias de atendimento ──
+  const diasDoLocalSet = useMemo(() => {
+    const map = new Map<string, DiaAtendimento>();
+    diasAtendimento.filter(d => d.local === localCalendario).forEach(d => map.set(d.data, d));
+    return map;
+  }, [diasAtendimento, localCalendario]);
+
+  const diasDoLocalOrdenados = useMemo(() => {
+    return diasAtendimento
+      .filter(d => d.local === localCalendario)
+      .slice()
+      .sort((a, b) => a.data.localeCompare(b.data));
+  }, [diasAtendimento, localCalendario]);
+
+  const hoje = new Date();
+
+  const calendarCells = useMemo(() => {
+    const primeiroDoMes = new Date(anoCalendario, mesCalendario, 1);
+    const diasNoMes = new Date(anoCalendario, mesCalendario + 1, 0).getDate();
+    const offset = (primeiroDoMes.getDay() + 6) % 7; // segunda como primeiro dia
+    const cells: { num: number | null; iso: string | null }[] = [];
+    for (let i = 0; i < offset; i++) cells.push({ num: null, iso: null });
+    for (let d = 1; d <= diasNoMes; d++) {
+      cells.push({ num: d, iso: toISODate(new Date(anoCalendario, mesCalendario, d)) });
+    }
+    while (cells.length % 7 !== 0) cells.push({ num: null, iso: null });
+    return cells;
+  }, [mesCalendario, anoCalendario]);
+
+  const irParaMesAnterior = () => {
+    if (mesCalendario === 0) { setMesCalendario(11); setAnoCalendario(a => a - 1); }
+    else setMesCalendario(m => m - 1);
+  };
+  const irParaProximoMes = () => {
+    if (mesCalendario === 11) { setMesCalendario(0); setAnoCalendario(a => a + 1); }
+    else setMesCalendario(m => m + 1);
   };
 
-  const removerDiaToledo = async (data: string) => {
-    setRemovendoDia(data);
+  // Clique num dia do calendário: alterna marcado/desmarcado. Salva na hora —
+  // sem precisar de um botão "salvar" separado, pra ela conseguir ir clicando
+  // dia após dia e ver o mês inteiro tomando forma.
+  const toggleDia = async (dataISO: string) => {
+    setDiaClicando(dataISO);
+    const existente = diasDoLocalSet.get(dataISO);
     try {
-      await fetch(`/api/agenda/dias-toledo/${data}`, { method: "DELETE" });
-      setDiasToledo(prev => prev.filter(d => d.data !== data));
+      if (existente) {
+        await fetch(`/api/agenda/dias-atendimento/${encodeURIComponent(existente.id)}`, { method: "DELETE" });
+        setDiasAtendimento(prev => prev.filter(d => d.id !== existente.id));
+        if (diaEditandoId === existente.id) setDiaEditandoId(null);
+      } else {
+        const r = await fetch("/api/agenda/dias-atendimento", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ local: localCalendario, data: dataISO }),
+        });
+        if (r.ok) {
+          const novo = await r.json();
+          setDiasAtendimento(prev => [...prev, novo]);
+        }
+      }
     } catch { /* offline */ }
-    setRemovendoDia(null);
+    setDiaClicando(null);
+  };
+
+  const abrirEdicaoHorarios = (dia: DiaAtendimento) => {
+    setDiaEditandoId(dia.id);
+    setHorariosEditando(dia.horarios && dia.horarios.length ? [...dia.horarios] : [...HORARIOS_PADRAO]);
+  };
+
+  const alternarHorarioEditando = (h: string) => {
+    setHorariosEditando(prev => prev.includes(h) ? prev.filter(x => x !== h) : [...prev, h].sort());
+  };
+
+  const salvarHorariosEditando = async () => {
+    if (!diaEditandoId) return;
+    setSalvandoHorarios(true);
+    try {
+      const r = await fetch(`/api/agenda/dias-atendimento/${encodeURIComponent(diaEditandoId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ horarios: horariosEditando }),
+      });
+      if (r.ok) {
+        const atualizado = await r.json();
+        setDiasAtendimento(prev => prev.map(d => d.id === diaEditandoId ? atualizado : d));
+      }
+    } catch { /* offline */ }
+    setSalvandoHorarios(false);
+    setDiaEditandoId(null);
+  };
+
+  const resetarHorarioPadrao = async (dia: DiaAtendimento) => {
+    try {
+      const r = await fetch(`/api/agenda/dias-atendimento/${encodeURIComponent(dia.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ horarios: null }),
+      });
+      if (r.ok) {
+        const atualizado = await r.json();
+        setDiasAtendimento(prev => prev.map(d => d.id === dia.id ? atualizado : d));
+      }
+    } catch { /* offline */ }
+  };
+
+  const removerDia = async (dia: DiaAtendimento) => {
+    try {
+      await fetch(`/api/agenda/dias-atendimento/${encodeURIComponent(dia.id)}`, { method: "DELETE" });
+      setDiasAtendimento(prev => prev.filter(d => d.id !== dia.id));
+      if (diaEditandoId === dia.id) setDiaEditandoId(null);
+    } catch { /* offline */ }
   };
 
   const abas = [
     { id: "visao_geral", label: "Visão Geral", icon: Bot },
     { id: "conversas", label: "Conversas", icon: MessageCircle },
+    { id: "dias_atendimento", label: "Dias de Atendimento", icon: Calendar },
     { id: "configurar", label: "Configurar", icon: Settings },
   ] as const;
 
@@ -461,6 +573,220 @@ export default function WhatsAppBot() {
           </motion.div>
         )}
 
+        {/* ── DIAS DE ATENDIMENTO ─────────────────── */}
+        {aba === "dias_atendimento" && (
+          <motion.div key="dias" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+
+            {/* Cabeçalho com contagem por local — visão rápida sem precisar trocar de aba */}
+            <div className="grid grid-cols-2 gap-4">
+              {LOCAIS.map(local => {
+                const count = diasAtendimento.filter(d => d.local === local).length;
+                const ativo = localCalendario === local;
+                return (
+                  <button
+                    key={local}
+                    onClick={() => setLocalCalendario(local)}
+                    className={`text-left rounded-2xl p-5 border transition-all ${
+                      ativo
+                        ? "bg-gradient-to-br from-[#0A0A0A] to-neutral-800 border-neutral-900 text-white shadow-lg shadow-neutral-900/10"
+                        : "bg-white border-neutral-200 text-neutral-700 hover:border-neutral-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className={`text-xs font-mono uppercase tracking-wider ${ativo ? "text-white/60" : "text-neutral-400"}`}>{local}</p>
+                      <Calendar className={`w-4 h-4 ${ativo ? "text-[#C9A96E]" : "text-neutral-300"}`} />
+                    </div>
+                    <p className="text-3xl font-bold mt-2" style={{ fontFamily: "Georgia, serif" }}>{count}</p>
+                    <p className={`text-xs mt-0.5 ${ativo ? "text-white/70" : "text-neutral-400"}`}>dia(s) de atendimento marcado(s)</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {localCalendario === "Fátima do Sul" && (
+              <div className="flex items-center gap-2 text-xs text-neutral-600 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                A IA ainda não agenda sozinha em Fátima do Sul — esses dias ficam registrados aqui só para controle da equipe.
+              </div>
+            )}
+
+            {/* Calendário grande e visual — sempre visível, sem precisar expandir nada */}
+            <div className="bg-white border border-neutral-200 rounded-2xl p-6 sm:p-8 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <button onClick={irParaMesAnterior} className="p-2 hover:bg-neutral-100 rounded-full transition-colors">
+                    <ChevronLeft className="w-5 h-5 text-neutral-500" />
+                  </button>
+                  <h2 style={{ fontFamily: "Georgia, serif" }} className="text-2xl sm:text-3xl text-[#0A0A0A] w-56 text-center capitalize">
+                    {MESES[mesCalendario]} <span className="text-neutral-400">{anoCalendario}</span>
+                  </h2>
+                  <button onClick={irParaProximoMes} className="p-2 hover:bg-neutral-100 rounded-full transition-colors">
+                    <ChevronRight className="w-5 h-5 text-neutral-500" />
+                  </button>
+                </div>
+                <div className="flex gap-1 bg-neutral-100 p-1 rounded-lg">
+                  {LOCAIS.map(local => (
+                    <button
+                      key={local}
+                      onClick={() => setLocalCalendario(local)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        localCalendario === local ? "bg-white text-[#0A0A0A] shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                      }`}
+                    >
+                      {local}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-7 text-center text-xs font-mono text-neutral-400 font-bold border-b border-neutral-100 pb-3 mb-2">
+                {DIAS_SEMANA_LABEL.map(d => <span key={d}>{d}</span>)}
+              </div>
+
+              <div className="grid grid-cols-7 gap-2 sm:gap-3">
+                {calendarCells.map((cell, i) => {
+                  if (cell.num === null) return <div key={i} />;
+                  const marcado = diasDoLocalSet.has(cell.iso!);
+                  const dia = diasDoLocalSet.get(cell.iso!);
+                  const isHoje = cell.iso === toISODate(hoje);
+                  const passado = cell.iso! < toISODate(hoje);
+                  const carregandoEsteDia = diaClicando === cell.iso;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => !passado && toggleDia(cell.iso!)}
+                      disabled={passado || carregandoEsteDia}
+                      title={dia?.horarios?.length ? `Horário personalizado: ${dia.horarios.join(", ")}` : undefined}
+                      className={`relative rounded-xl h-14 sm:h-16 flex flex-col items-center justify-center text-sm font-semibold transition-all border ${
+                        marcado
+                          ? "bg-gradient-to-br from-[#C9A96E] to-[#b3925c] border-[#C9A96E] text-white shadow-md shadow-[#C9A96E]/30 scale-[1.02]"
+                          : isHoje
+                          ? "bg-neutral-100 border-neutral-300 text-neutral-700"
+                          : "bg-white border-neutral-100 text-neutral-600 hover:border-[#C9A96E]/40 hover:bg-[#C9A96E]/5"
+                      } ${passado ? "opacity-25 cursor-not-allowed" : "cursor-pointer hover:scale-[1.03]"}`}
+                    >
+                      {carregandoEsteDia ? <RefreshCw className="w-4 h-4 animate-spin" /> : cell.num}
+                      {isHoje && !marcado && (
+                        <span className="absolute bottom-1 w-1 h-1 rounded-full bg-[#C9A96E]" />
+                      )}
+                      {marcado && dia?.horarios?.length ? (
+                        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-white/80" />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Legenda */}
+              <div className="flex flex-wrap items-center gap-4 mt-6 pt-5 border-t border-neutral-100 text-xs text-neutral-500">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-md bg-gradient-to-br from-[#C9A96E] to-[#b3925c]" /> Dia de atendimento</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-md bg-neutral-100 border border-neutral-300" /> Hoje</span>
+                <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-neutral-400" /> Horário personalizado nesse dia</span>
+                <span className="ml-auto text-neutral-400">Clique num dia para marcar ou desmarcar</span>
+              </div>
+            </div>
+
+            {/* Painel dos dias já marcados no mês/local selecionado */}
+            <div className="bg-white border border-neutral-200 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-neutral-800">Dias marcados em {localCalendario}</h3>
+                <span className="text-xs text-neutral-400">{diasDoLocalOrdenados.length} no total</span>
+              </div>
+
+              {carregandoDias && (
+                <div className="flex items-center gap-2 py-6 text-neutral-400 text-sm">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Carregando...
+                </div>
+              )}
+
+              {!carregandoDias && diasDoLocalOrdenados.length === 0 && (
+                <div className="text-center py-8 border border-dashed border-neutral-200 rounded-xl">
+                  <Calendar className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+                  <p className="text-sm text-neutral-400">Nenhum dia marcado ainda. Clique nos dias do calendário acima para começar.</p>
+                </div>
+              )}
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {diasDoLocalOrdenados.map(dia => (
+                  <div key={dia.id} className="rounded-xl border border-neutral-200 overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2.5 bg-neutral-50">
+                      <div>
+                        <p className="text-sm font-semibold text-neutral-800 capitalize">{formatarDataCurta(dia.data)}</p>
+                        {dia.horarios?.length ? (
+                          <p className="text-[10px] text-[#C9A96E] font-medium">Horário personalizado</p>
+                        ) : (
+                          <p className="text-[10px] text-neutral-400">Horário padrão</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => diaEditandoId === dia.id ? setDiaEditandoId(null) : abrirEdicaoHorarios(dia)}
+                          title="Editar horário deste dia"
+                          className="p-1.5 rounded-md text-neutral-400 hover:text-[#C9A96E] hover:bg-[#C9A96E]/10 transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => removerDia(dia)}
+                          title="Remover este dia"
+                          className="p-1.5 rounded-md text-neutral-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <AnimatePresence>
+                      {diaEditandoId === dia.id && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="border-t border-neutral-100 px-3 py-3 overflow-hidden bg-white"
+                        >
+                          <p className="text-[10px] text-neutral-500 mb-2">Horários disponíveis nesse dia:</p>
+                          <div className="flex flex-wrap gap-1.5 mb-2.5">
+                            {HORARIOS_PADRAO.map(h => (
+                              <button
+                                key={h}
+                                onClick={() => alternarHorarioEditando(h)}
+                                className={`px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                                  horariosEditando.includes(h)
+                                    ? "bg-[#C9A96E] border-[#C9A96E] text-white"
+                                    : "bg-white border-neutral-200 text-neutral-500"
+                                }`}
+                              >
+                                {h}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={salvarHorariosEditando}
+                              disabled={salvandoHorarios}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-[#0A0A0A] text-white text-[11px] font-medium hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                            >
+                              <Check className="w-3 h-3" /> Salvar
+                            </button>
+                            {dia.horarios?.length ? (
+                              <button
+                                onClick={() => resetarHorarioPadrao(dia)}
+                                className="text-[11px] text-neutral-500 hover:text-neutral-700 underline"
+                              >
+                                Usar horário padrão
+                              </button>
+                            ) : null}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* ── CONFIGURAR ──────────────────────────── */}
         {aba === "configurar" && (
           <motion.div key="cfg" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
@@ -530,74 +856,6 @@ export default function WhatsAppBot() {
                     <RefreshCw className={`w-4 h-4 ${qrLoading ? "animate-spin" : ""}`} /> Gerar novo código
                   </button>
                 </div>
-              )}
-            </div>
-
-            {/* Dias de Atendimento em Toledo — calendário manual usado pela IA */}
-            <div className="bg-white border border-neutral-200 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-lg bg-[#C9A96E]/10 flex items-center justify-center">
-                  <CalendarPlus className="w-4.5 h-4.5 text-[#C9A96E]" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-neutral-800">Dias de Atendimento em Toledo</h3>
-                  <p className="text-xs text-neutral-500">A IA só oferece horário de consulta nos dias marcados aqui</p>
-                </div>
-              </div>
-
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="date"
-                  value={novaDataToledo}
-                  onChange={e => setNovaDataToledo(e.target.value)}
-                  className="flex-1 px-3 py-2.5 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A96E] bg-neutral-50"
-                />
-                <button
-                  onClick={adicionarDiaToledo}
-                  disabled={!novaDataToledo || salvandoDia}
-                  className="px-4 py-2.5 bg-[#0A0A0A] text-white rounded-lg text-sm font-medium hover:bg-neutral-800 transition-colors disabled:opacity-40 flex items-center gap-2"
-                >
-                  {salvandoDia ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CalendarPlus className="w-4 h-4" />}
-                  Adicionar
-                </button>
-              </div>
-
-              {carregandoDias && (
-                <div className="flex items-center justify-center gap-2 py-6 text-neutral-400 text-sm">
-                  <RefreshCw className="w-4 h-4 animate-spin" /> Carregando...
-                </div>
-              )}
-
-              {!carregandoDias && diasToledo.length === 0 && (
-                <div className="text-center py-6 border border-dashed border-neutral-200 rounded-lg">
-                  <AlertTriangle className="w-6 h-6 text-amber-400 mx-auto mb-2" />
-                  <p className="text-sm text-neutral-500">Nenhum dia cadastrado — a IA não vai conseguir oferecer horário até você adicionar datas.</p>
-                </div>
-              )}
-
-              {!carregandoDias && diasToledo.length > 0 && (
-                <>
-                  {diasToledo.length <= 3 && (
-                    <div className="mb-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      Restam poucos dias cadastrados — considere adicionar mais.
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {diasToledo.map(d => (
-                      <span key={d.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-700 text-xs font-medium">
-                        {new Date(d.data + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", weekday: "short" })}
-                        <button
-                          onClick={() => removerDiaToledo(d.data)}
-                          disabled={removendoDia === d.data}
-                          className="text-neutral-400 hover:text-red-600 transition-colors disabled:opacity-40"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </>
               )}
             </div>
 
