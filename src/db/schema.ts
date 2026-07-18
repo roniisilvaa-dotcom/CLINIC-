@@ -127,13 +127,20 @@ export const whatsappSilenciados = pgTable('whatsapp_silenciados', {
   criadoEm: text('criado_em').notNull(),
 });
 
-// Dias específicos em que a Dra. Mariah estará atendendo presencialmente em Toledo.
-// Cadastro manual (ela/a equipe marca as datas, geralmente um bloco por mês) — a IA
-// do WhatsApp só oferece horário de consulta nesses dias, nunca fora deles. Ver
-// checkAvailability() em src/services/whatsappCore.ts.
-export const diasAtendimentoToledo = pgTable('dias_atendimento_toledo', {
+// Dias em que a Dra. Mariah estará atendendo presencialmente — em Toledo OU em
+// Fátima do Sul (campo "local"). Cadastro manual via calendário clicável no painel
+// (ver "Configurar" no módulo IA Secretária WhatsApp) — geralmente um mês inteiro
+// marcado de uma vez. "horarios" permite customizar os horários de UM dia
+// específico (ex: só de manhã naquele dia); quando null/vazio, usa o padrão da
+// clínica (HORARIOS_BASE em whatsappCore.ts). A IA do WhatsApp hoje só consulta
+// os dias marcados como "Toledo" pra agendar sozinha — Fátima do Sul continua
+// sendo repassado pra Dra./equipe decidir na mão (ver
+// transferir_atendimento_fatima_do_sul em iaSecretaria.ts). id = `${local}::${data}`.
+export const diasAtendimento = pgTable('dias_atendimento', {
   id: text('id').primaryKey(),
-  data: text('data').notNull().unique(),
+  local: text('local').notNull(), // 'Toledo' | 'Fátima do Sul'
+  data: text('data').notNull(),
+  horarios: jsonb('horarios'), // ex: ["10:00","11:00"] — override pra esse dia; null = padrão
   criadoEm: text('criado_em').notNull(),
 });
 
