@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   DollarSign,
   TrendingUp,
@@ -90,30 +90,105 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
   const [filterUnidade, setFilterUnidade] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
 
-  // Recharts Monthly Revenue simulation
-  const mainBillingHistory = [
-    { mes: "Jan", Toledo: 18200, Fatima: 11400, Total: 29600 },
-    { mes: "Fev", Toledo: 20400, Fatima: 12100, Total: 32500 },
-    { mes: "Mar", Toledo: 22100, Fatima: 14500, Total: 36600 },
-    { mes: "Abr", Toledo: 25000, Fatima: 16800, Total: 41800 },
-    { mes: "Mai", Toledo: 27100, Fatima: 18450, Total: 45550 },
-    { mes: "Jun", Toledo: 31000, Fatima: 22800, Total: 53800 }
-  ];
+  // Evolução real de caixa — calculada a partir dos lançamentos de verdade
+  // (transacoes, vindas do banco), últimos 6 meses incluindo o atual. Antes
+  // esses números eram fixos/fictícios e nunca refletiam o que realmente
+  // acontecia na clínica.
+  const MESES_LABEL = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const monthlyData = useMemo(() => {
+    const hoje = new Date();
+    const meses: { key: string; mes: string }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+      meses.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, mes: MESES_LABEL[d.getMonth()] });
+    }
+    return meses.map(({ key, mes }) => {
+      const doMes = transacoes.filter(tx => tx.data.startsWith(key) && tx.status !== "Cancelado");
+      const Toledo = doMes.filter(tx => tx.unidade === "Toledo").reduce((acc, tx) => acc + tx.valor, 0);
+      const Fatima = doMes.filter(tx => tx.unidade === "Fátima do Sul").reduce((acc, tx) => acc + tx.valor, 0);
+      return { mes, Toledo, Fatima, Total: Toledo + Fatima };
+    });
+  }, [transacoes]);
 
-  // Gestão de Pacotes
-  const [pacotes, setPacotes] = useState([
-    { id: "pct-1", pacienteNome: "Helena Silveira de Souza", nomePacote: "Pacote 10 Sessões Laser LLLT", quantidadeTotal: 10, sessoesRealizadas: 3, status: "Ativo" },
-    { id: "pct-2", pacienteNome: "Roberto Mendes Alencar", nomePacote: "Protocolo Indução (3 MMP + 6 Laser)", quantidadeTotal: 9, sessoesRealizadas: 8, status: "Ativo" }
-  ]);
+  // Distribuição real por procedimento/descrição — top 4 + "Outros", calculado
+  // sobre os lançamentos já pagos. Antes eram 3 percentuais fixos que nunca
+  // mudavam, mesmo com lançamentos reais diferentes disso.
+  const PALETA_DISTRIBUICAO = ["#C9A84C", "#0A0A0A", "#DFD5BF", "#8d6528", "#b3925c"];
+  const distribuicaoServicos = useMemo(() => {
+    const pagos = transacoes.filter(tx => tx.status === "Pago");
+    const totalPago = pagos.reduce((acc, tx) => acc + tx.valor, 0);
+    if (totalPago === 0) return [];
+    const porDescricao = new Map<string, number>();
+    for (const tx of pagos) {
+      const chave = tx.descricao.trim() || "Sem descrição";
+      porDescricao.set(chave, (porDescricao.get(chave) || 0) + tx.valor);
+    }
+    const ordenado = Array.from(porDescricao.entries()).sort((a, b) => b[1] - a[1]);
+    const top = ordenado.slice(0, 4).map(([label, valor]) => ({ label, valor, pct: (valor / totalPago) * 100 }));
+    const restanteValor = ordenado.slice(4).reduce((acc, [, v]) => acc + v, 0);
+    if (restanteValor > 0) top.push({ label: "Outros", valor: restanteValor, pct: (restanteValor / totalPago) * 100 });
+    return top;
+  }, [transacoes]);
 
-  const handleAbaterSessao = (pctId: string) => {
-    setPacotes(prev => prev.map(p => {
-      if (p.id === pctId && p.sessoesRealizadas < p.quantidadeTotal) {
-        const novoRealizadas = p.sessoesRealizadas + 1;
-        return { ...p, sessoesRealizadas: novoRealizadas, status: novoRealizadas === p.quantidadeTotal ? "Concluido" : "Ativo" };
+  // Insight dinâmico (participação real de Toledo no faturamento) — antes era
+  // um texto fixo ("cresceram 14.5%...") que não vinha de nenhum cálculo real.
+  const insightCaixa = useMemo(() => {
+    const validas = transacoes.filter(tx => tx.status !== "Cancelado");
+    const totalValido = validas.reduce((acc, tx) => acc + tx.valor, 0);
+    if (totalValido === 0) return "Ainda não há lançamentos registrados para gerar esse insight.";
+    const totalToledo = validas.filter(tx => tx.unidade === "Toledo").reduce((acc, tx) => acc + tx.valor, 0);
+    const pctToledo = (totalToledo / totalValido) * 100;
+    const pctFatima = 100 - pctToledo;
+    return `Do total registrado, Toledo responde por ${pctToledo.toFixed(1)}% do faturamento e Fátima do Sul por ${pctFatima.toFixed(1)}%.`;
+  }, [transacoes]);
+
+  // Gestão de Pacotes — agora vem de /api/pacotes (pacotesVendidos no banco).
+  // Antes era um mock fixo com 2 pacotes de exemplo que nunca refletiam os
+  // pacotes vendidos de verdade nem persistiam o abatimento de sessão.
+  interface Pacote {
+    id: string;
+    pacienteNome: string;
+    nomePacote: string;
+    quantidadeTotal: number;
+    sessoesRealizadas: number;
+    status: string;
+  }
+  const [pacotes, setPacotes] = useState<Pacote[]>([]);
+  const [carregandoPacotes, setCarregandoPacotes] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/pacotes");
+        const dados = await r.json();
+        if (Array.isArray(dados)) setPacotes(dados);
+      } catch {
+        // Sem conexão — mantém vazio em vez de mostrar dado fictício.
+      } finally {
+        setCarregandoPacotes(false);
       }
-      return p;
-    }));
+    })();
+  }, []);
+
+  const handleAbaterSessao = async (pctId: string) => {
+    const atual = pacotes.find(p => p.id === pctId);
+    if (!atual || atual.sessoesRealizadas >= atual.quantidadeTotal) return;
+    const novoRealizadas = atual.sessoesRealizadas + 1;
+    const novoStatus = novoRealizadas === atual.quantidadeTotal ? "Concluido" : "Ativo";
+
+    // Atualiza a tela na hora (otimista), mas reverte se não conseguir salvar no banco.
+    setPacotes(prev => prev.map(p => p.id === pctId ? { ...p, sessoesRealizadas: novoRealizadas, status: novoStatus } : p));
+    try {
+      const r = await fetch(`/api/pacotes/${pctId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessoesRealizadas: novoRealizadas, status: novoStatus }),
+      });
+      if (!r.ok) throw new Error("Falha ao salvar");
+    } catch {
+      setPacotes(prev => prev.map(p => p.id === pctId ? atual : p));
+      alert("Não foi possível salvar essa sessão no sistema agora. Verifique sua conexão e tente novamente.");
+    }
   };
 
   // Calculations
@@ -376,7 +451,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
 
           <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mainBillingHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <XAxis dataKey="mes" stroke="#A3A3A3" fontSize={11} fontStyle="italic" />
                 <YAxis stroke="#A3A3A3" fontSize={11} />
                 <Tooltip
@@ -400,35 +475,21 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
 
             <div className="space-y-3 text-xs font-sans font-medium">
 
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-gray-600">
-                  <span>MMP e Microagulhamento Capilar (52%)</span>
-                  <span className="font-mono text-gray-800 font-bold">R$ 13.520</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#C9A84C] rounded-full" style={{ width: "52%" }}></div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-gray-600">
-                  <span>Consultas e Diagnósticos (30%)</span>
-                  <span className="font-mono text-gray-800 font-bold">R$ 7.800</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#0A0A0A] rounded-full" style={{ width: "30%" }}></div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-gray-600">
-                  <span>Venda de Loções e Fórmulas (18%)</span>
-                  <span className="font-mono text-gray-800 font-bold">R$ 4.680</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#DFD5BF] rounded-full" style={{ width: "18%" }}></div>
-                </div>
-              </div>
+              {distribuicaoServicos.length === 0 ? (
+                <p className="text-gray-450 italic font-mono text-[11px] py-2">Nenhum lançamento pago registrado ainda.</p>
+              ) : (
+                distribuicaoServicos.map((item, idx) => (
+                  <div className="space-y-1" key={item.label}>
+                    <div className="flex justify-between items-center text-gray-600">
+                      <span>{item.label} ({item.pct.toFixed(0)}%)</span>
+                      <span className="font-mono text-gray-800 font-bold">R$ {item.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${item.pct}%`, backgroundColor: PALETA_DISTRIBUICAO[idx % PALETA_DISTRIBUICAO.length] }}></div>
+                    </div>
+                  </div>
+                ))
+              )}
 
             </div>
           </div>
@@ -436,7 +497,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
           <div className="bg-[#F5F0E8]/40 border border-[#C9A84C]/20 rounded-lg p-3.5 space-y-1 mt-4">
             <span className="text-[9px] text-[#C9A84C] font-mono uppercase font-bold tracking-wider block">Insights de Caixa</span>
             <p className="text-[11px] text-gray-600 leading-normal font-sans font-medium">
-              Suas receitas na unidade de Toledo cresceram <strong>14.5%</strong> em relação ao mês anterior, impulsionadas pelo aumento de retornos de pacientes sob tratamento de alopecia androgenética.
+              {insightCaixa}
             </p>
           </div>
         </div>
@@ -573,6 +634,11 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
           </h3>
         </div>
 
+        {carregandoPacotes ? (
+          <p className="text-gray-450 italic font-mono text-xs py-6 text-center">Carregando pacotes...</p>
+        ) : pacotes.length === 0 ? (
+          <p className="text-gray-450 italic font-mono text-xs py-6 text-center">Nenhum pacote de tratamento vendido ainda.</p>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {pacotes.map(pct => {
             const pctCompleto = (pct.sessoesRealizadas / pct.quantidadeTotal) * 100;
@@ -602,6 +668,7 @@ export default function FinanceiroModulo({ pacientes }: FinanceiroModuloProps) {
             );
           })}
         </div>
+        )}
       </div>
 
     </div>
