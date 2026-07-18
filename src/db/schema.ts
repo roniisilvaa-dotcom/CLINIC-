@@ -117,6 +117,26 @@ export const conversasWhatsapp = pgTable('conversas_whatsapp', {
   timestamp: text('timestamp').notNull(),
 });
 
+// Contatos para os quais a IA foi pausada manualmente pela Dra./equipe (ex: paciente
+// insistindo com pedido fora do escopo do bot). Persistido no banco — não só em
+// memória — pra não correr o risco de "voltar a responder sozinha" se o servidor
+// (Vercel, serverless) reiniciar ou trocar de instância. Ver src/services/whatsappCore.ts.
+export const whatsappSilenciados = pgTable('whatsapp_silenciados', {
+  telefone: text('telefone').primaryKey(),
+  motivo: text('motivo'),
+  criadoEm: text('criado_em').notNull(),
+});
+
+// Dias específicos em que a Dra. Mariah estará atendendo presencialmente em Toledo.
+// Cadastro manual (ela/a equipe marca as datas, geralmente um bloco por mês) — a IA
+// do WhatsApp só oferece horário de consulta nesses dias, nunca fora deles. Ver
+// checkAvailability() em src/services/whatsappCore.ts.
+export const diasAtendimentoToledo = pgTable('dias_atendimento_toledo', {
+  id: text('id').primaryKey(),
+  data: text('data').notNull().unique(),
+  criadoEm: text('criado_em').notNull(),
+});
+
 // ── Prescricoes (biblioteca de templates) ──────────────────────────────
 export const prescricoesTemplates = pgTable('prescricoes_templates', {
   id: text('id').primaryKey(),
