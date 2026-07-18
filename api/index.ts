@@ -17,7 +17,7 @@ import {
   users,
   prescricoesTemplates,
   transacoesFinanceiras,
-  diasAtendimentoToledo,
+  diasAtendimento,
 } from "../src/db/schema.js";
 import { eq, sql } from "drizzle-orm";
 import { hashSenha, verificarSenha, senhaEstaEmTextoPuro } from "../src/lib/senha.js";
@@ -144,14 +144,18 @@ db.execute(sql`CREATE TABLE IF NOT EXISTS whatsapp_silenciados (
   criado_em text NOT NULL
 )`).catch((e) => console.error("Migracao whatsapp_silenciados falhou:", e));
 
-// Migracao automatica: cria a tabela de dias de atendimento presencial em Toledo
-// (cadastro manual da Dra./equipe) — a IA do WhatsApp so oferece horario de
-// consulta nesses dias, ver checkAvailability() em src/services/whatsappCore.ts.
-db.execute(sql`CREATE TABLE IF NOT EXISTS dias_atendimento_toledo (
+// Migracao automatica: cria a tabela de dias de atendimento presencial (Toledo ou
+// Fatima do Sul, cadastro manual via calendario clicavel no painel). A IA do
+// WhatsApp so oferece horario de consulta nos dias marcados como Toledo, ver
+// checkAvailability() em src/services/whatsappCore.ts. "horarios" (jsonb) permite
+// customizar o horario de um dia especifico; null = usa o padrao da clinica.
+db.execute(sql`CREATE TABLE IF NOT EXISTS dias_atendimento (
   id text PRIMARY KEY,
-  data text NOT NULL UNIQUE,
+  local text NOT NULL,
+  data text NOT NULL,
+  horarios jsonb,
   criado_em text NOT NULL
-)`).catch((e) => console.error("Migracao dias_atendimento_toledo falhou:", e));
+)`).catch((e) => console.error("Migracao dias_atendimento falhou:", e));
 
 // ─── Autenticacao / autorizacao ───────────────────────────────────────────────
 //
@@ -423,38 +427,66 @@ app.put("/api/agenda/:id", requireStaff, async (req, res) => {
   }
 });
 
-// ─── Dias de Atendimento em Toledo (calendário manual usado pela IA) ─────────
-// A Dra. cadastra manualmente as datas específicas em que estará atendendo
-// presencialmente em Toledo (geralmente um bloco por mês). A IA do WhatsApp só
-// oferece horário de consulta nesses dias — ver checkAvailability() em
-// src/services/whatsappCore.ts.
-app.get("/api/agenda/dias-toledo", requireStaff, async (_req, res) => {
+// ─── Dias de Atendimento (calendário clicável usado pela IA em Toledo) ───────
+// A Dra./equipe marca no calendário do painel (aba Configurar) os dias em que ela
+// vai atender presencialmente — em Toledo ou em Fátima do Sul. A IA do WhatsApp
+// só usa os dias marcados como Toledo pra agendar sozinha (ver checkAvailability()
+// em src/services/whatsappCore.ts); Fátima do Sul fica registrado aqui só pra
+// controle da própria Dra./equipe, sem agendamento automático por enquanto.
+app.get("/api/agenda/dias-atendimento", requireStaff, async (req, res) => {
   try {
-    const result = await db.select().from(diasAtendimentoToledo).orderBy(diasAtendimentoToledo.data);
-    res.json(result);
+    const { local } = req.query;
+    const result = local
+      ? await db.select().from(diasAtendimento).where(eq(diasAtendimento.local, String(local)))
+      : await db.select().from(diasAtendimento);
+    res.json(result.sort((a, b) => a.data.localeCompare(b.data)));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
 
-app.post("/api/agenda/dias-toledo", requireStaff, async (req, res) => {
+// Marca um dia como dia de atendimento — clique num dia vazio do calendário.
+// Idempotente: clicar de novo num dia já marcado não duplica (onConflictDoNothing
+// na chave `${local}::${data}`).
+app.post("/api/agenda/dias-atendimento", requireStaff, async (req, res) => {
   try {
+    const local = String(req.body?.local || "").trim();
     const data = String(req.body?.data || "").trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return res.status(400).json({ error: "Data inválida (use AAAA-MM-DD)" });
-    const result = await db.insert(diasAtendimentoToledo).values({
-      id: `dia-${data}`,
+    if (!local || !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+      return res.status(400).json({ error: "local e data (AAAA-MM-DD) são obrigatórios" });
+    }
+    const id = `${local}::${data}`;
+    await db.insert(diasAtendimento).values({
+      id,
+      local,
       data,
+      horarios: null,
       criadoEm: new Date().toISOString(),
-    }).onConflictDoNothing().returning();
-    res.json(result[0] || { id: `dia-${data}`, data });
+    }).onConflictDoNothing();
+    const result = await db.select().from(diasAtendimento).where(eq(diasAtendimento.id, id)).limit(1);
+    res.json(result[0] || { id, local, data, horarios: null });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
 
-app.delete("/api/agenda/dias-toledo/:data", requireStaff, async (req, res) => {
+// Customiza (ou reseta, mandando horarios: null) os horários de UM dia já
+// marcado — clique num dia do painel de dias escolhidos pra ajustar só aquele dia.
+app.put("/api/agenda/dias-atendimento/:id", requireStaff, async (req, res) => {
   try {
-    await db.delete(diasAtendimentoToledo).where(eq(diasAtendimentoToledo.data, req.params.data));
+    const horarios = Array.isArray(req.body?.horarios) ? req.body.horarios : null;
+    const result = await db.update(diasAtendimento).set({ horarios }).where(eq(diasAtendimento.id, req.params.id)).returning();
+    if (!result.length) return res.status(404).json({ error: "Dia não encontrado" });
+    res.json(result[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Desmarca um dia — clique num dia já marcado no calendário/painel.
+app.delete("/api/agenda/dias-atendimento/:id", requireStaff, async (req, res) => {
+  try {
+    await db.delete(diasAtendimento).where(eq(diasAtendimento.id, req.params.id));
     res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
