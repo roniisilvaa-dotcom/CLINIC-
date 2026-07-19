@@ -18,6 +18,7 @@ import {
   prescricoesTemplates,
   transacoesFinanceiras,
   diasAtendimento,
+  bloqueiosAgenda,
 } from "../src/db/schema.js";
 import { eq, sql } from "drizzle-orm";
 import { hashSenha, verificarSenha, senhaEstaEmTextoPuro } from "../src/lib/senha.js";
@@ -156,6 +157,18 @@ db.execute(sql`CREATE TABLE IF NOT EXISTS dias_atendimento (
   horarios jsonb,
   criado_em text NOT NULL
 )`).catch((e) => console.error("Migracao dias_atendimento falhou:", e));
+
+// Migracao automatica: bloqueios de agenda (fins de semana recorrentes ou datas
+// especificas como feriados/viagens). Tem prioridade sobre dias_atendimento —
+// ver checkAvailability() em src/services/whatsappCore.ts.
+db.execute(sql`CREATE TABLE IF NOT EXISTS bloqueios_agenda (
+  id text PRIMARY KEY,
+  tipo text NOT NULL,
+  dia_semana integer,
+  data text,
+  motivo text,
+  criado_em text NOT NULL
+)`).catch((e) => console.error("Migracao bloqueios_agenda falhou:", e));
 
 // ─── Autenticacao / autorizacao ───────────────────────────────────────────────
 //
@@ -487,6 +500,60 @@ app.put("/api/agenda/dias-atendimento/:id", requireStaff, async (req, res) => {
 app.delete("/api/agenda/dias-atendimento/:id", requireStaff, async (req, res) => {
   try {
     await db.delete(diasAtendimento).where(eq(diasAtendimento.id, req.params.id));
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Bloqueios de Agenda (fins de semana recorrentes + feriados/datas) ────────
+// Tem prioridade sobre dias_atendimento: mesmo que um dia esteja marcado como
+// disponível, se bater um bloqueio a IA nunca oferece esse dia (ver
+// checkAvailability() em src/services/whatsappCore.ts).
+app.get("/api/agenda/bloqueios", requireStaff, async (req, res) => {
+  try {
+    const result = await db.select().from(bloqueiosAgenda);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Cria um bloqueio — tipo "semana" (diaSemana 0-6, recorrente) ou "data" (uma
+// data específica AAAA-MM-DD). Idempotente na chave (onConflictDoNothing).
+app.post("/api/agenda/bloqueios", requireStaff, async (req, res) => {
+  try {
+    const tipo = String(req.body?.tipo || "").trim();
+    const motivo = req.body?.motivo ? String(req.body.motivo).trim() : null;
+    if (tipo === "semana") {
+      const diaSemana = Number(req.body?.diaSemana);
+      if (!Number.isInteger(diaSemana) || diaSemana < 0 || diaSemana > 6) {
+        return res.status(400).json({ error: "diaSemana deve ser um número de 0 (domingo) a 6 (sábado)" });
+      }
+      const id = `semana::${diaSemana}`;
+      await db.insert(bloqueiosAgenda).values({ id, tipo, diaSemana, data: null, motivo, criadoEm: new Date().toISOString() }).onConflictDoNothing();
+      const result = await db.select().from(bloqueiosAgenda).where(eq(bloqueiosAgenda.id, id)).limit(1);
+      return res.json(result[0] || { id, tipo, diaSemana, motivo });
+    }
+    if (tipo === "data") {
+      const data = String(req.body?.data || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+        return res.status(400).json({ error: "data (AAAA-MM-DD) é obrigatória" });
+      }
+      const id = `data::${data}`;
+      await db.insert(bloqueiosAgenda).values({ id, tipo, diaSemana: null, data, motivo, criadoEm: new Date().toISOString() }).onConflictDoNothing();
+      const result = await db.select().from(bloqueiosAgenda).where(eq(bloqueiosAgenda.id, id)).limit(1);
+      return res.json(result[0] || { id, tipo, data, motivo });
+    }
+    res.status(400).json({ error: "tipo deve ser 'semana' ou 'data'" });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/agenda/bloqueios/:id", requireStaff, async (req, res) => {
+  try {
+    await db.delete(bloqueiosAgenda).where(eq(bloqueiosAgenda.id, req.params.id));
     res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
