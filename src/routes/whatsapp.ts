@@ -84,9 +84,18 @@ router.post("/payment-webhook", async (req, res) => {
   const session = getSession(ref);
   const dados = session.dadosColeta;
 
+  // Mesma regra de qualquer outro envio automático: se a IA está pausada pra
+  // esse contato, o sistema não manda mensagem nenhuma — nem a confirmação de
+  // pagamento. O agendamento em si ainda é criado (o pagamento é real e
+  // precisa ficar registrado), mas quem avisa a paciente passa a ser a
+  // equipe, manualmente.
+  const pausado = (await listarTelefonesSilenciados()).has(ref) || iaEstaPausada(ref);
+
   if (dados.data && dados.horario) {
     await criarAgendamentoDireto(dados, ref, enviarMensagem);
-    await enviarMensagem(ref, `✅ *Pagamento confirmado!*\n\nSeu agendamento está garantido:\n📅 ${dados.data} às ${dados.horario}\n💼 ${dados.procedimento || "Consulta"}\n📍 Toledo/PR\n\nTe esperamos! 💜`);
+    if (!pausado) {
+      await enviarMensagem(ref, `✅ *Pagamento confirmado!*\n\nSeu agendamento está garantido:\n📅 ${dados.data} às ${dados.horario}\n💼 ${dados.procedimento || "Consulta"}\n📍 Toledo/PR\n\nTe esperamos! 💜`);
+    }
   }
 
   res.sendStatus(200);
