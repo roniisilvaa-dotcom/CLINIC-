@@ -6,7 +6,7 @@ import {
   CheckCheck, Wifi, WifiOff, RefreshCw,
   Smartphone, Shield, BellRing, Send,
   Pause, Play, Trash2, X, AlertTriangle,
-  ChevronLeft, Pencil, Check
+  ChevronLeft, Pencil, Check, Ban
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -42,6 +42,14 @@ interface DiaAtendimento {
   horarios: string[] | null;
 }
 
+interface Bloqueio {
+  id: string;
+  tipo: "semana" | "data";
+  diaSemana: number | null;
+  data: string | null;
+  motivo: string | null;
+}
+
 const STATUS_COLORS = {
   ativo: "bg-blue-100 text-blue-700",
   aguardando_pagamento: "bg-amber-100 text-amber-700",
@@ -57,6 +65,38 @@ const LOCAIS = ["Toledo", "Fátima do Sul"] as const;
 const HORARIOS_PADRAO = ["10:00", "11:00", "13:30", "15:00", "16:30", "17:30"];
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const DIAS_SEMANA_LABEL = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+// Feriados nacionais fixos (mês/dia iguais todo ano) — usados na lista de
+// "um clique" de Bloqueios e Feriados.
+const FERIADOS_FIXOS = [
+  { mes: 1, dia: 1, nome: "Confraternização Universal" },
+  { mes: 4, dia: 21, nome: "Tiradentes" },
+  { mes: 5, dia: 1, nome: "Dia do Trabalho" },
+  { mes: 9, dia: 7, nome: "Independência do Brasil" },
+  { mes: 10, dia: 12, nome: "Nossa Senhora Aparecida" },
+  { mes: 11, dia: 2, nome: "Finados" },
+  { mes: 11, dia: 15, nome: "Proclamação da República" },
+  { mes: 11, dia: 20, nome: "Consciência Negra" },
+  { mes: 12, dia: 25, nome: "Natal" },
+];
+
+// Feriados móveis (mudam de data a cada ano, atrelados à Páscoa) — datas já
+// calculadas para os próximos anos. Precisa atualizar essa lista de tempos em
+// tempos (basta buscar "feriados móveis Brasil <ano>").
+const FERIADOS_MOVEIS: Record<number, { data: string; nome: string }[]> = {
+  2026: [
+    { data: "2026-02-16", nome: "Carnaval (segunda)" },
+    { data: "2026-02-17", nome: "Carnaval (terça)" },
+    { data: "2026-04-03", nome: "Paixão de Cristo" },
+    { data: "2026-06-04", nome: "Corpus Christi" },
+  ],
+  2027: [
+    { data: "2027-02-08", nome: "Carnaval (segunda)" },
+    { data: "2027-02-09", nome: "Carnaval (terça)" },
+    { data: "2027-03-26", nome: "Paixão de Cristo" },
+    { data: "2027-05-27", nome: "Corpus Christi" },
+  ],
+};
 
 function toISODate(d: Date) {
   const y = d.getFullYear();
@@ -103,6 +143,16 @@ export default function WhatsAppBot() {
   const [diaEditandoId, setDiaEditandoId] = useState<string | null>(null);
   const [horariosEditando, setHorariosEditando] = useState<string[]>([]);
   const [salvandoHorarios, setSalvandoHorarios] = useState(false);
+
+  // ── Bloqueios e Feriados (fins de semana recorrentes + datas específicas) ──
+  // Independente de local — tem prioridade sobre os dias marcados acima. Ver
+  // checkAvailability() em src/services/whatsappCore.ts.
+  const [bloqueios, setBloqueios] = useState<Bloqueio[]>([]);
+  const [carregandoBloqueios, setCarregandoBloqueios] = useState(false);
+  const [salvandoBloqueioId, setSalvandoBloqueioId] = useState<string | null>(null);
+  const [novoFeriadoData, setNovoFeriadoData] = useState("");
+  const [novoFeriadoMotivo, setNovoFeriadoMotivo] = useState("");
+  const [salvandoFeriado, setSalvandoFeriado] = useState(false);
 
   const carregarStats = useCallback(async () => {
     try {
@@ -166,6 +216,15 @@ export default function WhatsAppBot() {
     setCarregandoDias(false);
   }, []);
 
+  const carregarBloqueios = useCallback(async () => {
+    setCarregandoBloqueios(true);
+    try {
+      const r = await fetch("/api/agenda/bloqueios");
+      if (r.ok) setBloqueios(await r.json());
+    } catch { /* offline */ }
+    setCarregandoBloqueios(false);
+  }, []);
+
   useEffect(() => {
     carregarStats();
     const int = setInterval(carregarStats, 30000);
@@ -181,10 +240,10 @@ export default function WhatsAppBot() {
     if (aba === "configurar") checarStatusConexao();
   }, [aba, checarStatusConexao]);
 
-  // Ao abrir a aba "Dias de Atendimento": carrega o calendário.
+  // Ao abrir a aba "Dias de Atendimento": carrega o calendário e os bloqueios.
   useEffect(() => {
-    if (aba === "dias_atendimento") carregarDiasAtendimento();
-  }, [aba, carregarDiasAtendimento]);
+    if (aba === "dias_atendimento") { carregarDiasAtendimento(); carregarBloqueios(); }
+  }, [aba, carregarDiasAtendimento, carregarBloqueios]);
 
   // Se não estiver conectado, busca o QR Code automaticamente.
   useEffect(() => {
@@ -289,6 +348,90 @@ export default function WhatsAppBot() {
     while (cells.length % 7 !== 0) cells.push({ num: null, iso: null });
     return cells;
   }, [mesCalendario, anoCalendario]);
+
+  // ── Bloqueios e Feriados ──
+  const diasSemanaBloqueados = useMemo(
+    () => new Set(bloqueios.filter(b => b.tipo === "semana").map(b => b.diaSemana)),
+    [bloqueios]
+  );
+  const datasBloqueadas = useMemo(() => {
+    const map = new Map<string, Bloqueio>();
+    bloqueios.filter(b => b.tipo === "data" && b.data).forEach(b => map.set(b.data!, b));
+    return map;
+  }, [bloqueios]);
+
+  // Próximos feriados nacionais (fixos + móveis) ainda não bloqueados, pro ano
+  // atual e o seguinte — usado na lista de "um clique" abaixo do calendário.
+  const proximosFeriados = useMemo(() => {
+    const hojeISO = toISODate(new Date());
+    const anoAtual = new Date().getFullYear();
+    const lista: { data: string; nome: string }[] = [];
+    [anoAtual, anoAtual + 1].forEach(ano => {
+      FERIADOS_FIXOS.forEach(f => {
+        lista.push({ data: `${ano}-${String(f.mes).padStart(2, "0")}-${String(f.dia).padStart(2, "0")}`, nome: f.nome });
+      });
+      (FERIADOS_MOVEIS[ano] || []).forEach(f => lista.push(f));
+    });
+    return lista.filter(f => f.data >= hojeISO).sort((a, b) => a.data.localeCompare(b.data)).slice(0, 12);
+  }, []);
+
+  const toggleBloqueioSemana = async (diaSemana: number) => {
+    const id = `semana::${diaSemana}`;
+    setSalvandoBloqueioId(id);
+    try {
+      if (diasSemanaBloqueados.has(diaSemana)) {
+        await fetch(`/api/agenda/bloqueios/${encodeURIComponent(id)}`, { method: "DELETE" });
+        setBloqueios(prev => prev.filter(b => b.id !== id));
+      } else {
+        const r = await fetch("/api/agenda/bloqueios", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tipo: "semana", diaSemana }),
+        });
+        if (r.ok) {
+          const novo = await r.json();
+          setBloqueios(prev => [...prev, novo]);
+        }
+      }
+    } catch { /* offline */ }
+    setSalvandoBloqueioId(null);
+  };
+
+  const adicionarBloqueioData = async (data: string, motivo: string) => {
+    if (!data) return;
+    const id = `data::${data}`;
+    setSalvandoBloqueioId(id);
+    try {
+      const r = await fetch("/api/agenda/bloqueios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "data", data, motivo: motivo || null }),
+      });
+      if (r.ok) {
+        const novo = await r.json();
+        setBloqueios(prev => [...prev.filter(b => b.data !== data), novo]);
+      }
+    } catch { /* offline */ }
+    setSalvandoBloqueioId(null);
+  };
+
+  const removerBloqueio = async (id: string) => {
+    setSalvandoBloqueioId(id);
+    try {
+      await fetch(`/api/agenda/bloqueios/${encodeURIComponent(id)}`, { method: "DELETE" });
+      setBloqueios(prev => prev.filter(b => b.id !== id));
+    } catch { /* offline */ }
+    setSalvandoBloqueioId(null);
+  };
+
+  const handleAdicionarFeriado = async () => {
+    if (!novoFeriadoData) return;
+    setSalvandoFeriado(true);
+    await adicionarBloqueioData(novoFeriadoData, novoFeriadoMotivo.trim());
+    setNovoFeriadoData("");
+    setNovoFeriadoMotivo("");
+    setSalvandoFeriado(false);
+  };
 
   const irParaMesAnterior = () => {
     if (mesCalendario === 0) { setMesCalendario(11); setAnoCalendario(a => a - 1); }
@@ -650,20 +793,29 @@ export default function WhatsAppBot() {
                   const dia = diasDoLocalSet.get(cell.iso!);
                   const isHoje = cell.iso === toISODate(hoje);
                   const passado = cell.iso! < toISODate(hoje);
+                  const diaSemanaNum = new Date(cell.iso + "T12:00:00").getDay();
+                  const bloqueioData = datasBloqueadas.get(cell.iso!);
+                  const bloqueado = !!bloqueioData || diasSemanaBloqueados.has(diaSemanaNum);
                   const carregandoEsteDia = diaClicando === cell.iso;
                   return (
                     <button
                       key={i}
-                      onClick={() => !passado && toggleDia(cell.iso!)}
-                      disabled={passado || carregandoEsteDia}
-                      title={dia?.horarios?.length ? `Horário personalizado: ${dia.horarios.join(", ")}` : undefined}
+                      onClick={() => !passado && !bloqueado && toggleDia(cell.iso!)}
+                      disabled={passado || bloqueado || carregandoEsteDia}
+                      title={
+                        bloqueado
+                          ? `Bloqueado${bloqueioData?.motivo ? ": " + bloqueioData.motivo : " (dia da semana)"}`
+                          : dia?.horarios?.length ? `Horário personalizado: ${dia.horarios.join(", ")}` : undefined
+                      }
                       className={`relative rounded-xl h-14 sm:h-16 flex flex-col items-center justify-center text-sm font-semibold transition-all border ${
-                        marcado
+                        bloqueado
+                          ? "bg-red-50 border-red-100 text-red-300 line-through"
+                          : marcado
                           ? "bg-gradient-to-br from-[#C9A96E] to-[#b3925c] border-[#C9A96E] text-white shadow-md shadow-[#C9A96E]/30 scale-[1.02]"
                           : isHoje
                           ? "bg-neutral-100 border-neutral-300 text-neutral-700"
                           : "bg-white border-neutral-100 text-neutral-600 hover:border-[#C9A96E]/40 hover:bg-[#C9A96E]/5"
-                      } ${passado ? "opacity-25 cursor-not-allowed" : "cursor-pointer hover:scale-[1.03]"}`}
+                      } ${passado ? "opacity-25 cursor-not-allowed" : bloqueado ? "cursor-not-allowed" : "cursor-pointer hover:scale-[1.03]"}`}
                     >
                       {carregandoEsteDia ? <RefreshCw className="w-4 h-4 animate-spin" /> : cell.num}
                       {isHoje && !marcado && (
@@ -682,8 +834,113 @@ export default function WhatsAppBot() {
                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-md bg-gradient-to-br from-[#C9A96E] to-[#b3925c]" /> Dia de atendimento</span>
                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-md bg-neutral-100 border border-neutral-300" /> Hoje</span>
                 <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-neutral-400" /> Horário personalizado nesse dia</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-md bg-red-50 border border-red-100" /> Bloqueado</span>
                 <span className="ml-auto text-neutral-400">Clique num dia para marcar ou desmarcar</span>
               </div>
+            </div>
+
+            {/* Bloqueios e Feriados — vale para as duas unidades, tem prioridade
+                sobre os dias marcados no calendário acima (ver checkAvailability
+                em src/services/whatsappCore.ts). */}
+            <div className="bg-white border border-neutral-200 rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-1">
+                <Ban className="w-4 h-4 text-red-500" />
+                <h3 className="font-semibold text-neutral-800">Bloqueios e Feriados</h3>
+              </div>
+              <p className="text-xs text-neutral-400 mb-5">
+                Dias bloqueados aqui nunca são oferecidos pela IA, mesmo que apareçam marcados no calendário acima. Vale para Toledo e Fátima do Sul.
+              </p>
+
+              {/* Fins de semana recorrentes */}
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                {[{ dia: 6, label: "Sábado" }, { dia: 0, label: "Domingo" }].map(({ dia, label }) => {
+                  const ativo = diasSemanaBloqueados.has(dia);
+                  const carregando = salvandoBloqueioId === `semana::${dia}`;
+                  return (
+                    <button
+                      key={dia}
+                      onClick={() => toggleBloqueioSemana(dia)}
+                      disabled={carregando}
+                      className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-all disabled:opacity-50 ${
+                        ativo ? "bg-red-50 border-red-200 text-red-700" : "bg-neutral-50 border-neutral-200 text-neutral-600"
+                      }`}
+                    >
+                      <span className="text-sm font-medium">{label}</span>
+                      <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${ativo ? "bg-red-100 text-red-600" : "bg-neutral-200 text-neutral-500"}`}>
+                        {carregando ? "..." : ativo ? "Bloqueado" : "Livre"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Bloquear uma data específica manualmente */}
+              <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                <input
+                  type="date"
+                  value={novoFeriadoData}
+                  onChange={e => setNovoFeriadoData(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-neutral-200 text-sm text-neutral-700 focus:outline-none focus:border-[#C9A96E]"
+                />
+                <input
+                  type="text"
+                  placeholder="Motivo (opcional) — ex: viagem, feriado"
+                  value={novoFeriadoMotivo}
+                  onChange={e => setNovoFeriadoMotivo(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-lg border border-neutral-200 text-sm text-neutral-700 focus:outline-none focus:border-[#C9A96E]"
+                />
+                <button
+                  onClick={handleAdicionarFeriado}
+                  disabled={!novoFeriadoData || salvandoFeriado}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#0A0A0A] text-white text-sm font-medium hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                >
+                  <Ban className="w-3.5 h-3.5" /> Bloquear data
+                </button>
+              </div>
+
+              {/* Próximos feriados nacionais — um clique pra bloquear */}
+              <div className="mb-5">
+                <p className="text-[11px] text-neutral-400 mb-2">Próximos feriados nacionais — clique para bloquear:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {proximosFeriados.filter(f => !datasBloqueadas.has(f.data)).map(f => (
+                    <button
+                      key={f.data}
+                      onClick={() => adicionarBloqueioData(f.data, f.nome)}
+                      disabled={salvandoBloqueioId === `data::${f.data}`}
+                      className="px-2.5 py-1.5 rounded-lg border border-neutral-200 text-[11px] text-neutral-600 hover:border-[#C9A96E] hover:text-[#C9A96E] transition-colors disabled:opacity-40"
+                    >
+                      {formatarDataCurta(f.data)} · {f.nome}
+                    </button>
+                  ))}
+                  {proximosFeriados.filter(f => !datasBloqueadas.has(f.data)).length === 0 && (
+                    <span className="text-xs text-neutral-300">Todos os próximos feriados já estão bloqueados.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Datas específicas já bloqueadas */}
+              {carregandoBloqueios ? (
+                <div className="flex items-center gap-2 py-4 text-neutral-400 text-sm">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Carregando bloqueios...
+                </div>
+              ) : datasBloqueadas.size === 0 ? (
+                <p className="text-xs text-neutral-300">Nenhuma data específica bloqueada ainda.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {[...datasBloqueadas.values()].sort((a, b) => (a.data || "").localeCompare(b.data || "")).map(b => (
+                    <span key={b.id} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-lg bg-red-50 border border-red-100 text-[11px] text-red-700">
+                      {formatarDataCurta(b.data!)}{b.motivo ? ` · ${b.motivo}` : ""}
+                      <button
+                        onClick={() => removerBloqueio(b.id)}
+                        disabled={salvandoBloqueioId === b.id}
+                        className="p-0.5 rounded hover:bg-red-100 disabled:opacity-40"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Painel dos dias já marcados no mês/local selecionado */}
