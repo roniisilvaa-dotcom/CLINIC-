@@ -144,6 +144,22 @@ export const diasAtendimento = pgTable('dias_atendimento', {
   criadoEm: text('criado_em').notNull(),
 });
 
+// Bloqueios da agenda — dois tipos: 'semana' bloqueia um dia da semana inteiro
+// e recorrente (ex: sábado, domingo — diaSemana 0=domingo...6=sábado), 'data'
+// bloqueia uma data específica (feriado, viagem da Dra. etc). Tem prioridade
+// sobre dias marcados em diasAtendimento — mesmo que um dia esteja marcado
+// como disponível, se bater um bloqueio a IA nunca oferece esse dia (ver
+// checkAvailability em whatsappCore.ts). id = `semana::${diaSemana}` ou
+// `data::${data}`.
+export const bloqueiosAgenda = pgTable('bloqueios_agenda', {
+  id: text('id').primaryKey(),
+  tipo: text('tipo').notNull(), // 'semana' | 'data'
+  diaSemana: integer('dia_semana'), // 0-6, só quando tipo = 'semana'
+  data: text('data'), // YYYY-MM-DD, só quando tipo = 'data'
+  motivo: text('motivo'),
+  criadoEm: text('criado_em').notNull(),
+});
+
 // ── Prescricoes (biblioteca de templates) ──────────────────────────────
 export const prescricoesTemplates = pgTable('prescricoes_templates', {
   id: text('id').primaryKey(),
