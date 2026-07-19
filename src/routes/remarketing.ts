@@ -3,6 +3,7 @@ import { db } from "../db/index.js";
 import { conversasWhatsapp, agendaEventos } from "../db/schema.js";
 import { REMARKETING_MENSAGENS } from "../services/iaSecretaria.js";
 import { enviarMensagem } from "../services/evolutionWhatsappService.js";
+import { listarTelefonesSilenciados } from "../services/whatsappCore.js";
 
 const router = express.Router();
 const CRON_TOKEN = process.env.REMARKETING_CRON_TOKEN || "";
@@ -33,11 +34,18 @@ router.post("/remarketing-cron", async (req, res) => {
                   agendamentos.map(a => (a.pacienteId || "").replace(/^wpp_/, "")).filter(Boolean)
                 );
 
+      // Números com a IA pausada (manualmente pela Dra./equipe) nunca devem
+      // receber remarketing automático — antes disso o cron ignorava a pausa
+      // e continuava mandando mensagem de nudge mesmo com o contato silenciado
+      // no painel de Conversas.
+      const telefonesSilenciados = await listarTelefonesSilenciados();
+
       let enviados = 0;
           const agora = Date.now();
 
       for (const [telefone, mensagens] of porTelefone) {
               if (telefonesConvertidos.has(telefone)) continue;
+              if (telefonesSilenciados.has(telefone)) continue;
 
             mensagens.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
               const ultima = mensagens[mensagens.length - 1];
