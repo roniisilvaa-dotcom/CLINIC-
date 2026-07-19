@@ -8,7 +8,7 @@
  * os dois transportes.
  */
 import { db } from "../db/index.js";
-import { conversasWhatsapp, agendaEventos, pacientes, whatsappSilenciados, diasAtendimento, transacoesFinanceiras } from "../db/schema.js";
+import { conversasWhatsapp, agendaEventos, pacientes, whatsappSilenciados, diasAtendimento, transacoesFinanceiras, bloqueiosAgenda } from "../db/schema.js";
 import { eq, and, gte, asc } from "drizzle-orm";
 import {
   processarMensagem,
@@ -260,6 +260,26 @@ async function checkAvailability(
 
     let diasFuturos = diasCadastrados;
     if (_dataFim) diasFuturos = diasFuturos.filter(d => d.data <= _dataFim);
+
+    // Bloqueios de agenda (fins de semana recorrentes + feriados/datas específicas)
+    // têm prioridade sobre dias marcados — mesmo que a Dra. tenha marcado um dia
+    // disponível, se bater um bloqueio a IA nunca oferece essa data. Ver painel
+    // "Bloqueios e Feriados" (aba Dias de Atendimento).
+    try {
+      const bloqueios = await db.select().from(bloqueiosAgenda);
+      if (bloqueios.length > 0) {
+        const diasSemanaBloqueados = new Set(bloqueios.filter(b => b.tipo === "semana").map(b => b.diaSemana));
+        const datasBloqueadas = new Set(bloqueios.filter(b => b.tipo === "data").map(b => b.data));
+        diasFuturos = diasFuturos.filter(d => {
+          if (datasBloqueadas.has(d.data)) return false;
+          const diaSemanaNum = new Date(d.data + "T12:00:00").getDay();
+          if (diasSemanaBloqueados.has(diaSemanaNum)) return false;
+          return true;
+        });
+      }
+    } catch (e) {
+      console.error("Erro ao aplicar bloqueios de agenda:", e);
+    }
 
     // Aviso pra Dra. quando a agenda cadastrada está acabando — no máximo 1 por
     // dia, pra não virar spam.
