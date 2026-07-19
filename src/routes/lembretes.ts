@@ -12,6 +12,7 @@ import { db } from "../db/index.js";
 import { agendaEventos, pacientes } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { enviarMensagem } from "../services/evolutionWhatsappService.js";
+import { listarTelefonesSilenciados } from "../services/whatsappCore.js";
 
 const router = express.Router();
 const CRON_TOKEN = process.env.LEMBRETES_CRON_TOKEN || "";
@@ -64,6 +65,11 @@ router.post("/lembretes-cron", async (req, res) => {
     const agora = agoraBrasil().getTime();
     let enviados = 0;
 
+    // Números com a IA pausada (manualmente pela Dra./equipe) nunca devem
+    // receber lembrete automático — antes disso o cron ignorava a pausa e
+    // mandava lembrete de consulta mesmo com o contato silenciado no painel.
+    const telefonesSilenciados = await listarTelefonesSilenciados();
+
     for (const evento of eventos) {
       if (!evento.data || !evento.horario) continue;
 
@@ -81,6 +87,7 @@ router.post("/lembretes-cron", async (req, res) => {
           .where(eq(pacientes.id, evento.pacienteId)).limit(1);
         const telefone = pac[0]?.telefone;
         if (!telefone) break;
+        if (telefonesSilenciados.has(telefone)) break;
 
         const texto = etapa.texto(evento.data, evento.horario);
         const ok = await enviarMensagem(telefone, texto);
