@@ -13,6 +13,8 @@ import {
   X,
   Loader2,
   Clock,
+  Pencil,
+  Ban,
 } from "lucide-react";
 import { EventoAgenda, Paciente } from "../types";
 
@@ -33,6 +35,7 @@ interface AgendaModuloProps {
   onViewPaciente: (pacienteId: string) => void;
   onOpenNovaConsulta: (pacienteId: string) => void;
   onCreateEvento?: (dados: NovoEventoPayload) => Promise<void> | void;
+  onUpdateEvento?: (id: string, dados: Partial<{ data: string; horario: string; tipo: EventoAgenda["tipo"]; status: EventoAgenda["status"]; diagnosticoResumo: string }>) => Promise<void> | void;
 }
 
 const MESES = [
@@ -52,8 +55,59 @@ export default function AgendaModulo({
   pacientes,
   onViewPaciente,
   onOpenNovaConsulta,
-  onCreateEvento
+  onCreateEvento,
+  onUpdateEvento,
 }: AgendaModuloProps) {
+
+  const [editingEvento, setEditingEvento] = useState<EventoAgenda | null>(null);
+  const [editData, setEditData] = useState("");
+  const [editHorario, setEditHorario] = useState("");
+  const [editTipo, setEditTipo] = useState<EventoAgenda["tipo"]>("Presencial - Toledo");
+  const [editStatus, setEditStatus] = useState<EventoAgenda["status"]>("Pendente");
+  const [editMotivo, setEditMotivo] = useState("");
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+
+  const abrirEdicaoEvento = (evt: EventoAgenda) => {
+    setEditingEvento(evt);
+    setEditData(evt.data);
+    setEditHorario(evt.horario);
+    setEditTipo(evt.tipo);
+    setEditStatus(evt.status);
+    setEditMotivo(evt.diagnosticoResumo || "");
+  };
+
+  const salvarEdicaoEvento = async () => {
+    if (!editingEvento) return;
+    setSalvandoEdicao(true);
+    try {
+      await onUpdateEvento?.(editingEvento.id, {
+        data: editData,
+        horario: editHorario,
+        tipo: editTipo,
+        status: editStatus,
+        diagnosticoResumo: editMotivo,
+      });
+      setEditingEvento(null);
+    } catch (e) {
+      alert("Não foi possível salvar as alterações do agendamento.");
+    } finally {
+      setSalvandoEdicao(false);
+    }
+  };
+
+  const cancelarConsulta = async () => {
+    if (!editingEvento) return;
+    if (!confirm("Tem certeza que deseja cancelar esta consulta?")) return;
+    setSalvandoEdicao(true);
+    try {
+      await onUpdateEvento?.(editingEvento.id, { status: "Cancelada" });
+      setEditingEvento(null);
+    } catch (e) {
+      alert("Não foi possível cancelar a consulta.");
+    } finally {
+      setSalvandoEdicao(false);
+    }
+  };
 
   const hoje = new Date();
   const [activeUnit, setActiveUnit] = useState<"all" | "Toledo" | "Fátima do Sul" | "Online">("all");
@@ -398,6 +452,14 @@ export default function AgendaModulo({
                             {evt.status}
                           </span>
 
+                            <button
+                              onClick={() => abrirEdicaoEvento(evt)}
+                              className="text-gray-400 hover:text-[#C9A84C] transition p-1"
+                              title="Editar agendamento"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+
                           {evt.status !== "Realizada" && evt.status !== "Cancelada" && (
                             <button
                               onClick={() => onOpenNovaConsulta(evt.pacienteId)}
@@ -557,6 +619,128 @@ export default function AgendaModulo({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {editingEvento && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setEditingEvento(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative"
+            >
+              <button
+                onClick={() => setEditingEvento(null)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Agendamento</h3>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Paciente</label>
+                  <p className="text-sm font-medium text-gray-800">{editingEvento.pacienteNome}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase">Data</label>
+                    <input
+                      type="date"
+                      value={editData}
+                      onChange={(e) => setEditData(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase">Horário</label>
+                    <input
+                      type="time"
+                      value={editHorario}
+                      onChange={(e) => setEditHorario(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Tipo</label>
+                  <select
+                    value={editTipo}
+                    onChange={(e) => setEditTipo(e.target.value as EventoAgenda["tipo"])}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1"
+                  >
+                    <option value="Presencial - Toledo">Presencial - Toledo</option>
+                    <option value="Presencial - Fátima do Sul">Presencial - Fátima do Sul</option>
+                    <option value="Online">Online</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Status</label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as EventoAgenda["status"])}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1"
+                  >
+                    <option value="Pendente">Pendente</option>
+                    <option value="Confirmada">Confirmada</option>
+                    <option value="Realizada">Realizada</option>
+                    <option value="Cancelada">Cancelada</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Motivo / Observação</label>
+                  <textarea
+                    value={editMotivo}
+                    onChange={(e) => setEditMotivo(e.target.value)}
+                    rows={2}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 mt-6">
+                <button
+                  onClick={cancelarConsulta}
+                  disabled={salvandoEdicao || editingEvento.status === "Cancelada"}
+                  className="flex items-center gap-1 text-red-600 hover:text-red-700 text-sm font-semibold disabled:opacity-40"
+                >
+                  <Ban className="w-4 h-4" /> Cancelar consulta
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingEvento(null)}
+                    className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                  >
+                    Fechar
+                  </button>
+                  <button
+                    onClick={salvarEdicaoEvento}
+                    disabled={salvandoEdicao}
+                    className="px-4 py-2 rounded-lg bg-[#0A0A0A] text-white text-sm font-semibold hover:bg-[#333] transition flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {salvandoEdicao ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Salvar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
