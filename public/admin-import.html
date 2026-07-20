@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CA.RO Clinic — Importar Support Clinic</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background:#0A0A0A; color:#eee; max-width:720px; margin:40px auto; padding:0 20px; }
+  h1 { font-size:20px; color:#C9A84C; font-weight:600; }
+  p.sub { color:#999; font-size:13px; margin-top:-8px; }
+  fieldset { border:1px solid #333; border-radius:10px; padding:16px 20px; margin-bottom:20px; }
+  legend { color:#C9A84C; font-size:13px; padding:0 6px; }
+  label { display:block; font-size:12px; color:#aaa; margin:10px 0 4px; }
+  input[type=email], input[type=password], input[type=file] { width:100%; box-sizing:border-box; padding:8px 10px; border-radius:6px; border:1px solid #444; background:#171717; color:#eee; font-size:13px; }
+  button { background:#C9A84C; color:#000; border:none; padding:10px 18px; border-radius:6px; font-weight:700; font-size:13px; cursor:pointer; margin-top:14px; margin-right:8px; }
+  button:disabled { opacity:0.5; cursor:not-allowed; }
+  button.secondary { background:#333; color:#eee; }
+  pre { background:#111; border:1px solid #333; border-radius:8px; padding:12px; font-size:12px; white-space:pre-wrap; max-height:400px; overflow:auto; }
+  .status { font-size:13px; margin-top:10px; }
+  .ok { color:#7CD992; }
+  .err { color:#e88; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+  <h1>Importar dados do Support Clinic</h1>
+  <p class="sub">Ferramenta interna de uso único — migração de pacientes/anamneses/evoluções/receitas.</p>
+
+  <fieldset id="loginBox">
+    <legend>1. Login (equipe da clínica)</legend>
+    <label>E-mail</label>
+    <input type="email" id="email" autocomplete="username" />
+    <label>Senha</label>
+    <input type="password" id="senha" autocomplete="current-password" />
+    <div><button id="btnLogin">Entrar</button></div>
+    <div id="loginStatus" class="status"></div>
+  </fieldset>
+
+  <fieldset id="uploadBox" class="hidden">
+    <legend>2. Arquivos exportados do Support Clinic (Configurações → Exportar dados)</legend>
+    <label>Clientes.csv</label>
+    <input type="file" id="fClientes" accept=".csv" />
+    <label>Anamneses.csv</label>
+    <input type="file" id="fAnamneses" accept=".csv" />
+    <label>Anamneses respostas.csv</label>
+    <input type="file" id="fRespostas" accept=".csv" />
+    <label>Evoluções.csv</label>
+    <input type="file" id="fEvolucoes" accept=".csv" />
+    <label>Receitas.csv</label>
+    <input type="file" id="fReceitas" accept=".csv" />
+    <div>
+      <button id="btnDryRun">Rodar dry-run (não grava nada)</button>
+      <button id="btnCommit" class="secondary" disabled>Confirmar importação de verdade</button>
+    </div>
+    <div id="uploadStatus" class="status"></div>
+  </fieldset>
+
+  <fieldset id="resultBox" class="hidden">
+    <legend>Resultado</legend>
+    <pre id="resultPre"></pre>
+  </fieldset>
+
+<script>
+let token = null;
+
+function decodeLatin1(buffer) {
+  return new TextDecoder("windows-1252").decode(buffer);
+}
+
+async function readFileAsLatin1(inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return "";
+  const buf = await file.arrayBuffer();
+  return decodeLatin1(buf);
+}
+
+document.getElementById("btnLogin").addEventListener("click", async () => {
+  const email = document.getElementById("email").value.trim();
+  const senha = document.getElementById("senha").value;
+  const statusEl = document.getElementById("loginStatus");
+  statusEl.textContent = "Entrando...";
+  statusEl.className = "status";
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, senha }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Falha no login");
+    token = data.token;
+    statusEl.textContent = `Logado como ${data.nome} (${data.role}).`;
+    statusEl.className = "status ok";
+    document.getElementById("uploadBox").classList.remove("hidden");
+  } catch (e) {
+    statusEl.textContent = "Erro: " + e.message;
+    statusEl.className = "status err";
+  }
+});
+
+async function montarPayload() {
+  return {
+    clientesCsv: await readFileAsLatin1(document.getElementById("fClientes")),
+    anamnesesCsv: await readFileAsLatin1(document.getElementById("fAnamneses")),
+    anamnesesRespostasCsv: await readFileAsLatin1(document.getElementById("fRespostas")),
+    evolucoesCsv: await readFileAsLatin1(document.getElementById("fEvolucoes")),
+    receitasCsv: await readFileAsLatin1(document.getElementById("fReceitas")),
+  };
+}
+
+async function chamar(endpoint) {
+  const statusEl = document.getElementById("uploadStatus");
+  const resultBox = document.getElementById("resultBox");
+  const resultPre = document.getElementById("resultPre");
+  statusEl.textContent = "Processando... isso pode levar alguns segundos.";
+  statusEl.className = "status";
+  try {
+    const payload = await montarPayload();
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok || data.ok === false) throw new Error(data.error || "Falha na importação");
+    resultBox.classList.remove("hidden");
+    resultPre.textContent = JSON.stringify(data, null, 2);
+    statusEl.textContent = "Concluído.";
+    statusEl.className = "status ok";
+    document.getElementById("btnCommit").disabled = false;
+    return data;
+  } catch (e) {
+    statusEl.textContent = "Erro: " + e.message;
+    statusEl.className = "status err";
+  }
+}
+
+document.getElementById("btnDryRun").addEventListener("click", () => chamar("/api/admin/import-support-clinic/dry-run"));
+document.getElementById("btnCommit").addEventListener("click", () => {
+  if (!confirm("Isso vai GRAVAR de verdade no banco de produção. Confirma?")) return;
+  chamar("/api/admin/import-support-clinic/commit");
+});
+</script>
+</body>
+</html>
