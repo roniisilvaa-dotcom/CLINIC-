@@ -27,6 +27,7 @@ import express from "express";
 import { db } from "../db/index.js";
 import { pacientes, consultas, users } from "../db/schema.js";
 import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 const router = express.Router();
 
@@ -320,6 +321,16 @@ router.post("/import-support-clinic/commit", requireStaffLocal, async (req, res)
   } catch (e: any) {
     console.error("Erro commit import Support Clinic:", e);
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Migração idempotente: garante a coluna prontuario_livre em pacientes (não há db:push automático no deploy).
+router.post("/migrate-prontuario", requireStaffLocal, async (req, res) => {
+  try {
+    await db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS prontuario_livre text`);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
 });
 
