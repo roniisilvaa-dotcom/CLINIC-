@@ -70,6 +70,15 @@ export default function AgendaModulo({
   const [formTipo, setFormTipo] = useState<EventoAgenda["tipo"]>("Presencial - Toledo");
   const [formProcedimento, setFormProcedimento] = useState("");
   const [formDuracao, setFormDuracao] = useState(30);
+  // Status do agendamento manual — por padrão "Confirmada", porque quando a Dra./equipe
+  // cadastra um horário aqui à mão é porque ELE JÁ ESTÁ MARCADO na agenda real dela
+  // (presencial, particular, encaixe etc.), não uma sugestão pendente de confirmação.
+  // Isso importa muito: a IA do WhatsApp (checkAvailability em whatsappCore.ts) só
+  // considera um horário "ocupado" — e por isso indisponível pra novos agendamentos —
+  // quando o status é exatamente "Confirmada". Antes esse modal sempre criava o evento
+  // como "Pendente", o que fazia esse horário continuar aparecendo como livre pra IA e
+  // ela podia oferecer e marcar OUTRO paciente exatamente em cima do mesmo horário.
+  const [formStatus, setFormStatus] = useState<EventoAgenda["status"]>("Confirmada");
 
   // Datas (YYYY-MM-DD) que têm pelo menos um evento agendado — usado pra desenhar
   // o pontinho no calendário.
@@ -131,6 +140,7 @@ export default function AgendaModulo({
     setFormTipo("Presencial - Toledo");
     setFormProcedimento("");
     setFormDuracao(30);
+    setFormStatus("Confirmada");
     setShowNovoModal(true);
   };
 
@@ -148,7 +158,7 @@ export default function AgendaModulo({
         tipo: formTipo,
         procedimentoTag: formProcedimento || "Consulta",
         duracaoMinutos: formDuracao,
-        status: "Pendente",
+        status: formStatus,
         diagnosticoResumo: formProcedimento,
       });
       setShowNovoModal(false);
@@ -502,6 +512,21 @@ export default function AgendaModulo({
                     placeholder="Ex: Consulta de retorno, avaliação inicial..."
                     className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-[#C9A84C]"
                   />
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-mono font-bold block mb-1.5">Status</label>
+                  <select
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value as EventoAgenda["status"])}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-[#C9A84C]"
+                  >
+                    <option value="Confirmada">Confirmada (bloqueia esse horário pra IA do WhatsApp)</option>
+                    <option value="Pendente">Pendente (não bloqueia — só uma anotação)</option>
+                  </select>
+                  <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
+                    Use "Confirmada" pra qualquer horário que já está marcado de verdade (presencial, particular, encaixe) — assim a Eduarda (IA do WhatsApp) nunca oferece nem agenda outro paciente nesse mesmo horário.
+                  </p>
                 </div>
               </div>
 
