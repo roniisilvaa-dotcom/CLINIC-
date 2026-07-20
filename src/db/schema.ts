@@ -28,6 +28,8 @@ export const pacientes = pgTable('pacientes', {
   diagnostico: jsonb('diagnostico').notNull(),
   protocolo: jsonb('protocolo').notNull(),
   tags: jsonb('tags').default([]),
+  // Prontuário em texto livre (Diagnóstico + Protocolo unificados numa única página editável).
+  prontuarioLivre: text('prontuario_livre'),
   // Token de sessão do próprio paciente (login por CPF em /api/auth/paciente-login).
   // Permite que ele veja só os próprios dados nas rotas protegidas — ver
   // requireStaffOrOwnPaciente em api/index.ts.
