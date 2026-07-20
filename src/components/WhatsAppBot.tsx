@@ -6,7 +6,7 @@ import {
   CheckCheck, Wifi, WifiOff, RefreshCw,
   Smartphone, Shield, BellRing, Send,
   Pause, Play, Trash2, X, AlertTriangle,
-  ChevronLeft, Pencil, Check, Ban
+  ChevronLeft, Pencil, Check, Ban, Brain, Save
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -48,6 +48,13 @@ interface Bloqueio {
   diaSemana: number | null;
   data: string | null;
   motivo: string | null;
+}
+
+interface ConfigIa {
+  valorSinal: number;
+  valorConsulta: number;
+  chavePix: string;
+  instrucoesExtras: string;
 }
 
 const STATUS_COLORS = {
@@ -111,7 +118,7 @@ function formatarDataCurta(iso: string) {
 
 // ─── Componente Principal ────────────────────────────────────────────
 export default function WhatsAppBot() {
-  const [aba, setAba] = useState<"visao_geral" | "conversas" | "dias_atendimento" | "configurar">("visao_geral");
+  const [aba, setAba] = useState<"visao_geral" | "conversas" | "dias_atendimento" | "config_ia" | "configurar">("visao_geral");
   const [stats, setStats] = useState<Stats>({ conversasHoje: 0, agendadosBot: 0, mensagensTotal: 0, botOnline: false });
   const [conversas, setConversas] = useState<Conversa[]>([]);
   const [conversaSelecionada, setConversaSelecionada] = useState<Conversa | null>(null);
@@ -153,6 +160,12 @@ export default function WhatsAppBot() {
   const [novoFeriadoData, setNovoFeriadoData] = useState("");
   const [novoFeriadoMotivo, setNovoFeriadoMotivo] = useState("");
   const [salvandoFeriado, setSalvandoFeriado] = useState(false);
+
+  // ── Configurações da IA (Fase 2 — preços, chave Pix, "ensinar a IA") ──
+  const [configIa, setConfigIa] = useState<ConfigIa>({ valorSinal: 100, valorConsulta: 550, chavePix: "", instrucoesExtras: "" });
+  const [carregandoConfigIa, setCarregandoConfigIa] = useState(false);
+  const [salvandoConfigIa, setSalvandoConfigIa] = useState(false);
+  const [configIaSalvaOk, setConfigIaSalvaOk] = useState(false);
 
   const carregarStats = useCallback(async () => {
     try {
@@ -225,6 +238,15 @@ export default function WhatsAppBot() {
     setCarregandoBloqueios(false);
   }, []);
 
+  const carregarConfigIa = useCallback(async () => {
+    setCarregandoConfigIa(true);
+    try {
+      const r = await fetch("/api/config-ia");
+      if (r.ok) setConfigIa(await r.json());
+    } catch { /* offline */ }
+    setCarregandoConfigIa(false);
+  }, []);
+
   useEffect(() => {
     carregarStats();
     const int = setInterval(carregarStats, 30000);
@@ -244,6 +266,11 @@ export default function WhatsAppBot() {
   useEffect(() => {
     if (aba === "dias_atendimento") { carregarDiasAtendimento(); carregarBloqueios(); }
   }, [aba, carregarDiasAtendimento, carregarBloqueios]);
+
+  // Ao abrir a aba "Configurações da IA": carrega preços, chave Pix e instruções.
+  useEffect(() => {
+    if (aba === "config_ia") carregarConfigIa();
+  }, [aba, carregarConfigIa]);
 
   // Se não estiver conectado, busca o QR Code automaticamente.
   useEffect(() => {
@@ -433,6 +460,23 @@ export default function WhatsAppBot() {
     setSalvandoFeriado(false);
   };
 
+  const salvarConfigIa = async () => {
+    setSalvandoConfigIa(true);
+    try {
+      const r = await fetch("/api/config-ia", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(configIa),
+      });
+      if (r.ok) {
+        setConfigIa(await r.json());
+        setConfigIaSalvaOk(true);
+        setTimeout(() => setConfigIaSalvaOk(false), 2500);
+      }
+    } catch { /* offline */ }
+    setSalvandoConfigIa(false);
+  };
+
   const irParaMesAnterior = () => {
     if (mesCalendario === 0) { setMesCalendario(11); setAnoCalendario(a => a - 1); }
     else setMesCalendario(m => m - 1);
@@ -521,6 +565,7 @@ export default function WhatsAppBot() {
     { id: "visao_geral", label: "Visão Geral", icon: Bot },
     { id: "conversas", label: "Conversas", icon: MessageCircle },
     { id: "dias_atendimento", label: "Dias de Atendimento", icon: Calendar },
+    { id: "config_ia", label: "Configurações da IA", icon: Brain },
     { id: "configurar", label: "Configurar", icon: Settings },
   ] as const;
 
@@ -1041,6 +1086,93 @@ export default function WhatsAppBot() {
                 ))}
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {/* ── CONFIGURAÇÕES DA IA (Fase 2) ─────────── */}
+        {aba === "config_ia" && (
+          <motion.div key="config_ia" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-xs text-neutral-600 bg-[#C9A96E]/10 border border-[#C9A96E]/30 rounded-xl px-4 py-3">
+              <Brain className="w-4 h-4 shrink-0 text-[#C9A96E]" />
+              Mude preços, chave Pix e ensine novas regras pra Eduarda aqui — sem precisar pedir nenhuma alteração de código. As mudanças valem a partir da próxima mensagem respondida.
+            </div>
+
+            {carregandoConfigIa ? (
+              <div className="flex items-center gap-2 py-10 text-neutral-400 text-sm justify-center">
+                <RefreshCw className="w-4 h-4 animate-spin" /> Carregando configurações...
+              </div>
+            ) : (
+              <>
+                {/* Preços e Pix */}
+                <div className="bg-white border border-neutral-200 rounded-2xl p-6">
+                  <h3 className="font-semibold text-neutral-800 mb-1">Preços e Pix</h3>
+                  <p className="text-xs text-neutral-400 mb-5">Valores que a Eduarda usa em toda conversa — sinal, consulta e a chave Pix pra pagamento.</p>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium text-neutral-500 mb-1 block">Valor do sinal (R$)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={configIa.valorSinal}
+                        onChange={e => setConfigIa(prev => ({ ...prev, valorSinal: Number(e.target.value) }))}
+                        className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm text-neutral-700 focus:outline-none focus:border-[#C9A96E]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-neutral-500 mb-1 block">Valor da consulta (R$)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={configIa.valorConsulta}
+                        onChange={e => setConfigIa(prev => ({ ...prev, valorConsulta: Number(e.target.value) }))}
+                        className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm text-neutral-700 focus:outline-none focus:border-[#C9A96E]"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-medium text-neutral-500 mb-1 block">Chave Pix</label>
+                      <input
+                        type="text"
+                        value={configIa.chavePix}
+                        onChange={e => setConfigIa(prev => ({ ...prev, chavePix: e.target.value }))}
+                        placeholder="CNPJ, CPF, e-mail ou telefone"
+                        className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm text-neutral-700 focus:outline-none focus:border-[#C9A96E]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ensinar a IA */}
+                <div className="bg-white border border-neutral-200 rounded-2xl p-6">
+                  <h3 className="font-semibold text-neutral-800 mb-1">Ensinar a Eduarda</h3>
+                  <p className="text-xs text-neutral-400 mb-3">
+                    Escreva aqui regras ou orientações extras — a Eduarda passa a seguir isso em toda conversa, com prioridade sobre o restante. Ex: "nunca ofereça parcelamento de procedimento acima de 5x", "se perguntarem sobre o Instagram, mande @dramariahzibetti", "pacientes de retorno não precisam pagar sinal".
+                  </p>
+                  <textarea
+                    value={configIa.instrucoesExtras}
+                    onChange={e => setConfigIa(prev => ({ ...prev, instrucoesExtras: e.target.value }))}
+                    rows={8}
+                    placeholder="Escreva uma regra por linha..."
+                    className="w-full px-3 py-2.5 rounded-lg border border-neutral-200 text-sm text-neutral-700 focus:outline-none focus:border-[#C9A96E] resize-y"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={salvarConfigIa}
+                    disabled={salvandoConfigIa}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0A0A0A] text-white text-sm font-medium hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                  >
+                    {salvandoConfigIa ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Salvar configurações
+                  </button>
+                  {configIaSalvaOk && (
+                    <span className="flex items-center gap-1.5 text-sm text-green-600">
+                      <Check className="w-4 h-4" /> Salvo!
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
           </motion.div>
         )}
 
