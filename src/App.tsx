@@ -407,6 +407,23 @@ export default function App() {
     setAgendaHoje(prev => [...prev, novoEvento]);
   };
 
+  const handleUpdateEvento = async (
+    id: string,
+    dados: Partial<{
+      data: string;
+      horario: string;
+      tipo: EventoAgenda["tipo"];
+      status: EventoAgenda["status"];
+      diagnosticoResumo: string;
+    }>
+  ) => {
+    await api(`/api/agenda/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(dados),
+    });
+    setAgendaHoje((prev) => prev.map((e) => (e.id === id ? { ...e, ...dados } : e)));
+  };
+
   const handleSendPatientMessage = (pacienteId: string, content: string, sender: "medica" | "paciente") => {
     const ts = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     const msg: Message = { id: `msg-${Date.now()}`, sender, content, timestamp: ts };
@@ -520,7 +537,8 @@ export default function App() {
               <AgendaModulo agendaHoje={agendaHoje} pacientes={pacientes}
                 onViewPaciente={(id) => { setSelectedPacienteId(id); setCurrentTab("pacientes"); }}
                 onOpenNovaConsulta={(id) => { setSelectedPacienteId(id); setCurrentTab("nova_consulta"); }}
-                onCreateEvento={handleCreateEvento} />
+                onCreateEvento={handleCreateEvento}
+                onUpdateEvento={handleUpdateEvento} />
             )}
             {currentTab === "ia_assistente" && (
               <IaAssistente pacientes={pacientes} activePlan={activePlan}
