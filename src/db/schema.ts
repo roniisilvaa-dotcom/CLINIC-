@@ -172,6 +172,17 @@ export const prescricoesTemplates = pgTable('prescricoes_templates', {
   cosmeticos: text('cosmeticos'),
 });
 
+// Configurações editáveis da IA pelo painel — a Dra. pode mudar preços, chave Pix
+// e adicionar instruções extras (o "ensinar a IA") sem precisar pedir deploy de
+// código pra ninguém. id = chave da config (ex: 'valorSinal', 'valorConsulta',
+// 'chavePix', 'instrucoesExtras'). valor sempre como texto (números convertidos
+// na leitura, ver getConfigIa() em iaSecretaria.ts) pra manter o schema simples.
+export const configuracoesIa = pgTable('configuracoes_ia', {
+  id: text('id').primaryKey(),
+  valor: text('valor').notNull(),
+  atualizadoEm: text('atualizado_em').notNull(),
+});
+
 // ── Faturamento (transacoes financeiras) ────────────────────────────
 export const transacoesFinanceiras = pgTable('transacoes_financeiras', {
   id: text('id').primaryKey(),
