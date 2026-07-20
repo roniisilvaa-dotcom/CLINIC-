@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Users, 
@@ -115,12 +115,14 @@ export default function PacientesModulo({
   const [filterInatividade, setFilterInatividade] = useState("all");
 
   // Profile Active Tab State
-  const [activeTab, setActiveTab] = useState<"pessoais" | "diagnostico" | "exames" | "protocolo" | "galeria" | "consultas" | "mensagens">("pessoais");
+  const [activeTab, setActiveTab] = useState<"prontuario" | "pessoais" | "diagnostico" | "exames" | "protocolo" | "galeria" | "consultas" | "mensagens">("prontuario");
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
   const [salvandoPaciente, setSalvandoPaciente] = useState(false);
   const [criandoPaciente, setCriandoPaciente] = useState(false);
+  const [savingProntuario, setSavingProntuario] = useState(false);
+  const prontuarioSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Etiquetas em edição (pedido do Igor)
   const [tagsDraft, setTagsDraft] = useState<string[]>([]);
@@ -432,6 +434,47 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
     setExcluindoListaId(null);
   }
 };
+
+  const buildProntuarioSeed = (p: Paciente): string => {
+    const partes: string[] = [];
+    if (p.queixaPrincipal) partes.push(`Queixa principal: ${p.queixaPrincipal}`);
+    if (p.diagnostico?.principal) partes.push(`Diagnóstico: ${p.diagnostico.principal}`);
+    if (p.diagnostico?.observacoes) partes.push(`Observações: ${p.diagnostico.observacoes}`);
+    if (p.protocolo?.medicamentos) partes.push(`Medicamentos: ${p.protocolo.medicamentos}`);
+    if (p.protocolo?.procedimentos) partes.push(`Procedimentos: ${p.protocolo.procedimentos}`);
+    if (p.protocolo?.cosmeticos) partes.push(`Cosméticos: ${p.protocolo.cosmeticos}`);
+    if (p.protocolo?.suplementacao) partes.push(`Suplementação: ${p.protocolo.suplementacao}`);
+    if (p.protocolo?.estiloVida) partes.push(`Estilo de vida: ${p.protocolo.estiloVida}`);
+    if (p.antecedentes?.historicoFamiliar) partes.push(`Histórico familiar: ${p.antecedentes.historicoFamiliar}`);
+    return partes.join("\n\n");
+  };
+
+  const handleSaveProntuario = async (pacienteId: string, texto: string) => {
+    setSavingProntuario(true);
+    try {
+      const token = localStorage.getItem("caro_clinic_token");
+      const res = await fetch(`/api/pacientes/${pacienteId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ prontuarioLivre: texto }),
+      });
+      if (!res.ok) throw new Error("Falha ao salvar prontuário");
+      const updatedList = pacientes.map(p => p.id === pacienteId ? { ...p, prontuarioLivre: texto } : p);
+      onChangePacientes(updatedList);
+    } catch (err) {
+      console.error("Erro ao salvar prontuário:", err);
+    } finally {
+      setSavingProntuario(false);
+    }
+  };
+
+  const handleProntuarioChange = (pacienteId: string, texto: string) => {
+    if (prontuarioSaveTimer.current) clearTimeout(prontuarioSaveTimer.current);
+    prontuarioSaveTimer.current = setTimeout(() => handleSaveProntuario(pacienteId, texto), 900);
+  };
 
   // Status Color indicators helper
   const renderStatusDot = (status: ExameLaboratorial["statusMap"][string]) => {
@@ -803,10 +846,9 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
               {/* Navigation Tabs of the profile */}
               <div className="flex items-center gap-1.5 overflow-x-auto mt-6 border-t border-[#0A0A0A]/5 pt-4 select-none">
                 {[
+                  { id: "prontuario", label: "Prontuário", icon: FileSignature },
                   { id: "pessoais", label: "Dados Pessoais", icon: FileText },
-                  { id: "diagnostico", label: "Diagnóstico Clínico", icon: Dna },
                   { id: "exames", label: "Exames Laboratoriais", icon: FileCheck },
-                  { id: "protocolo", label: "Protocolo Tratamento", icon: Scissors },
                   { id: "galeria", label: "Galeria Capilar", icon: ImageIcon },
                   { id: "consultas", label: "Consultas / Histórico", icon: History },
                   { id: "mensagens", label: "Canal Direto / QR Code", icon: MessageSquare },
@@ -838,6 +880,28 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
               {curPaciente && (
                 <div className="space-y-6">
                   
+                  {/* ====== TAB: PRONTUÁRIO (texto livre, página única) ====== */}
+                  {activeTab === "prontuario" && (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center border-b border-[#1F1F1F] pb-3">
+                        <div>
+                          <h3 className="text-lg font-serif text-[#FAFAFA] font-medium">Prontuário</h3>
+                          <p className="text-xs text-neutral-400 mt-0.5">Texto livre — diagnóstico, protocolo, observações, tudo num só lugar. Salva sozinho enquanto você digita.</p>
+                        </div>
+                        <span className="text-[10px] text-[#C9A84C] font-mono uppercase">
+                          {savingProntuario ? "Salvando..." : "Salvo"}
+                        </span>
+                      </div>
+                      <textarea
+                        key={curPaciente.id}
+                        defaultValue={curPaciente.prontuarioLivre || buildProntuarioSeed(curPaciente)}
+                        onChange={(e) => handleProntuarioChange(curPaciente.id, e.target.value)}
+                        placeholder="Escreva livremente sobre diagnóstico, protocolo de tratamento, observações clínicas..."
+                        className="w-full min-h-[560px] bg-[#161616] border border-[#2B2B2B] focus:border-[#C9A84C] text-sm text-neutral-200 p-5 rounded-lg outline-none leading-relaxed resize-y"
+                      />
+                    </div>
+                  )}
+
                   {/* ====== TAB 1: DADOS PESSOAIS ====== */}
                   {activeTab === "pessoais" && (
                     <div className="space-y-6">
