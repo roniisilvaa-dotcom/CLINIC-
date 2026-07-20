@@ -19,9 +19,11 @@ import {
   transacoesFinanceiras,
   diasAtendimento,
   bloqueiosAgenda,
+  configuracoesIa,
 } from "../src/db/schema.js";
 import { eq, sql } from "drizzle-orm";
 import { hashSenha, verificarSenha, senhaEstaEmTextoPuro } from "../src/lib/senha.js";
+import { getConfigIa } from "../src/services/iaSecretaria.js";
 
 const app = express();
 
@@ -169,6 +171,15 @@ db.execute(sql`CREATE TABLE IF NOT EXISTS bloqueios_agenda (
   motivo text,
   criado_em text NOT NULL
 )`).catch((e) => console.error("Migracao bloqueios_agenda falhou:", e));
+
+// Migracao automatica: configuracoes editaveis da IA pelo painel (precos, chave
+// Pix, instrucoes extras — o "ensinar a IA"). Ver getConfigIa() em
+// src/services/iaSecretaria.ts.
+db.execute(sql`CREATE TABLE IF NOT EXISTS configuracoes_ia (
+  id text PRIMARY KEY,
+  valor text NOT NULL,
+  atualizado_em text NOT NULL
+)`).catch((e) => console.error("Migracao configuracoes_ia falhou:", e));
 
 // ─── Autenticacao / autorizacao ───────────────────────────────────────────────
 //
@@ -555,6 +566,38 @@ app.delete("/api/agenda/bloqueios/:id", requireStaff, async (req, res) => {
   try {
     await db.delete(bloqueiosAgenda).where(eq(bloqueiosAgenda.id, req.params.id));
     res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Configurações da IA (Fase 2 — preços, chave Pix e instruções extras) ────
+// Permite a Dra./equipe mudar valores e "ensinar" regras extras pra Eduarda
+// direto pelo painel, sem precisar pedir alteração de código. Ver getConfigIa()
+// e montarSystemPrompt() em src/services/iaSecretaria.ts — quem realmente lê e
+// aplica essas configs em toda conversa da IA.
+app.get("/api/config-ia", requireStaff, async (_req, res) => {
+  try {
+    const cfg = await getConfigIa();
+    res.json(cfg);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put("/api/config-ia", requireStaff, async (req, res) => {
+  try {
+    const CHAVES_PERMITIDAS = ["valorSinal", "valorConsulta", "chavePix", "instrucoesExtras"];
+    const agora = new Date().toISOString();
+    for (const chave of CHAVES_PERMITIDAS) {
+      if (req.body?.[chave] === undefined) continue;
+      const valor = String(req.body[chave]);
+      await db.insert(configuracoesIa)
+        .values({ id: chave, valor, atualizadoEm: agora })
+        .onConflictDoUpdate({ target: configuracoesIa.id, set: { valor, atualizadoEm: agora } });
+    }
+    const cfg = await getConfigIa(true);
+    res.json(cfg);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
