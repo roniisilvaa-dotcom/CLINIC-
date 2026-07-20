@@ -88,6 +88,7 @@ export interface Paciente {
   galeria: FotoCapilar[];
   consultas: ConsultaHistorial[];
     tags: string[]; // etiquetas: tricologia, dermato estetica, etc (pedido do Igor)
+  prontuarioLivre?: string; // texto livre unificado (diagnostico + protocolo), pagina unica editavel
 }
 
 export interface PrescricaoTemplate {
