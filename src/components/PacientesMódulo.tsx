@@ -468,12 +468,16 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
                 disabled={criandoPaciente}
                 onClick={async () => {
                   const idNew = `paciente-${Date.now()}`;
+                  const cpfPlaceholder = (() => {
+                    const ts = Date.now().toString().slice(-9);
+                    return `${ts.slice(0,3)}.${ts.slice(3,6)}.${ts.slice(6,9)}-00`;
+                  })();
                   const novo: Paciente = {
                     id: idNew,
                     nome: "Novo Paciente Integrado",
                     idade: 30,
                     dataNascimento: "1996-01-01",
-                    cpf: "000.000.000-00",
+                    cpf: cpfPlaceholder,
                     telefone: "(45) 99999-9999",
                     email: "email@provedor.com",
                     cidade: "Toledo",
@@ -503,14 +507,14 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
                       body: JSON.stringify(pacientePayload),
                     });
                     if (!res.ok) throw new Error("Falha ao cadastrar no servidor");
+                    onChangePacientes([novo, ...pacientes]);
+                    onSelectPaciente(idNew);
                   } catch (err) {
                     console.error("Erro ao cadastrar paciente:", err);
-                    alert("Não foi possível cadastrar no servidor. Verifique sua conexão — o paciente pode não persistir após recarregar a página.");
+                    alert("Não foi possível cadastrar no servidor. Tente novamente em alguns segundos.");
                   } finally {
                     setCriandoPaciente(false);
                   }
-                  onChangePacientes([novo, ...pacientes]);
-                  onSelectPaciente(idNew);
                 }}
                 className="bg-[#0A0A0A] hover:bg-[#C9A84C] disabled:opacity-50 text-white hover:text-black text-xs font-bold font-mono tracking-wider uppercase px-5 py-3 rounded-lg flex items-center gap-2 transition-all duration-200 cursor-pointer self-start sm:self-auto shadow-sm"
               >
