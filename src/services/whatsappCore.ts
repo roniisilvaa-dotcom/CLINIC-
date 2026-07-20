@@ -16,7 +16,7 @@ import {
   formatarSolicitacaoPix,
   formatarConfirmacaoAgendamento,
   validarComprovantePix,
-  VALOR_SINAL,
+  getConfigIa,
   MensagemConversa,
 } from "./iaSecretaria.js";
 
@@ -399,6 +399,10 @@ async function createAppointment(
       return `${String(Math.floor(totalMin / 60)).padStart(2, "0")}:${String(totalMin % 60).padStart(2, "0")}`;
     })();
 
+    // Valor do sinal em vigor agora (editável pela Dra./equipe no painel
+    // "Configurações da IA" — ver getConfigIa() em iaSecretaria.ts).
+    const cfg = await getConfigIa();
+
     const pacienteId = await garantirPacienteParaAgendamento(args, telefone);
 
     await db.insert(agendaEventos).values({
@@ -410,7 +414,7 @@ async function createAppointment(
       procedimentoTag: args.procedimento,
       duracaoMinutos: 90,
       status: "Confirmada",
-      diagnosticoResumo: args.observacao || `Agendado via WhatsApp. CPF: ${args.cpf}. Sinal de R$ ${VALOR_SINAL},00 pago via Pix.`,
+      diagnosticoResumo: args.observacao || `Agendado via WhatsApp. CPF: ${args.cpf}. Sinal de R$ ${cfg.valorSinal},00 pago via Pix.`,
     });
 
     // Registra o sinal recebido no Faturamento/Caixa — antes disso o agendamento
@@ -425,7 +429,7 @@ async function createAppointment(
         pacienteNome: args.nome_paciente,
         data: args.data,
         descricao: `Sinal — ${args.procedimento} (agendado via WhatsApp)`,
-        valor: VALOR_SINAL,
+        valor: cfg.valorSinal,
         metodo: "Pix",
         status: "Pago",
         unidade: "Toledo",
@@ -444,7 +448,7 @@ async function createAppointment(
         data: args.data,
         horario: args.horario,
         horarioFim,
-        valorSinal: VALOR_SINAL,
+        valorSinal: cfg.valorSinal,
       });
       await enviarMensagem(numDra, notif);
     }
@@ -631,14 +635,16 @@ export async function processarEventoWebhook(
       else if (name === "solicitar_sinal_pix") {
         Object.assign(session.dadosColeta, args, { telefone: args.telefone || telefone });
         session.aguardandoPagamento = true;
-        textoResposta = formatarSolicitacaoPix(args.procedimento);
+        const cfgPix = await getConfigIa();
+        textoResposta = formatarSolicitacaoPix(args.procedimento, cfgPix.valorSinal, cfgPix.chavePix);
       }
 
       else if (name === "create_appointment") {
         if (!session.aguardandoPagamento) {
           Object.assign(session.dadosColeta, args);
           session.aguardandoPagamento = true;
-          textoResposta = formatarSolicitacaoPix(args.procedimento || session.dadosColeta.procedimento || "consulta");
+          const cfgPix = await getConfigIa();
+          textoResposta = formatarSolicitacaoPix(args.procedimento || session.dadosColeta.procedimento || "consulta", cfgPix.valorSinal, cfgPix.chavePix);
         } else {
           const resultadoCriacao = await createAppointment({ ...args, ...session.dadosColeta }, telefone, enviarMensagem);
           textoResposta = resultadoCriacao.startsWith("Erro")
