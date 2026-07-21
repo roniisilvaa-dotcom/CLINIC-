@@ -328,6 +328,7 @@ router.post("/import-support-clinic/commit", requireStaffLocal, async (req, res)
 router.post("/migrate-prontuario", requireStaffLocal, async (req, res) => {
   try {
     await db.execute(sql`ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS prontuario_livre text`);
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS google_calendar_auth (id text PRIMARY KEY, access_token text NOT NULL, refresh_token text NOT NULL, expiry_date text NOT NULL, calendar_id text NOT NULL DEFAULT 'primary', conectado_em text NOT NULL)`);
     res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
