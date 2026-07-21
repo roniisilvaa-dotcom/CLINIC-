@@ -117,6 +117,78 @@ function formatarDataCurta(iso: string) {
 }
 
 // ─── Componente Principal ────────────────────────────────────────────
+function GoogleAgendaCard() {
+  const [status, setStatus] = useState<{ conectado: boolean; conectadoEm?: string; configurado: boolean } | null>(null);
+  const [carregando, setCarregando] = useState(false);
+
+  const buscarStatus = async () => {
+    try {
+      const token = localStorage.getItem("caro_clinic_token");
+      const r = await fetch("/api/google-calendar/status", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (r.ok) setStatus(await r.json());
+    } catch {}
+  };
+
+  useEffect(() => { buscarStatus(); }, []);
+
+  const conectar = async () => {
+    setCarregando(true);
+    try {
+      const token = localStorage.getItem("caro_clinic_token");
+      const r = await fetch("/api/google-calendar/auth-url", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await r.json();
+      if (data.url) window.location.href = data.url;
+      else alert(data.error || "Não foi possível iniciar a conexão.");
+    } catch {
+      alert("Erro ao conectar com o Google Agenda.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const desconectar = async () => {
+    if (!confirm("Desconectar o Google Agenda da Dra.?")) return;
+    setCarregando(true);
+    try {
+      const token = localStorage.getItem("caro_clinic_token");
+      await fetch("/api/google-calendar/disconnect", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      await buscarStatus();
+    } catch {
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  if (!status) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 mb-6">
+      <h3 className="font-bold text-gray-900 mb-1">Google Agenda</h3>
+      <p className="text-sm text-gray-500 mb-4">
+        {status.conectado
+          ? "Conectado — a IA cruza os horários livres com o Google Agenda real da Dra."
+          : "Conecte o Google Agenda da Dra. para a IA verificar disponibilidade real, além dos dias cadastrados aqui."}
+      </p>
+      {status.conectado ? (
+        <button onClick={desconectar} disabled={carregando} className="px-4 py-2 rounded-lg border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 disabled:opacity-50">
+          Desconectar
+        </button>
+      ) : (
+        <button onClick={conectar} disabled={carregando || !status.configurado} className="px-4 py-2 rounded-lg bg-[#0A0A0A] text-white text-sm font-semibold hover:bg-[#333] disabled:opacity-50">
+          {status.configurado ? "Conectar Google Agenda" : "Aguardando configuração (fale com o suporte)"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function WhatsAppBot() {
   const [aba, setAba] = useState<"visao_geral" | "conversas" | "dias_atendimento" | "config_ia" | "configurar">("visao_geral");
   const [stats, setStats] = useState<Stats>({ conversasHoje: 0, agendadosBot: 0, mensagensTotal: 0, botOnline: false });
@@ -764,6 +836,8 @@ export default function WhatsAppBot() {
         {/* ── DIAS DE ATENDIMENTO ─────────────────── */}
         {aba === "dias_atendimento" && (
           <motion.div key="dias" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+
+            <GoogleAgendaCard />
 
             {/* Cabeçalho com contagem por local — visão rápida sem precisar trocar de aba */}
             <div className="grid grid-cols-2 gap-4">
