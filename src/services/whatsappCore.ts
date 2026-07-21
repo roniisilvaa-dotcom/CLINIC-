@@ -19,6 +19,7 @@ import {
   getConfigIa,
   MensagemConversa,
 } from "./iaSecretaria.js";
+import { buscarPeriodosOcupados, horarioColideComOcupados } from "./googleCalendarService.js";
 
 const PAUSA_HANDOFF_MS = 60 * 60 * 1000;
 
@@ -303,6 +304,16 @@ async function checkAvailability(
 
     const inicio = dataInicio || hoje;
     const disponiveis: string[] = [];
+    // Se a Dra. conectou o Google Agenda, cruza com os eventos reais de la --
+    // evita oferecer um horario que a IA acha livre mas que na verdade ja esta
+    // ocupado no calendario pessoal da Dra. (compromisso que nao passa pelo
+    // agenda_eventos do sistema). Se ela nao conectou ainda, retorna [] e o
+    // comportamento fica identico ao de antes.
+    let periodosOcupadosGoogle: { inicio: string; fim: string }[] = [];
+    try {
+      const dataFimBusca = diasFuturos[diasFuturos.length - 1]?.data || inicio;
+      periodosOcupadosGoogle = (await buscarPeriodosOcupados(inicio, dataFimBusca)) || [];
+    } catch {}
     const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
     for (const dia of diasFuturos) {
@@ -323,7 +334,7 @@ async function checkAvailability(
           const [hh, mm] = h.split(":").map(Number);
           if (hh * 60 + mm <= minutosAgora + BUFFER_MINUTOS_HOJE) continue;
         }
-        if (!ocupados.has(`${dataStr}_${h}`)) {
+        if (!ocupados.has(`${dataStr}_${h}`) && !horarioColideComOcupados(dataStr, h, 90, periodosOcupadosGoogle)) {
           disponiveis.push(`${diasSemana[diaSemana]} ${dataStr} às ${h}`);
           if (disponiveis.length >= 4) break;
         }
