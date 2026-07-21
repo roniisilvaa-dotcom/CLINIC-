@@ -4,6 +4,7 @@ import remarketingRouter from '../src/routes/remarketing.js';
 import lembretesRouter from '../src/routes/lembretes.js';
 import adminResetRouter from '../src/routes/adminReset.js';
 import importSupportClinicRouter from '../src/routes/importSupportClinic.js';
+import googleCalendarRouter from '../src/routes/googleCalendar.js';
 import express from "express";
 import crypto from "crypto";
 import { db } from "../src/db/index.js";
@@ -938,5 +939,6 @@ app.use('/api/whatsapp', remarketingRouter);
 app.use('/api/whatsapp', lembretesRouter);
 app.use('/api/admin', adminResetRouter);
 app.use('/api/admin', importSupportClinicRouter);
+app.use('/api/google-calendar', googleCalendarRouter);
 
 export default app;
