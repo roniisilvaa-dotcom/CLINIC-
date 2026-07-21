@@ -599,6 +599,22 @@ export async function processarEventoWebhook(
         .where(eq(pacientes.telefone, telefone)).limit(1);
       if (paciente[0]) {
         contexto = `Paciente já cadastrada: ${paciente[0].nome}, diagnóstico: ${JSON.stringify(paciente[0].diagnostico)}, última atualização: ${paciente[0].ultimaAtualizacao}`;
+
+        // Consultas ja agendadas pra esse paciente -- sem isso a IA nao tinha como
+        // saber que a pessoa ja tem horario confirmado (ex: lembretes manuais
+        // mandados fora do fluxo do bot), e tratava qualquer "sim"/"confirmo" como
+        // inicio de um agendamento novo, pedindo Pix de novo pra quem ja tinha pago.
+        try {
+          const hojeCtxStr = agoraBrasil().toISOString().slice(0, 10);
+          const proximasConsultas = await db.select().from(agendaEventos)
+            .where(and(eq(agendaEventos.pacienteId, paciente[0].id), gte(agendaEventos.data, hojeCtxStr)))
+            .orderBy(asc(agendaEventos.data));
+          const relevantes = proximasConsultas.filter(e => e.status === "Confirmada" || e.status === "Pendente");
+          if (relevantes.length > 0) {
+            const consultaExistente = relevantes[0];
+            contexto += `\n\nATENCAO: este paciente JA TEM consulta ${consultaExistente.status === "Confirmada" ? "confirmada" : "pendente"} para ${consultaExistente.data} as ${consultaExistente.horario}. Se a mensagem dele for apenas uma confirmacao de presenca (ex: "sim", "confirmo", "ok", "combinado") respondendo a um lembrete, NAO peca pagamento nem reinicie o fluxo de agendamento -- apenas confirme que esta tudo certo. So siga o fluxo normal de cobranca se ele pedir explicitamente para marcar uma consulta NOVA/outra.`;
+          }
+        } catch {}
       }
     } catch {}
 
