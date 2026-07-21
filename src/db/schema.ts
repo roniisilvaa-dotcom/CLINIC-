@@ -197,3 +197,12 @@ export const transacoesFinanceiras = pgTable('transacoes_financeiras', {
   status: text('status').notNull(),
   unidade: text('unidade').notNull(),
 });
+
+export const googleCalendarAuth = pgTable('google_calendar_auth', {
+  id: text('id').primaryKey(),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token').notNull(),
+  expiryDate: text('expiry_date').notNull(),
+  calendarId: text('calendar_id').notNull().default('primary'),
+  conectadoEm: text('conectado_em').notNull(),
+});
