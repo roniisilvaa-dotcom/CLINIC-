@@ -22,8 +22,16 @@
 // separada, e o pedido da Dra. foi "texto livre, como a Support Clinic")
 // entram na tabela `consultas`, no campo `evolucao` (texto livre), com uma
 // tag em `queixa` indicando a origem (Anamnese/Evolução/Receita importada).
+//
+// O CSV de Anamneses respostas costuma ser grande (respostas de anamnese
+// de todos os pacientes) e o corpo da requisição HTTP na Vercel tem um
+// limite de tamanho independente do limite do Express — por isso o
+// frontend comprime cada CSV com gzip (CompressionStream nativo do
+// navegador) e manda em base64 com a flag `compressed: true`; aqui a
+// gente descomprime antes de processar (ver maybeDecompress).
 
 import express from "express";
+import zlib from "zlib";
 import { db } from "../db/index.js";
 import { pacientes, consultas, users } from "../db/schema.js";
 import { eq } from "drizzle-orm";
@@ -112,6 +120,24 @@ interface ImportPayload {
   receitasCsv: string;
 }
 
+// Descomprime os campos CSV quando o frontend manda `compressed: true`
+// (cada campo vem em base64 de um gzip do texto). Se não vier a flag,
+// assume payload em texto puro (compatibilidade com chamadas antigas).
+function maybeDecompress(body: any): ImportPayload {
+  if (!body || !body.compressed) return body as ImportPayload;
+  const dec = (b64: string): string => {
+    if (!b64) return "";
+    return zlib.gunzipSync(Buffer.from(b64, "base64")).toString("utf-8");
+  };
+  return {
+    clientesCsv: dec(body.clientesCsv),
+    anamnesesCsv: dec(body.anamnesesCsv),
+    anamnesesRespostasCsv: dec(body.anamnesesRespostasCsv),
+    evolucoesCsv: dec(body.evolucoesCsv),
+    receitasCsv: dec(body.receitasCsv),
+  };
+}
+
 function processar(body: ImportPayload) {
   const clientesRows = parseCsv(body.clientesCsv || "").slice(1);
   const anamnesesRows = parseCsv(body.anamnesesCsv || "").slice(1);
@@ -197,7 +223,8 @@ function processar(body: ImportPayload) {
   return { clientes, semCpf, anamnesesCompletas, evolucoes, receitas };
 }
 
-async function montarPlano(body: ImportPayload) {
+async function montarPlano(bodyRaw: any) {
+  const body = maybeDecompress(bodyRaw);
   const { clientes, semCpf, anamnesesCompletas, evolucoes, receitas } = processar(body);
 
   const existentes = await db.select({ id: pacientes.id, cpf: pacientes.cpf, nome: pacientes.nome }).from(pacientes);
