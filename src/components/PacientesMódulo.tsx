@@ -843,37 +843,7 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
                 </div>
               </div>
 
-              {/* Navigation Tabs of the profile */}
-              <div className="flex items-center gap-1.5 overflow-x-auto mt-6 border-t border-[#0A0A0A]/5 pt-4 select-none">
-                {[
-                  { id: "prontuario", label: "Prontuário", icon: FileSignature },
-                  { id: "pessoais", label: "Dados Pessoais", icon: FileText },
-                  { id: "exames", label: "Exames Laboratoriais", icon: FileCheck },
-                  { id: "galeria", label: "Galeria Capilar", icon: ImageIcon },
-                  { id: "consultas", label: "Consultas / Histórico", icon: History },
-                  { id: "mensagens", label: "Canal Direto / QR Code", icon: MessageSquare },
-                ].map((tab) => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => {
-                        setActiveTab(tab.id as any);
-                        setIsEditing(false);
-                      }}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition whitespace-nowrap cursor-pointer ${
-                        isActive 
-                          ? "bg-[#C9A84C]/10 border border-[#C9A84C]/45 text-[#C9A84C]" 
-                          : "hover:bg-gray-100 border border-transparent text-gray-400 hover:text-[#0A0A0A]"
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" /> {tab.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                          </div>
 
             {/* Profile Tab content body */}
             <div className="bg-white border border-[#E5E5E5] shadow-sm rounded-xl p-6 relative">
@@ -881,7 +851,7 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
                 <div className="space-y-6">
                   
                   {/* ====== TAB: PRONTUÁRIO (texto livre, página única) ====== */}
-                  {activeTab === "prontuario" && (
+                  {(
                     <div className="space-y-4">
                       <div className="flex justify-between items-center border-b border-[#1F1F1F] pb-3">
                         <div>
@@ -903,7 +873,7 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
                   )}
 
                   {/* ====== TAB 1: DADOS PESSOAIS ====== */}
-                  {activeTab === "pessoais" && (
+                  {(
                     <div className="space-y-6">
                       <div className="flex justify-between items-center border-b border-[#1F1F1F] pb-3">
                         <h3 className="text-lg font-serif text-[#FAFAFA] font-medium">Dados de Identificação e Cadastro</h3>
@@ -1085,149 +1055,9 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
                     </div>
                   )}
 
-                  {/* ====== TAB 2: DIAGNÓSTICO CLÍNICO ====== */}
-                  {activeTab === "diagnostico" && (
-                    <div className="space-y-6">
-                      <div className="flex justify-between items-center border-b border-[#1F1F1F] pb-3">
-                        <h3 className="text-lg font-serif text-[#FAFAFA] font-medium">Diagnóstico Tricológico de Precisão</h3>
-                        <span className="text-[11px] text-[#C9A84C] font-mono">Dra. Mariah Zibetti</span>
-                      </div>
-
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
-                        
-                        {/* Selector of Clinical Diagnoses */}
-                        <div className="lg:col-span-2 space-y-5">
-                          <div>
-                            <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider block">Diagnóstico Capilar Principal</span>
-                            <span className="text-lg font-serif font-semibold text-[#FAFAFA]">{curPaciente.diagnostico.principal}</span>
-                          </div>
-
-                          {curPaciente.diagnostico.secundario.length > 0 && (
-                            <div>
-                              <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider block">Comorbidades / Diagnósticos Secundários</span>
-                              <div className="flex gap-2 flex-wrap mt-1">
-                                {curPaciente.diagnostico.secundario.map(sec => (
-                                  <span key={sec} className="bg-neutral-800 text-xs text-neutral-300 px-2.5 py-1 rounded">
-                                    {sec}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-[#1F1F1F] pt-4">
-                            <div>
-                              <span className="text-[10px] text-neutral-500 font-mono uppercase block">Condições de Couro Cabeludo</span>
-                              <div className="space-y-1 mt-1.5">
-                                {curPaciente.diagnostico.condicoesAssociadas.map(cond => (
-                                  <div key={cond} className="flex items-center gap-2 text-xs text-neutral-300">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-[#C9A84C]" />
-                                    <span>{cond}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div>
-                              <span className="text-[10px] text-neutral-500 font-mono uppercase block">Fatores Contribuintes Ativos</span>
-                              <div className="space-y-1 mt-1.5">
-                                {curPaciente.diagnostico.fatoresContribuintes.map(fat => (
-                                  <div key={fat} className="flex items-center gap-2 text-xs text-neutral-300">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                                    <span>{fat}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="border-t border-[#1F1F1F] pt-4">
-                            <span className="text-[10px] text-neutral-500 font-mono uppercase block">Notas e Observações Clínicas</span>
-                            <p className="text-xs text-neutral-300 leading-relaxed mt-1.5 bg-[#161616] p-4 rounded-lg border border-[#232323]">
-                              {curPaciente.diagnostico.observacoes || "Nenhuma nota inserida."}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Interactive Scale Estimators (Hamilton / Ludwig visual) */}
-                        <div className="bg-[#181818] border border-[#262626] rounded-lg p-5 space-y-4">
-                          <h4 className="text-xs uppercase tracking-widest text-[#C9A84C] font-mono font-bold">Classificação em Escalas Médicas</h4>
-
-                          {/* Ludwig Grid for Females */}
-                          {curPaciente.diagnostico.escalaLudwig && (
-                            <div className="space-y-2">
-                              <span className="text-xs font-semibold text-neutral-300 block">Feminina: Escala de Ludwig</span>
-                              <div className="grid grid-cols-3 gap-2">
-                                {SCALE_LUDWIG_GRID.map(level => {
-                                  const matches = curPaciente.diagnostico.escalaLudwig === level;
-                                  return (
-                                    <div 
-                                      key={level} 
-                                      onClick={() => {
-                                        const updated = {
-                                          ...curPaciente,
-                                          diagnostico: { ...curPaciente.diagnostico, escalaLudwig: level }
-                                        };
-                                        handleSavePatientFields(updated);
-                                      }}
-                                      className={`p-3 rounded border text-center transition cursor-pointer select-none ${
-                                        matches 
-                                          ? "bg-[#C9A84C]/10 border-[#C9A84C] text-[#C9A84C]" 
-                                          : "bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700"
-                                      }`}
-                                    >
-                                      <div className="text-[11px] font-bold font-serif">{level}</div>
-                                      <div className="text-[8px] text-neutral-500 uppercase mt-1">
-                                        {level === "Grau I" ? "Leve" : level === "Grau II" ? "Moderada" : "Severa"}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <p className="text-[10px] text-neutral-500 italic mt-1.5 leading-relaxed">Padrão de rarefação difusa preservando a linha de implantação capilar frontal.</p>
-                            </div>
-                          )}
-
-                          {/* Hamilton-Norwood for Males */}
-                          {curPaciente.diagnostico.escalaHamiltonNorwood && (
-                            <div className="space-y-2">
-                              <span className="text-xs font-semibold text-neutral-300 block">Masculina: Escala de Hamilton-Norwood</span>
-                              <div className="grid grid-cols-4 gap-1.5">
-                                {SCALE_HAMILTON_GRID.map(level => {
-                                  const matches = curPaciente.diagnostico.escalaHamiltonNorwood === level;
-                                  return (
-                                    <div
-                                      key={level}
-                                      onClick={() => {
-                                        const updated = {
-                                          ...curPaciente,
-                                          diagnostico: { ...curPaciente.diagnostico, escalaHamiltonNorwood: level }
-                                        };
-                                        handleSavePatientFields(updated);
-                                      }}
-                                      className={`py-2 px-1 rounded border text-center transition cursor-pointer select-none ${
-                                        matches 
-                                          ? "bg-[#C9A84C]/10 border-[#C9A84C] text-[#C9A84C] font-bold" 
-                                          : "bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700"
-                                      }`}
-                                    >
-                                      <div className="text-[11px] font-mono">G {level}</div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <p className="text-[10px] text-neutral-500 italic mt-1.5 leading-relaxed">Padrão de miniaturização focado em recessão bitemporal e rarefação de vértex coronário.</p>
-                            </div>
-                          )}
-
-                        </div>
-
-                      </div>
-                    </div>
-                  )}
 
                   {/* ====== TAB 3: EXAMES LABORATORIAIS ====== */}
-                  {activeTab === "exames" && (
+                  {(
                     <div className="space-y-6">
                       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#1F1F1F] pb-3">
                         <div>
@@ -1393,105 +1223,9 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
                     </div>
                   )}
 
-                  {/* ====== TAB 4: PROTOCOLO DE TRATAMENTO ====== */}
-                  {activeTab === "protocolo" && (
-                    <div className="space-y-6">
-                      <div className="flex justify-between items-center border-b border-[#1F1F1F] pb-3">
-                        <div>
-                          <h3 className="text-lg font-serif text-[#FAFAFA] font-medium">Protocolo Ativo Recorrente</h3>
-                          <p className="text-xs text-neutral-400 mt-0.5">Válido desde {curPaciente.protocolo.dataInicio} • Duração: {curPaciente.protocolo.duracaoPrevista}</p>
-                        </div>
-
-                        <button
-                          onClick={() => setShowLetterheadPreview(true)}
-                          className="bg-neutral-800 hover:bg-[#1A1A1A] text-[#C9A84C] border border-[#C9A84C]/35 text-xs font-mono font-bold uppercase tracking-wider px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
-                        >
-                          <Download className="w-4 h-4 text-[#C9A84C]" /> Gerar PDF da Prescrição
-                        </button>
-                      </div>
-
-                      {isEditing ? (
-                        /* Editable protocol inputs */
-                        <form onSubmit={(e) => {
-                          e.preventDefault();
-                          const f = e.currentTarget;
-                          const updated = {
-                            ...curPaciente,
-                            protocolo: {
-                              ...curPaciente.protocolo,
-                              medicamentos: (f.elements.namedItem("meds") as HTMLTextAreaElement).value,
-                              procedimentos: (f.elements.namedItem("procs") as HTMLTextAreaElement).value,
-                              cosmeticos: (f.elements.namedItem("cosms") as HTMLTextAreaElement).value,
-                              suplementacao: (f.elements.namedItem("supls") as HTMLTextAreaElement).value,
-                              estiloVida: (f.elements.namedItem("habs") as HTMLTextAreaElement).value,
-                              duracaoPrevista: (f.elements.namedItem("dura") as HTMLInputElement).value,
-                            }
-                          };
-                          handleSavePatientFields(updated);
-                        }} className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                              <label className="text-xs uppercase text-neutral-500 font-mono">Fármacos Sistêmicos / Tópicos de Receituário</label>
-                              <textarea name="meds" rows={3} defaultValue={curPaciente.protocolo.medicamentos} className="w-full bg-[#1A1A1A] border border-[#2B2B2B] focus:border-[#C9A84C] text-xs text-neutral-200 p-2.5 rounded outline-none font-mono" />
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className="text-xs uppercase text-neutral-500 font-mono">Procedimentos em Consultório</label>
-                              <textarea name="procs" rows={3} defaultValue={curPaciente.protocolo.procedimentos} className="w-full bg-[#1A1A1A] border border-[#2B2B2B] focus:border-[#C9A84C] text-xs text-neutral-200 p-2.5 rounded outline-none font-mono" />
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className="text-xs uppercase text-neutral-500 font-mono">Suplementação Ortomolecular Capilar</label>
-                              <textarea name="supls" rows={3} defaultValue={curPaciente.protocolo.suplementacao} className="w-full bg-[#1A1A1A] border border-[#2B2B2B] focus:border-[#C9A84C] text-xs text-neutral-200 p-2.5 rounded outline-none font-mono" />
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className="text-xs uppercase text-neutral-500 font-mono">Cosméticos / Higienização Domiciliar</label>
-                              <textarea name="cosms" rows={3} defaultValue={curPaciente.protocolo.cosmeticos} className="w-full bg-[#1A1A1A] border border-[#2B2B2B] focus:border-[#C9A84C] text-xs text-neutral-200 p-2.5 rounded outline-none font-mono" />
-                            </div>
-                            <div className="space-y-1.5 md:col-span-2">
-                              <label className="text-xs uppercase text-neutral-500 font-mono">Hábitos de Vida / Instruções Relevantes</label>
-                              <textarea name="habs" rows={2} defaultValue={curPaciente.protocolo.estiloVida} className="w-full bg-[#1A1A1A] border border-[#2B2B2B] focus:border-[#C9A84C] text-xs text-neutral-200 p-2.5 rounded outline-none font-mono" />
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className="text-xs uppercase text-neutral-500 font-mono">Duração Estimada do Protocolo</label>
-                              <input type="text" name="dura" defaultValue={curPaciente.protocolo.duracaoPrevista} className="w-full bg-[#1A1A1A] border border-[#2B2B2B] focus:border-[#C9A84C] text-xs text-neutral-200 p-2 rounded outline-none" />
-                            </div>
-                          </div>
-
-                          <button type="submit" className="bg-[#C9A84C] hover:bg-[#D9B85C] text-black text-xs font-semibold px-5 py-2.5 rounded font-mono uppercase tracking-widest cursor-pointer mt-4">
-                            Salvar Protocolo
-                          </button>
-                        </form>
-                      ) : (
-                        /* Protocol visualizations grids */
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 animate-fadeIn">
-                          {[
-                            { title: "Medicamentos de Receita", items: curPaciente.protocolo.medicamentos, color: "text-[#C9A84C]" },
-                            { title: "Procedimentos e Terapias Físicas (Consultório)", items: curPaciente.protocolo.procedimentos, color: "text-blue-400" },
-                            { title: "Cuidados Cosméticos e Tônicos Ativos", items: curPaciente.protocolo.cosmeticos, color: "text-purple-400" },
-                            { title: "Suplementação e Vitaminas", items: curPaciente.protocolo.suplementacao, color: "text-emerald-400" },
-                          ].map(sect => (
-                            <div key={sect.title} className="bg-neutral-900 border border-neutral-800 p-5 rounded-lg space-y-3">
-                              <h4 className={`text-xs uppercase tracking-widest font-mono font-bold ${sect.color}`}>
-                                {sect.title}
-                              </h4>
-                              <div className="text-xs text-neutral-300 leading-relaxed font-mono whitespace-pre-wrap bg-black/40 p-3 rounded border border-[#212121]">
-                                {sect.items || "Nenhuma substância listada."}
-                              </div>
-                            </div>
-                          ))}
-
-                          <div className="md:col-span-2 bg-[#1A1A1A] border border-[#2B2B2B] p-4 rounded-lg">
-                            <span className="text-[10px] text-neutral-500 font-mono uppercase block">Orientação Comportamental & Estilo de Vida</span>
-                            <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
-                              {curPaciente.protocolo.estiloVida || "Nenhuma orientação comportamental lançada."}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {/* ====== TAB 5: GALERIA CAPILAR (Antes e Depois Slider) ====== */}
-                  {activeTab === "galeria" && (
+                  {(
                     <div className="space-y-6">
                       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#1F1F1F] pb-3">
                         <div>
@@ -1712,7 +1446,7 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
                   )}
 
                   {/* ====== TAB 6: CONSULTAS / HISTÓRICO ====== */}
-                  {activeTab === "consultas" && (
+                  {(
                     <div className="space-y-6">
                       <div className="flex justify-between items-center border-b border-[#1F1F1F] pb-3">
                         <h3 className="text-lg font-serif text-[#FAFAFA] font-medium">Histórico de Visitas e Anotamentos</h3>
@@ -1782,7 +1516,7 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
                   )}
 
                   {/* ====== TAB 7: CANAL DIRETO / QR CODE ====== */}
-                  {activeTab === "mensagens" && (
+                  {(
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn text-[#0A0A0A]">
                       
                       {/* Left: Chat interface */}
