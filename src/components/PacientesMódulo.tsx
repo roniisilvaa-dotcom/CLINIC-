@@ -1476,7 +1476,7 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
                                   </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr_1fr] gap-4 text-xs">
                                   <div className="space-y-1">
                                     <span className="text-[9px] uppercase tracking-wide text-neutral-500 block font-mono">Sintomas / Queixa Capilar</span>
                                     <p className="text-neutral-300 bg-neutral-900 border border-neutral-800 p-3 rounded italic min-h-[50px] leading-relaxed">
@@ -1486,7 +1486,7 @@ const handleDeletePaciente = async (alvo?: Paciente) => {
 
                                   <div className="space-y-1">
                                     <span className="text-[9px] uppercase tracking-wide text-neutral-500 block font-mono">Anotações da Médica (Evolução)</span>
-                                    <p className="text-neutral-300 bg-neutral-900 border border-neutral-800 p-3 rounded min-h-[50px] leading-relaxed">
+                                    <p className="text-neutral-300 bg-neutral-900 border border-neutral-800 p-3 rounded min-h-[50px] leading-relaxed text-sm">
                                       {visit.evolucao}
                                     </p>
                                   </div>
