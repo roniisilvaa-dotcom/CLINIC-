@@ -23,7 +23,7 @@ import { buscarPeriodosOcupados, horarioColideComOcupados } from "./googleCalend
 
 const PAUSA_HANDOFF_MS = 60 * 60 * 1000;
 
-// ─── Controle de custo: teto mensal de mensagens respondidas pela IA ────────────
+// ─── Controle de custo: teto mensal de mensagens respondidas pela IA ───────────
 // Protege contra custo de API descontrolado. Ao atingir o teto, a IA para de
 // responder automaticamente e o atendimento é transferido pra Dra. Mariah (humano)
 // até o próximo mês. Ajustável via env var sem precisar mexer no código.
@@ -199,11 +199,27 @@ function dividirMensagem(texto: string): string[] {
   return partes.length ? partes : [texto];
 }
 
+// Delay antes de a IA começar a responder — simula o tempo que uma pessoa de
+// verdade levaria pra ler a mensagem do paciente e começar a digitar. Sem isso,
+// a IA respondia em poucos milissegundos, um padrão fácil de identificar como
+// bot e que aumenta o risco de o número do WhatsApp ser banido (a conexão via
+// Evolution API é não-oficial — ver evolutionWhatsappService.ts). Base
+// aleatória de ~1,5 a 3,5s + um tempo proporcional ao tamanho da resposta
+// (simulando velocidade de digitação humana), com teto de 7s pra não deixar o
+// paciente esperando tempo demais.
+function calcularDelayHumano(texto: string): number {
+  const base = 1500 + Math.floor(Math.random() * 2000);
+  const porTamanho = texto.length * 30;
+  return Math.min(base + porTamanho, 7000);
+}
+
 async function enviarMensagemFracionada(
   telefone: string,
   texto: string,
   enviarMensagem: (telefone: string, mensagem: string) => Promise<boolean>,
 ): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, calcularDelayHumano(texto)));
+
   const partes = dividirMensagem(texto);
   for (let i = 0; i < partes.length; i++) {
     await enviarMensagem(telefone, partes[i]);
