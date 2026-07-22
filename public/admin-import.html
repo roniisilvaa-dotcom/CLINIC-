@@ -74,6 +74,25 @@ async function readFileAsLatin1(inputEl) {
   return decodeLatin1(buf);
 }
 
+// Os CSVs (principalmente Anamneses respostas.csv) podem passar do limite
+// de tamanho de corpo de requisição da Vercel. Comprimimos cada CSV com
+// gzip (API nativa do navegador) e mandamos em base64 — o servidor
+// descomprime antes de processar.
+async function gzipBase64(str) {
+  if (!str) return "";
+  const bytes = new TextEncoder().encode(str);
+  const cs = new CompressionStream("gzip");
+  const stream = new Blob([bytes]).stream().pipeThrough(cs);
+  const buf = await new Response(stream).arrayBuffer();
+  const arr = new Uint8Array(buf);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < arr.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, arr.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 document.getElementById("btnLogin").addEventListener("click", async () => {
   const email = document.getElementById("email").value.trim();
   const senha = document.getElementById("senha").value;
@@ -99,13 +118,14 @@ document.getElementById("btnLogin").addEventListener("click", async () => {
 });
 
 async function montarPayload() {
-  return {
-    clientesCsv: await readFileAsLatin1(document.getElementById("fClientes")),
-    anamnesesCsv: await readFileAsLatin1(document.getElementById("fAnamneses")),
-    anamnesesRespostasCsv: await readFileAsLatin1(document.getElementById("fRespostas")),
-    evolucoesCsv: await readFileAsLatin1(document.getElementById("fEvolucoes")),
-    receitasCsv: await readFileAsLatin1(document.getElementById("fReceitas")),
-  };
+  const [clientesCsv, anamnesesCsv, anamnesesRespostasCsv, evolucoesCsv, receitasCsv] = await Promise.all([
+    readFileAsLatin1(document.getElementById("fClientes")).then(gzipBase64),
+    readFileAsLatin1(document.getElementById("fAnamneses")).then(gzipBase64),
+    readFileAsLatin1(document.getElementById("fRespostas")).then(gzipBase64),
+    readFileAsLatin1(document.getElementById("fEvolucoes")).then(gzipBase64),
+    readFileAsLatin1(document.getElementById("fReceitas")).then(gzipBase64),
+  ]);
+  return { compressed: true, clientesCsv, anamnesesCsv, anamnesesRespostasCsv, evolucoesCsv, receitasCsv };
 }
 
 async function chamar(endpoint) {
